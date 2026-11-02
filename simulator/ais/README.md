@@ -91,11 +91,10 @@ track at these intervals and judges each one.
 | ------ | --------------------------------- | -------- |
 | A      | at anchor or moored, 3 kn or less | 3 min    |
 | A      | up to 14 kn                       | 10 s     |
-| A      | 14 to 23 kn                       | 6 s      |
-| A      | over 23 kn                        | 2 s      |
-| B (CS) | 2 kn or less                      | 3 min    |
 | A      | up to 14 kn, changing course      | 3 1/3 s  |
+| A      | 14 to 23 kn                       | 6 s      |
 | A      | 14 to 23 kn, changing course      | 2 s      |
+| A      | over 23 kn                        | 2 s      |
 | B (CS) | 2 kn or less                      | 3 min    |
 | B (CS) | over 2 kn                         | 30 s     |
 

@@ -76,7 +76,8 @@ Details are in [the routes README](../routes/README.md#depth-and-route-adjustmen
 **Identity.** At start the plugin tells the server who the boat is: the name and MMSI
 the sample's route gives it (Coquina, 367555210, at Miami; Meltemi, 239555210, in the
 Saronic Gulf; Coral Passage, 503555210, in Queensland) and its dimensions from its profile:
-length, beam, draft, air height, displacement, AIS ship type and where its AIS antenna is.
+length, beam, draft, air height, displacement, AIS ship type and class, and where its AIS
+antenna is.
 The name, MMSI, length, beam, draft and ship type are fields the server keeps for its own
 vessel settings and accepts from nowhere else, so the plugin sets them there, in memory and
 never saved, and takes them back when it stops; the rest it sends as itself. Anything the
