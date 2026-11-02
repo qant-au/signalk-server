@@ -195,7 +195,7 @@ going overboard away from a berth.
 
 ### Runs So Far
 
-2 November 2026: 19 checks passing in 9 minutes, 73,466 deltas validated, every bank's books
+2 November 2026: 19 checks passing in 8 minutes, 73,466 deltas validated, every bank's books
 balancing to 0.000 %. A thruster runs in each manoeuvre for as long as the boat takes to
 cross its three boat lengths at the leg's speed: seconds on the day out's 6 kn harbour legs,
 half a minute at Miami's 3 kn. Generator starts count each time one more generator is running.
