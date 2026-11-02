@@ -10,6 +10,15 @@ export class Rng {
     this.state = (seed ^ hash(stream)) >>> 0
   }
 
+  /** where the stream has reached, so a saved run can carry on with the same numbers */
+  save(): number {
+    return this.state
+  }
+
+  restore(state: number): void {
+    this.state = state >>> 0
+  }
+
   /** mulberry32: uniform in [0, 1) */
   next(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0
@@ -41,6 +50,11 @@ export function hash(text: string): number {
   return h >>> 0
 }
 
+export interface DriftState {
+  value: number
+  rng: number
+}
+
 /**
  * A slow wander around zero (Ornstein-Uhlenbeck): it drifts, and is pulled back with time
  * constant `tauS`, so its spread settles at `sigma`. Added to a modelled value it gives the
@@ -54,6 +68,16 @@ export class Drift {
     private readonly sigma: number,
     private readonly tauS: number
   ) {}
+
+  /** a drift's value and its stream; drifts sharing a stream all carry the same stream state */
+  save(): DriftState {
+    return { value: this.value, rng: this.rng.save() }
+  }
+
+  restore(state: DriftState): void {
+    this.value = state.value
+    this.rng.restore(state.rng)
+  }
 
   step(dtS: number): number {
     const decay = Math.exp(-dtS / this.tauS)

@@ -1,9 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import path from 'path'
 import { routeResource, routeResourceId } from '../routes/resource'
 import { Scenario, listSamples, loadScenario } from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
 import { Delta } from '../soak/deltas'
+import { StaleStateError, SystemsState } from '../systems/model'
 
 /**
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
@@ -21,9 +22,11 @@ interface Options {
   seed: number
 }
 
+/** the systems belong to the sample here, and to the profile and seed they carry */
 interface SavedState {
   sample: string
   scenarioMs: number
+  systems?: SystemsState
 }
 
 // The subset of the server's plugin API this plugin uses.
@@ -32,6 +35,7 @@ interface App {
   setPluginStatus(message: string): void
   setPluginError(message: string): void
   getDataDirPath(): string
+  error(message: string): void
   debug(...args: unknown[]): void
   resourcesApi: {
     setResource(
@@ -76,17 +80,50 @@ export = function simulatorPlugin(app: App) {
   const stateFile = () => path.join(app.getDataDirPath(), 'state.json')
 
   function readState(): SavedState | undefined {
+    if (!existsSync(stateFile())) return undefined
     try {
-      return existsSync(stateFile())
-        ? JSON.parse(readFileSync(stateFile(), 'utf8'))
-        : undefined
-    } catch {
+      const state = JSON.parse(readFileSync(stateFile(), 'utf8'))
+      if (
+        typeof state?.sample !== 'string' ||
+        !Number.isFinite(state.scenarioMs)
+      ) {
+        throw new Error('no sample or scenario time')
+      }
+      return state
+    } catch (error) {
+      app.error(
+        `ignoring the saved run in ${stateFile()}: ${(error as Error).message}`
+      )
       return undefined
     }
   }
 
   function saveState(state: SavedState) {
-    writeFileSync(stateFile(), JSON.stringify(state))
+    // written whole and then renamed, so a stop mid-write cannot leave half a file
+    const temporary = stateFile() + '.tmp'
+    writeFileSync(temporary, JSON.stringify(state))
+    renameSync(temporary, stateFile())
+  }
+
+  /** the saved systems, when they belong to this run; otherwise the systems start fresh */
+  function savedSystems(
+    options: Options,
+    scenario: Scenario,
+    saved: SavedState | undefined
+  ): SystemsState | undefined {
+    const systems = saved?.systems
+    if (!options.resume || saved?.sample !== options.sample || !systems)
+      return undefined
+    if (
+      systems.profileId !== scenario.profile?.id ||
+      systems.seed !== options.seed
+    ) {
+      app.debug(
+        `systems start fresh: saved for ${systems.profileId} seed ${systems.seed}`
+      )
+      return undefined
+    }
+    return systems
   }
 
   async function publishRoute(scenario: Scenario) {
@@ -118,17 +155,27 @@ export = function simulatorPlugin(app: App) {
         ? saved.scenarioMs
         : departure + options.startAtMinutes * 60000
 
-    simulation = new Simulation(
-      scenario,
-      {
-        timeMultiplier: options.timeMultiplier,
-        showTraffic: options.showTraffic,
-        scenarioStartMs,
-        seed: options.seed
-      },
-      (delta) => app.handleMessage(PLUGIN_ID, delta),
-      Date.now()
-    )
+    const start = (systemsState: SystemsState | undefined) =>
+      new Simulation(
+        scenario,
+        {
+          timeMultiplier: options.timeMultiplier,
+          showTraffic: options.showTraffic,
+          scenarioStartMs,
+          seed: options.seed,
+          systemsState
+        },
+        (delta) => app.handleMessage(PLUGIN_ID, delta),
+        Date.now()
+      )
+    const systemsState = savedSystems(options, scenario, saved)
+    try {
+      simulation = start(systemsState)
+    } catch (error) {
+      if (!(error instanceof StaleStateError)) throw error
+      app.error(`systems start fresh: ${error.message}`)
+      simulation = start(undefined)
+    }
     const adjusted = scenario.adjustments.filter(
       (a) => a.resolved && a.added
     ).length
@@ -143,7 +190,11 @@ export = function simulatorPlugin(app: App) {
       const result = simulation.tick(Date.now())
       ticks++
       if (ticks % SAVE_EVERY_TICKS === 0 || result.finished) {
-        saveState({ sample: options.sample, scenarioMs: result.scenarioMs })
+        saveState({
+          sample: options.sample,
+          scenarioMs: result.scenarioMs,
+          systems: simulation.systems?.save()
+        })
       }
       const depth =
         result.depthM !== undefined

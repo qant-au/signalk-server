@@ -10,7 +10,7 @@ import {
   WindTurbineProfile,
   ZoneProfile
 } from '../vessels/profile'
-import { Drift, Rng } from './random'
+import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
 
 /**
@@ -40,7 +40,48 @@ export interface SystemsOptions {
   startMs: number
   /** depth below the surface at a position, metres, or undefined with no data */
   depthAt?: (lat: number, lon: number) => number | undefined
+  /** a saved run to carry on from, in place of starting fresh at `startMs` */
+  state?: SystemsState
 }
+
+type Scalar = number | boolean | string | null
+
+interface UnitState {
+  id: string
+  values: Record<string, Scalar>
+  drifts: Record<string, DriftState>
+}
+
+/**
+ * Everything the model carries from one step to the next, as JSON: restored into a model
+ * built from the same profile and seed, the run carries on exactly as if it had never
+ * stopped.
+ */
+export interface SystemsState {
+  version: number
+  profileId: string
+  seed: number
+  nowMs: number
+  motion: Motion
+  values: Record<string, Scalar>
+  drifts: Record<string, DriftState>
+  engines: UnitState[]
+  generators: UnitState[]
+  banks: UnitState[]
+  tanks: UnitState[]
+  solar: UnitState[]
+  turbines: UnitState[]
+  zones: UnitState[]
+  sounders: UnitState[]
+  /** holding tanks being pumped out, as `type.id` */
+  pumping: string[]
+  pumpOuts: Record<string, number>
+}
+
+export const SYSTEMS_STATE_VERSION = 1
+
+/** a saved state that cannot be carried on from: another profile, or an older format */
+export class StaleStateError extends Error {}
 
 export const STEP_S = 2
 
@@ -208,6 +249,42 @@ interface SounderState {
   reading?: number
 }
 
+/** what each kind of unit carries from step to step, besides its profile */
+const ENGINE_FIELDS = [
+  'running',
+  'electricMode',
+  'rpm',
+  'load',
+  'shaftKw',
+  'bankKw',
+  'coolantC',
+  'oilC',
+  'exhaustC',
+  'runS',
+  'fuelLph'
+] as const
+const ENGINE_DRIFTS = ['rpmDrift', 'pressureDrift', 'tempDrift'] as const
+const GENERATOR_FIELDS = [
+  'running',
+  'runForS',
+  'wantsCharge',
+  'loadKw',
+  'coolantC',
+  'runS',
+  'fuelLph'
+] as const
+const BANK_FIELDS = [
+  'soc',
+  'health',
+  'currentA',
+  'voltage',
+  'tempC',
+  'chargerW'
+] as const
+const SOLAR_FIELDS = ['powerW', 'yieldJ', 'day', 'cloudCover'] as const
+const TURBINE_FIELDS = ['powerW', 'revolutionsHz'] as const
+const ZONE_FIELDS = ['tempC', 'humidity', 'compressorOn'] as const
+
 export class SystemsModel {
   private nowMs: number
   private readonly engines: EngineState[]
@@ -371,10 +448,194 @@ export class SystemsModel {
     this.airDrift = new Drift(weather, 0.8, 3600)
     this.pressureDrift = new Drift(weather, 150, 7200)
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
+    if (options.state) this.restore(options.state)
   }
 
   get scenarioMs(): number {
     return this.nowMs
+  }
+
+  private modelDrifts(): Record<string, Drift> {
+    return {
+      windSpeed: this.windSpeedDrift,
+      windDir: this.windDirDrift,
+      air: this.airDrift,
+      pressure: this.pressureDrift,
+      load: this.loadDrift
+    }
+  }
+
+  /** the state to carry the run on from, after a restart */
+  save(): SystemsState {
+    const drifts = this.modelDrifts()
+    return {
+      version: SYSTEMS_STATE_VERSION,
+      profileId: this.profile.id,
+      seed: this.options.seed,
+      nowMs: this.nowMs,
+      motion: { ...this.motion },
+      values: {
+        airC: this.airC,
+        waterC: this.waterC,
+        pressurePa: this.pressurePa,
+        windKn: this.windKn,
+        windDeg: this.windDeg,
+        hotelKw: this.hotelKw,
+        hvacKw: this.hvacKw,
+        shoreKw: this.shoreKw,
+        shoreChargeKw: this.shoreChargeKw,
+        hvacOn: this.hvacOn,
+        watermakerOn: this.watermakerOn,
+        watermakerRunning: this.watermakerRunning,
+        freshUsedL: this.freshUsedL,
+        madeL: this.madeL,
+        shoreWaterL: this.shoreWaterL,
+        sailing: this.sailing,
+        transferring: this.transferring ?? null,
+        inverterKw: this.inverterKw
+      },
+      drifts: Object.fromEntries(
+        Object.entries(drifts).map(([k, d]) => [k, d.save()])
+      ),
+      engines: this.engines.map((e) =>
+        saveUnit(e.p.id, e, ENGINE_FIELDS, ENGINE_DRIFTS)
+      ),
+      generators: this.generators.map((g) =>
+        saveUnit(g.p.id, g, GENERATOR_FIELDS, ENGINE_DRIFTS)
+      ),
+      banks: this.banks.map((b) => saveUnit(b.p.id, b, BANK_FIELDS, ['drift'])),
+      tanks: this.tanks.map((t) =>
+        saveUnit(tankKey(t), t, ['litres'], ['slosh'])
+      ),
+      solar: this.solar.map((s) =>
+        saveUnit(s.p.id, s, SOLAR_FIELDS, ['cloud'])
+      ),
+      turbines: this.turbines.map((t) =>
+        saveUnit(t.p.id, t, TURBINE_FIELDS, [])
+      ),
+      zones: this.zones.map((z) => saveUnit(z.p.id, z, ZONE_FIELDS, ['drift'])),
+      sounders: this.sounders.map((s) =>
+        saveUnit(s.id, s, ['reading'], ['drift'])
+      ),
+      pumping: [...this.pumping].map(tankKey),
+      pumpOuts: Object.fromEntries(this.pumpOuts)
+    }
+  }
+
+  /** puts a saved run back, or throws StaleStateError when it does not fit this model */
+  private restore(state: SystemsState): void {
+    if (state?.version !== SYSTEMS_STATE_VERSION) {
+      throw new StaleStateError(
+        `saved systems state is format ${state?.version}, this simulator writes ${SYSTEMS_STATE_VERSION}`
+      )
+    }
+    if (
+      state.profileId !== this.profile.id ||
+      state.seed !== this.options.seed
+    ) {
+      throw new StaleStateError(
+        `saved systems state is for ${state.profileId} seed ${state.seed}, not ${this.profile.id} seed ${this.options.seed}`
+      )
+    }
+    if (!Number.isFinite(state.nowMs) || typeof state.motion !== 'object') {
+      throw new StaleStateError('saved systems state has no time or motion')
+    }
+    restoreUnits(
+      'engines',
+      this.engines,
+      state.engines,
+      (e) => e.p.id,
+      ENGINE_FIELDS,
+      ENGINE_DRIFTS
+    )
+    restoreUnits(
+      'generators',
+      this.generators,
+      state.generators,
+      (g) => g.p.id,
+      GENERATOR_FIELDS,
+      ENGINE_DRIFTS
+    )
+    restoreUnits('banks', this.banks, state.banks, (b) => b.p.id, BANK_FIELDS, [
+      'drift'
+    ])
+    restoreUnits(
+      'tanks',
+      this.tanks,
+      state.tanks,
+      tankKey,
+      ['litres'],
+      ['slosh']
+    )
+    restoreUnits(
+      'solar',
+      this.solar,
+      state.solar,
+      (s) => s.p.id,
+      SOLAR_FIELDS,
+      ['cloud']
+    )
+    restoreUnits(
+      'turbines',
+      this.turbines,
+      state.turbines,
+      (t) => t.p.id,
+      TURBINE_FIELDS,
+      []
+    )
+    restoreUnits('zones', this.zones, state.zones, (z) => z.p.id, ZONE_FIELDS, [
+      'drift'
+    ])
+    restoreUnits(
+      'sounders',
+      this.sounders,
+      state.sounders,
+      (s) => s.id,
+      ['reading'],
+      ['drift']
+    )
+    const values: Record<string, Scalar> = { ...state.values }
+    const current = this.save().values
+    for (const [k, v] of Object.entries(current)) {
+      if (!fits(values[k], v)) {
+        throw new StaleStateError(`saved systems state has a bad ${k}`)
+      }
+    }
+    for (const [k, d] of Object.entries(this.modelDrifts())) {
+      d.restore(checkedDrift(state.drifts?.[k], k))
+    }
+    const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
+    const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
+    if (pumping.some((t) => !t)) {
+      throw new StaleStateError('saved systems state pumps out an unknown tank')
+    }
+
+    this.nowMs = state.nowMs
+    this.motion = { ...state.motion }
+    this.airC = values.airC as number
+    this.waterC = values.waterC as number
+    this.pressurePa = values.pressurePa as number
+    this.windKn = values.windKn as number
+    this.windDeg = values.windDeg as number
+    this.hotelKw = values.hotelKw as number
+    this.hvacKw = values.hvacKw as number
+    this.shoreKw = values.shoreKw as number
+    this.shoreChargeKw = values.shoreChargeKw as number
+    this.hvacOn = values.hvacOn as boolean
+    this.watermakerOn = values.watermakerOn as boolean
+    this.watermakerRunning = values.watermakerRunning as boolean
+    this.freshUsedL = values.freshUsedL as number
+    this.madeL = values.madeL as number
+    this.shoreWaterL = values.shoreWaterL as number
+    this.sailing = values.sailing as boolean
+    this.transferring = (values.transferring as string | null) ?? undefined
+    this.inverterKw = values.inverterKw as number
+    this.pumping.clear()
+    for (const t of pumping) this.pumping.add(t as TankState)
+    this.pumpOuts.clear()
+    for (const [k, n] of Object.entries(state.pumpOuts ?? {})) {
+      this.pumpOuts.set(k, n)
+    }
   }
 
   /** Moves the model on to `toMs` in fixed steps, asking `motionAt` where the boat is. */
@@ -1367,6 +1628,72 @@ export interface SystemsSummary {
   pumpOuts: Record<string, number>
   apparentWindMs: number
   turbineW: number
+}
+
+function tankKey(t: TankState): string {
+  return `${t.type}.${t.p.id}`
+}
+
+function saveUnit<T extends object>(
+  id: string,
+  unit: T,
+  fields: readonly (keyof T & string)[],
+  drifts: readonly (keyof T & string)[]
+): UnitState {
+  const values: Record<string, Scalar> = {}
+  for (const f of fields) values[f] = (unit[f] as Scalar | undefined) ?? null
+  const saved: Record<string, DriftState> = {}
+  for (const d of drifts) saved[d] = (unit[d] as Drift).save()
+  return { id, values, drifts: saved }
+}
+
+/** a saved value fits where it has the type the fresh model gave it, or is empty where that is allowed */
+function fits(value: unknown, fresh: Scalar | undefined): boolean {
+  if (value === null || value === undefined) {
+    return fresh === null || fresh === undefined
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) return false
+  return fresh === null || fresh === undefined || typeof value === typeof fresh
+}
+
+function checkedDrift(saved: DriftState | undefined, name: string): DriftState {
+  if (!Number.isFinite(saved?.value) || !Number.isInteger(saved?.rng)) {
+    throw new StaleStateError(`saved systems state has a bad ${name} drift`)
+  }
+  return saved as DriftState
+}
+
+/** the saved units must be the profile's own, in its order, each with every field */
+function restoreUnits<T extends object>(
+  kind: string,
+  units: T[],
+  saved: UnitState[] | undefined,
+  idOf: (unit: T) => string,
+  fields: readonly (keyof T & string)[],
+  drifts: readonly (keyof T & string)[]
+): void {
+  const ids = units.map(idOf)
+  if (
+    !Array.isArray(saved) ||
+    saved.length !== ids.length ||
+    saved.some((s, i) => s?.id !== ids[i])
+  ) {
+    throw new StaleStateError(`saved ${kind} do not match the profile's`)
+  }
+  units.forEach((unit, i) => {
+    const s = saved[i]
+    const record = unit as Record<string, unknown>
+    for (const f of fields) {
+      const value = s.values?.[f]
+      if (!fits(value, record[f] as Scalar | undefined)) {
+        throw new StaleStateError(`saved ${kind} ${s.id} has a bad ${f}`)
+      }
+    }
+    for (const f of fields) record[f] = s.values[f] ?? undefined
+    for (const d of drifts) {
+      ;(record[d] as Drift).restore(checkedDrift(s.drifts?.[d], `${s.id} ${d}`))
+    }
+  })
 }
 
 /** charge power a bank will take: full rate until nearly full, tapering to nothing */

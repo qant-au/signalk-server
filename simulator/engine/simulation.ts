@@ -3,7 +3,7 @@ import { ScenarioClock } from '../soak/clock'
 import { Delta, ownBoatDelta, vesselDelta } from '../soak/deltas'
 import { depthDelta, targetDelta } from './deltas'
 import { Scenario } from './scenario'
-import { SystemsModel } from '../systems/model'
+import { SystemsModel, SystemsState } from '../systems/model'
 
 /**
  * Runs a scenario: each tick works out the scenario time from the clock, moves the own
@@ -18,6 +18,8 @@ export interface SimulationOptions {
   scenarioStartMs: number
   /** seed for the systems model: the same seed repeats a run */
   seed: number
+  /** the boat's systems as a previous run saved them; throws StaleStateError if they do not fit */
+  systemsState?: SystemsState
 }
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
@@ -50,17 +52,18 @@ export class Simulation {
       options.timeMultiplier
     )
     this.lastScenarioMs = options.scenarioStartMs
-    const vessel = scenario.route.vessel
-    this.emit(vesselDelta(vessel, vessel.description, wallStartMs))
     if (scenario.profile) {
       const depth = scenario.depth
       this.systems = new SystemsModel(scenario.profile, {
         seed: options.seed,
         startMs: options.scenarioStartMs,
-        depthAt: depth ? (lat, lon) => depth.depth(lat, lon) : undefined
+        depthAt: depth ? (lat, lon) => depth.depth(lat, lon) : undefined,
+        state: options.systemsState
       })
-      this.emit(this.systems.metaDelta(wallStartMs))
     }
+    const vessel = scenario.route.vessel
+    this.emit(vesselDelta(vessel, vessel.description, wallStartMs))
+    if (this.systems) this.emit(this.systems.metaDelta(wallStartMs))
   }
 
   /** targets currently heard (not yet lost) */
