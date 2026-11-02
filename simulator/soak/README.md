@@ -147,6 +147,12 @@ download.
   integrated, come to the same within 1 % (checked where a case burns more than a litre).
 - **Generators** turn no more than 38 % of their fuel's energy (diesel at 9.94 kWh a litre)
   into electricity, the best a marine diesel set manages.
+- **The thrusters run only berthing**: every boat with a bow thruster runs it coming
+  alongside at the end of its case; at every tick a thruster is running the boat is
+  motoring within three boat lengths of the berth it is leaving or coming to, and its run
+  time grows only between ticks near one; an electric thruster's hardest burst shows on its
+  bank's current at 50 to 110 % of its draw (the rest from the alternators), and a hydraulic
+  one draws no bank.
 - **The hybrid runs as a hybrid**: on its motors alone below its electric speed while the
   bank is above its ceiling, on both diesels above it, the bank charging from them on
   passage, its generator starting only below its charge floor, and solar carrying its hotel
