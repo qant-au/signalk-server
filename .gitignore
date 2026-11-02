@@ -87,3 +87,6 @@ simulator/soak/reports/
 
 # bin/simulator's configuration directory
 /.simulator/
+
+# bin/simulator-busy configuration directory
+/.simulator-busy/
