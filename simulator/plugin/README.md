@@ -73,6 +73,17 @@ harbour radius around its berths: inside it any surveyed water counts, and where
 cannot resolve the harbour, so does anywhere it has no data. Charted dry land never does.
 Details are in [the routes README](../routes/README.md#depth-and-route-adjustment).
 
+**Identity.** At start the plugin tells the server who the boat is: the name and MMSI
+the sample's route gives it (Coquina, 367555210, at Miami; Meltemi, 239555210, in the
+Saronic Gulf; Coral Passage, 503555210, in Queensland) and its dimensions from its profile:
+length, beam, draft, air height, displacement, AIS ship type and where its AIS antenna is.
+The name, MMSI, length, beam, draft and ship type are fields the server keeps for its own
+vessel settings and accepts from nowhere else, so the plugin sets them there, in memory and
+never saved, and takes them back when it stops; the rest it sends as itself. Anything the
+server's own vessel settings already give (the Admin UI's vessel page, or a name or MMSI in
+settings.json) is left alone, and the status line says what was set, sent and left. Details
+are in [the vessels README](../vessels/README.md#identity).
+
 **Own boat.** Every second the plugin sends the boat's position, speed and course over
 ground and the scenario time (`navigation.datetime`). The boat swings through each waypoint
 it passes on an arc at a rate of turn that suits its length and speed, so position, course

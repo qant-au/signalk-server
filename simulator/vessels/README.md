@@ -39,6 +39,49 @@ so are its 2 kW hotel load and its passage rules, set to read the way the builde
 the boat running: on its motors in harbour, on its diesels at passage speed, and on its sun
 at anchor.
 
+## Identity
+
+The plugin tells the server who the boat is and how big, so Freeboard, the AIS plugins
+and anything drawing the boat can name and size it. The name and MMSI come from the
+sample's `route.json`; the dimensions from the profile.
+
+| Path                                 | From                                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`, `mmsi`                       | the route's `vessel.name` and `vessel.mmsi`                                                                              |
+| `design.length.overall`              | `lengthM`                                                                                                                |
+| `design.beam`                        | `beamM`                                                                                                                  |
+| `design.draft.current`, `.maximum`   | `draftM`, and `maxDraftM` where the profile gives one (a lifting keel or centreboard); no default                        |
+| `design.airHeight`                   | `airHeightM`; from length unless given: 1.45 × L + 1 m for a sailing yacht's masthead, 0.22 × L + 1.5 m for a motor boat |
+| `design.displacement`                | `displacementT`, in kg                                                                                                   |
+| `design.aisShipType`                 | `typeCode`, with the specification's name for it                                                                         |
+| `sensors.ais.fromBow`, `.fromCenter` | `aisAntenna`; from length unless given: 55 % of the length aft of the bow, on the centreline                             |
+
+**The server's own settings win.** Before sending, the plugin reads what the owner has
+already said about the boat: the server's base deltas, which is where the Admin UI's vessel
+page (Server, Settings, Vessel) keeps the name, MMSI and dimensions, and a name or MMSI in
+a `vessel` block of settings.json. Anything given there is left alone, and the status line
+says what the plugin set or sent and what it left. Someone running the simulator beside
+their own boat's configuration never finds their boat renamed or resized. This server has
+not read settings.json's `vessel` block itself since November 2020 (it reads only the base
+deltas), so a name there shows nowhere; the plugin still treats it as the owner's word.
+
+**How the values get there.** The server keeps six of these fields for its own vessel
+settings: the name, MMSI, `design.length`, `design.beam`, `design.draft` and
+`design.aisShipType`. Its self-data filter (`src/staticDataFilter.ts`) drops them from any
+delta that does not come from those settings, so no plugin can send them as itself. The
+plugin therefore puts them into the server's vessel settings in memory, for each one the
+owner has not set, and sends them as the server sends its own, with the source `defaults`.
+It never saves them, and takes them back when it stops or changes sample (where they are
+still what it put there). The rest, `design.airHeight`, `design.displacement` and the AIS
+antenna position, it sends as itself, with the source `simulator` and metadata naming each.
+All of it goes once at every start, so changing the sample replaces it. One thing to know:
+while the simulator runs, the Admin UI's vessel page shows the values it set, and saving
+that page then keeps them as the owner's.
+
+**One vessel everywhere.** The AIS traffic drops any report under the boat's own MMSI, so
+the own boat never appears as a target of itself, and the rig soak and the systems soak send
+and validate under the same identity.
+
 ## Counts and Defaults
 
 A profile file needs only `id`, `name` and `lengthM`. Anything it leaves out is filled in
@@ -60,6 +103,8 @@ from the length, and anything it gives is used as it is:
 | Radars                 | none under 9 m, one under 25 m, an X-band and an S-band from 25 m                                                                                                                         |
 | Wind instrument        | from 7 m                                                                                                                                                                                  |
 | Inside zones           | saloon and fridge from 6 m; a cabin from 9 m; engine room and freezer from 12 m                                                                                                           |
+| Air height             | 1.45 × L + 1 m under sail, 0.22 × L + 1.5 m under power                                                                                                                                   |
+| AIS antenna            | 55 % of the length aft of the bow, on the centreline                                                                                                                                      |
 
 **The most a profile can have** is 8 fuel tanks, 4 fresh water tanks, 2 grey and 2 black.
 These are limits, not defaults: a profile with more is refused when it loads.
@@ -105,6 +150,7 @@ real gateway sends slow-changing data less often.
 | Depth sounders     | `environment.depth.belowSurface`, `belowTransducer`, `belowKeel`, `surfaceToTransducer`, `transducerToKeel`, one update per sounder with its own source; `sensors.<id>.fromCenter`                                                                                                                                 |
 | Wind               | `environment.wind.speedTrue`, `directionTrue`, `angleTrueWater`, `speedApparent`, `angleApparent`                                                                                                                                                                                                                  |
 | Inside and outside | `environment.inside.<zone>.temperature`, `relativeHumidity`; `environment.outside.temperature`, `pressure`; `environment.water.temperature`                                                                                                                                                                        |
+| Identity           | name and `mmsi` (at the vessel's root), `design.length` (`overall`), `design.beam`, `design.draft` (`current`, and `maximum` where the profile gives one), `design.airHeight`, `design.displacement`, `design.aisShipType`, `sensors.ais.fromBow` and `fromCenter`, once at the start; see [Identity](#identity)   |
 | Navigation state   | `navigation.state`: `moored`, `anchored`, `sailing` or `motoring`                                                                                                                                                                                                                                                  |
 | Heading and course | `navigation.headingTrue`, `headingMagnetic`, `magneticVariation`, `courseOverGroundTrue`, `courseOverGroundMagnetic`                                                                                                                                                                                               |
 | Speed and logs     | `navigation.speedThroughWater`, `speedOverGround`, `log`, `trip.log`, `trip.lastReset`                                                                                                                                                                                                                             |
