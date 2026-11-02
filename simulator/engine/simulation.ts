@@ -1,4 +1,4 @@
-import { RoutePosition, positionAt } from '../routes/route'
+import { RoutePosition, offTrack, positionAt } from '../routes/route'
 import { ScenarioClock } from '../soak/clock'
 import { Delta, ownBoatDelta, vesselDelta } from '../soak/deltas'
 import { depthDelta, targetDelta } from './deltas'
@@ -42,6 +42,8 @@ export interface TickResult {
 export class Simulation {
   private readonly clock: ScenarioClock
   private lastScenarioMs: number
+  /** the clock's scenario time at the last `advance` */
+  private pendingMs: number
   private readonly heardContexts = new Set<string>()
   readonly systems?: SystemsModel
   private ticks = 0
@@ -58,6 +60,7 @@ export class Simulation {
       options.timeMultiplier
     )
     this.lastScenarioMs = options.scenarioStartMs
+    this.pendingMs = options.scenarioStartMs
     if (scenario.profile) {
       const depth = scenario.depth
       this.systems = new SystemsModel(scenario.profile, {
@@ -80,8 +83,20 @@ export class Simulation {
     return this.heardContexts.size
   }
 
+  /** a tick: the model moved on to the clock's time, then everything sent */
   tick(wallMs: number): TickResult {
+    this.advance(wallMs)
+    return this.send(wallMs)
+  }
+
+  /**
+   * The first half of a tick: moves the model on to the clock's time, and gives the
+   * scenario time the next send will carry, so a caller can act on it before anything
+   * goes out (the plugin sets the course for it).
+   */
+  advance(wallMs: number): number {
     const scenarioMs = this.clock.scenarioTime(wallMs)
+    this.pendingMs = scenarioMs
     const legs = this.scenario.legs
     if (this.systems) {
       this.systems.advance(scenarioMs, (ms) => {
@@ -101,8 +116,18 @@ export class Simulation {
         }
       })
     }
+    return this.systems ? this.systems.scenarioMs : scenarioMs
+  }
+
+  /** The second half of a tick: sends the boat as it was at the time `advance` gave. */
+  send(wallMs: number): TickResult {
+    const scenarioMs = this.pendingMs
+    const legs = this.scenario.legs
     const sentMs = this.systems ? this.systems.scenarioMs : scenarioMs
-    const position = positionAt(legs, sentMs)
+    const onTrack = positionAt(legs, sentMs)
+    const position = this.systems
+      ? offTrack(onTrack, this.systems.trackOffsetM)
+      : onTrack
     this.emit(ownBoatDelta(position, sentMs, wallMs, !this.systems))
 
     let depthM: number | undefined

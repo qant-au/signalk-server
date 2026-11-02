@@ -71,8 +71,9 @@ export interface Leg {
   to: Waypoint
   distanceNm: number
   speedKn: number
-  /** the direction of the straight line the boat sails between the waypoints */
+  /** the great circle's direction leaving `from`, and arriving at `to` */
   courseDeg: number
+  finalCourseDeg: number
   /** when the boat leaves `from`, after any hold, ms since the epoch */
   departMs: number
   arriveMs: number
@@ -94,7 +95,9 @@ export interface RoutePosition {
 }
 
 const MS_PER_HOUR = 3600 * 1000
-const METRES_PER_DEG_LAT = 111320
+/** the sphere the leg distances are measured on, as the server's Course API measures them */
+const EARTH_RADIUS_M = 6371000
+const METRES_PER_DEG_LAT = (EARTH_RADIUS_M * Math.PI) / 180
 const METRES_PER_KNOT = 1852 / 3600
 const RADIANS = Math.PI / 180
 /** a boat turns on a radius of about this many of its lengths at a normal helm */
@@ -119,23 +122,52 @@ function wrap180(deg: number): number {
   return ((((deg + 180) % 360) + 360) % 360) - 180
 }
 
-/** the direction of the line positionAt interpolates, which is straight in a local plane */
-function lineCourseDeg(from: Waypoint, to: Waypoint): number {
-  const midLat = ((from.lat + to.lat) / 2) * RADIANS
-  const east = (to.lon - from.lon) * Math.cos(midLat)
-  const north = to.lat - from.lat
-  return (Math.atan2(east, north) / RADIANS + 360) % 360
+/** the point a share `f` of the way along the great circle from one waypoint to another */
+function alongGreatCircle(
+  from: Waypoint,
+  to: Waypoint,
+  f: number
+): { lat: number; lon: number } {
+  const lat1 = from.lat * RADIANS
+  const lon1 = from.lon * RADIANS
+  const lat2 = to.lat * RADIANS
+  const lon2 = to.lon * RADIANS
+  const d =
+    2 *
+    Math.asin(
+      Math.sqrt(
+        Math.sin((lat2 - lat1) / 2) ** 2 +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2
+      )
+    )
+  if (d === 0) return { lat: from.lat, lon: from.lon }
+  const a = Math.sin((1 - f) * d) / Math.sin(d)
+  const b = Math.sin(f * d) / Math.sin(d)
+  const x =
+    a * Math.cos(lat1) * Math.cos(lon1) + b * Math.cos(lat2) * Math.cos(lon2)
+  const y =
+    a * Math.cos(lat1) * Math.sin(lon1) + b * Math.cos(lat2) * Math.sin(lon2)
+  const z = a * Math.sin(lat1) + b * Math.sin(lat2)
+  return {
+    lat: Math.atan2(z, Math.hypot(x, y)) / RADIANS,
+    lon: Math.atan2(y, x) / RADIANS
+  }
 }
 
-/** the arc at the waypoint between two legs, or undefined where the boat stops there */
-function turnAt(
+/**
+ * The arc at the waypoint between two legs, or undefined where the boat stops there.
+ * `tangentLimitM` keeps the arc within that distance of the waypoint, where the water
+ * further out is too shallow for it (see turns.ts).
+ */
+export function turnAt(
   inbound: Leg,
   outbound: Leg,
-  lengthM: number
+  lengthM: number,
+  tangentLimitM = Infinity
 ): Turn | undefined {
   const w = inbound.to
   if (w.holdS || w.anchor) return undefined
-  const deltaDeg = wrap180(outbound.courseDeg - inbound.courseDeg)
+  const deltaDeg = wrap180(outbound.courseDeg - inbound.finalCourseDeg)
   if (Math.abs(deltaDeg) < MIN_TURN_DEG) return undefined
   const inMs = inbound.speedKn * METRES_PER_KNOT
   const outMs = outbound.speedKn * METRES_PER_KNOT
@@ -149,11 +181,12 @@ function turnAt(
   const shortestLegM = Math.min(inbound.distanceNm, outbound.distanceNm) * 1852
   const tangentM = Math.min(
     sweep / rate / secondsPerMetre,
-    TURN_MAX_LEG_SHARE * shortestLegM
+    TURN_MAX_LEG_SHARE * shortestLegM,
+    tangentLimitM
   )
   const radiusM = tangentM / Math.tan(sweep / 2)
   const side = Math.sign(deltaDeg)
-  const inDeg = inbound.courseDeg * RADIANS
+  const inDeg = inbound.finalCourseDeg * RADIANS
   const normal = inDeg + (side * Math.PI) / 2
   const centreE = -tangentM * Math.sin(inDeg) + radiusM * Math.sin(normal)
   const centreN = -tangentM * Math.cos(inDeg) + radiusM * Math.cos(normal)
@@ -166,9 +199,18 @@ function turnAt(
     centreE,
     centreN,
     radiusM,
-    fromDeg: inbound.courseDeg,
+    fromDeg: inbound.finalCourseDeg,
     deltaDeg
   }
+}
+
+/**
+ * Halfway round the arc, where the boat comes abeam of the waypoint. The arc turns at a
+ * steady rate, so this is halfway through its time; it falls at the straight legs'
+ * arrival time only when both legs have the same speed.
+ */
+export function turnMiddleMs(turn: Turn): number {
+  return (turn.startMs + turn.endMs) / 2
 }
 
 function positionInTurn(
@@ -234,7 +276,9 @@ export function routeLegs(route: Route): Leg[] {
       to,
       distanceNm: distance,
       speedKn: from.speedKn,
-      courseDeg: lineCourseDeg(from, to),
+      courseDeg: initialCourseDeg(from.lat, from.lon, to.lat, to.lon),
+      finalCourseDeg:
+        (initialCourseDeg(to.lat, to.lon, from.lat, from.lon) + 180) % 360,
       departMs: clock,
       arriveMs: clock + durationMs
     })
@@ -247,9 +291,9 @@ export function routeLegs(route: Route): Leg[] {
 }
 
 /**
- * Where the boat is at a moment. Positions along a leg are interpolated linearly in
- * latitude and longitude, which over legs of a few miles differs from the great circle by
- * far less than a boat's own GPS error.
+ * Where the boat is at a moment. Along a leg the boat sails the great circle between the
+ * waypoints, the line the Course API measures cross track error from, its course turning
+ * with the great circle's bearing.
  */
 export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
   const first = legs[0]
@@ -268,23 +312,26 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
   for (let i = 0; i < legs.length; i++) {
     const leg = legs[i]
     const next = legs[i + 1]
-    const previous = legs[i - 1]
-    if (previous?.turn && timeMs < previous.turn.endMs) {
-      return positionInTurn(previous.turn, timeMs, i)
-    }
-    if (leg.turn && timeMs > leg.turn.startMs && timeMs <= leg.arriveMs) {
-      return positionInTurn(leg.turn, timeMs, i)
+    const turn = leg.turn
+    if (turn && timeMs > turn.startMs && timeMs < turn.endMs) {
+      // on the next leg from the middle of the arc, abeam of the waypoint
+      const onNext = timeMs >= turnMiddleMs(turn)
+      return positionInTurn(turn, timeMs, onNext ? i + 1 : i)
     }
     if (timeMs <= leg.arriveMs) {
       const f =
         leg.arriveMs > leg.departMs
           ? (timeMs - leg.departMs) / (leg.arriveMs - leg.departMs)
           : 1
+      const at = alongGreatCircle(leg.from, leg.to, f)
       return {
-        lat: leg.from.lat + (leg.to.lat - leg.from.lat) * f,
-        lon: leg.from.lon + (leg.to.lon - leg.from.lon) * f,
+        lat: at.lat,
+        lon: at.lon,
         sogKn: leg.speedKn,
-        cogDeg: leg.courseDeg,
+        cogDeg:
+          f < 1
+            ? initialCourseDeg(at.lat, at.lon, leg.to.lat, leg.to.lon)
+            : leg.finalCourseDeg,
         rateOfTurnDegS: 0,
         legIndex: i,
         finished: false,
@@ -310,11 +357,49 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
     lat: last.to.lat,
     lon: last.to.lon,
     sogKn: 0,
-    cogDeg: last.courseDeg,
+    cogDeg: last.finalCourseDeg,
     rateOfTurnDegS: 0,
     legIndex: legs.length - 1,
     finished: true,
     anchored: last.to.anchor === true
+  }
+}
+
+/**
+ * The route point the boat is heading for at a moment, as the Course API counts them
+ * (the index of the waypoint in the route): the end of the leg it is on. At the start it
+ * is already on its first leg. A waypoint the boat stops at stays the next point while it
+ * holds there, and is passed when it leaves; one it turns through is passed at the middle
+ * of the arc, when the boat comes abeam of it. Undefined once the boat has arrived.
+ */
+export function nextPointIndex(
+  legs: Leg[],
+  timeMs: number
+): number | undefined {
+  if (timeMs < legs[0].departMs) return 1
+  for (let i = 0; i < legs.length; i++) {
+    const next = legs[i + 1]
+    const turn = legs[i].turn
+    if (turn && timeMs > turn.startMs && timeMs < turn.endMs) {
+      return timeMs < turnMiddleMs(turn) ? i + 1 : i + 2
+    }
+    if (timeMs <= legs[i].arriveMs) return i + 1
+    if (next && timeMs < next.departMs) return i + 1
+  }
+  return undefined
+}
+
+/** a position moved `metres` across its course, to starboard positive */
+export function offTrack(p: RoutePosition, metres: number): RoutePosition {
+  if (!metres) return p
+  const across = (p.cogDeg + 90) * RADIANS
+  return {
+    ...p,
+    lat: p.lat + (metres * Math.cos(across)) / METRES_PER_DEG_LAT,
+    lon:
+      p.lon +
+      (metres * Math.sin(across)) /
+        (METRES_PER_DEG_LAT * Math.cos(p.lat * RADIANS))
   }
 }
 

@@ -86,7 +86,7 @@ export interface SystemsState {
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 2
+export const SYSTEMS_STATE_VERSION = 3
 
 /** a saved state that cannot be carried on from: another profile, or an older format */
 export class StaleStateError extends Error {}
@@ -463,6 +463,11 @@ export class SystemsModel {
 
   get scenarioMs(): number {
     return this.nowMs
+  }
+
+  /** metres the boat is off its route's track, positive to starboard */
+  get trackOffsetM(): number {
+    return this.navigation.trackOffsetM
   }
 
   private modelDrifts(): Record<string, Drift> {

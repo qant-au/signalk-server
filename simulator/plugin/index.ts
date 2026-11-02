@@ -1,7 +1,14 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import path from 'path'
 import { routeResource, routeResourceId } from '../routes/resource'
-import { Scenario, listSamples, loadScenario } from '../engine/scenario'
+import { nextPointIndex } from '../routes/route'
+import {
+  DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
+  DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
+  Scenario,
+  listSamples,
+  loadScenario
+} from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
 import { Delta } from '../soak/deltas'
 import { StaleStateError, SystemsState } from '../systems/model'
@@ -10,6 +17,10 @@ import { StaleStateError, SystemsState } from '../systems/model'
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
  * Admin UI (Server, Plugin Config, Signal K Simulator); saving them restarts the run with
  * the new settings, carrying on from the scenario time it had reached.
+ *
+ * The route the boat sails is published as a resource and made the server's active route
+ * through the Course API, so `navigation.course.*` follows the passage: the next point
+ * moves on in the tick the boat passes it, before that tick's position goes out.
  */
 interface Options {
   sample: string
@@ -44,20 +55,22 @@ interface App {
       data: Record<string, unknown>
     ): Promise<void>
   }
+  activateRoute(route: { href: string; pointIndex: number }): Promise<void>
+  clearDestination(): Promise<void>
 }
 
 const PLUGIN_ID = 'signalk-simulator'
 const TICK_MS = 1000
 const SAVE_EVERY_TICKS = 10
-const TIME_MULTIPLIERS = [1, 2, 5, 10, 20, 30, 60, 120, 300]
+const TIME_MULTIPLIERS = [1, 2, 5, 10, 20, 24, 30, 60, 120, 300]
 const DEFAULTS: Options = {
   sample: 'miami-icw-2024-03-16',
   startAtMinutes: 0,
   resume: true,
   timeMultiplier: 1,
-  minDepthUnderKeelM: 1,
+  minDepthUnderKeelM: DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
   showTraffic: true,
-  receiverAntennaHeightM: 10,
+  receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
   seed: 1
 }
 
@@ -135,6 +148,35 @@ export = function simulatorPlugin(app: App) {
     )
   }
 
+  /**
+   * Keeps the server's course on the route point the boat is heading for: activates the
+   * published route at that point when it changes, and clears the course on arrival, as an
+   * arrival does. Without the published route there is no course to follow, so any course
+   * left from an earlier run is cleared rather than shown against this one.
+   */
+  function courseKeeper(scenario: Scenario, published: boolean) {
+    const href = `/resources/routes/${routeResourceId(scenario.route)}`
+    let current: number | undefined | null = null
+    return {
+      get pointIndex() {
+        return current ?? undefined
+      },
+      async at(scenarioMs: number) {
+        const index = published
+          ? nextPointIndex(scenario.legs, scenarioMs)
+          : undefined
+        if (index === current) return
+        current = index
+        try {
+          if (index === undefined) await app.clearDestination()
+          else await app.activateRoute({ href, pointIndex: index })
+        } catch (error) {
+          app.error(`course: ${(error as Error).message}`)
+        }
+      }
+    }
+  }
+
   async function run(options: Options) {
     app.setPluginStatus(`Loading ${options.sample}`)
     const scenario = await loadScenario(samplesDir(), options.sample, {
@@ -142,10 +184,12 @@ export = function simulatorPlugin(app: App) {
       receiverAntennaHeightM: options.receiverAntennaHeightM
     })
     if (stopped) return
+    let published = true
     try {
       await publishRoute(scenario)
     } catch (error) {
-      app.debug('could not publish the route', error)
+      published = false
+      app.error(`could not publish the route: ${(error as Error).message}`)
     }
 
     const departure = scenario.legs[0].departMs
@@ -179,17 +223,37 @@ export = function simulatorPlugin(app: App) {
     const adjusted = scenario.adjustments.filter(
       (a) => a.resolved && a.added
     ).length
+    const tightened = (scenario.turns ?? []).filter(
+      (t) => t.clear && t.plannedRadiusM !== undefined
+    ).length
     const notes = [
       adjusted ? `${adjusted} legs moved for depth` : '',
+      tightened ? `${tightened} turns tightened for depth` : '',
       ...scenario.notes
     ].filter(Boolean)
 
+    // the course is set for where the boat is before its first position goes out
+    const course = courseKeeper(scenario, published)
+    await course.at(simulation.systems?.scenarioMs ?? scenarioStartMs)
+    if (stopped) return
+
     let ticks = 0
-    timer = setInterval(() => {
+    let busy = false
+    // alongside after arrival the boat keeps sending, as a moored boat does
+    let arrived = false
+    timer = setInterval(async () => {
+      if (!simulation || busy) return
+      busy = true
+      const now = Date.now()
+      const sentMs = simulation.advance(now)
+      await course.at(sentMs)
       if (!simulation) return
-      const result = simulation.tick(Date.now())
+      const result = simulation.send(now)
+      busy = false
       ticks++
-      if (ticks % SAVE_EVERY_TICKS === 0 || result.finished) {
+      const arriving = result.finished && !arrived
+      arrived = result.finished
+      if (ticks % SAVE_EVERY_TICKS === 0 || arriving) {
         saveState({
           sample: options.sample,
           scenarioMs: result.scenarioMs,
@@ -203,19 +267,20 @@ export = function simulatorPlugin(app: App) {
       const traffic = options.showTraffic
         ? `, ${simulation.trafficCount} AIS targets heard`
         : ', traffic off'
+      const legs = scenario.legs.length
+      const next =
+        course.pointIndex !== undefined
+          ? `, next point ${course.pointIndex} of ${legs}`
+          : ''
       const onBoard = simulation.systems?.summary()
       const systems = onBoard
         ? `, ${onBoard.enginesRunning} engines and ${onBoard.generatorsRunning} generators running`
         : ''
       app.setPluginStatus(
         `${result.finished ? 'Arrived' : 'Under way'}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${options.timeMultiplier}, ${result.position.sogKn} kn${depth}${traffic}${systems}` +
+          `at x${options.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
-      if (result.finished && timer) {
-        clearInterval(timer)
-        timer = undefined
-      }
     }, TICK_MS)
   }
 

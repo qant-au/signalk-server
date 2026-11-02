@@ -466,7 +466,9 @@ describe('Simulator time multiplier', () => {
       getDataDirPath: () => dataDir,
       error: (message: string) => errors.push(message),
       debug: () => undefined,
-      resourcesApi: { setResource: async () => undefined }
+      resourcesApi: { setResource: async () => undefined },
+      activateRoute: async () => undefined,
+      clearDestination: async () => undefined
     })
     mock.timers.enable({
       apis: ['setInterval', 'Date'],
@@ -489,6 +491,8 @@ describe('Simulator time multiplier', () => {
       deltas = 0
       for (let i = 0; i < ticks; i++) {
         mock.timers.tick(1000)
+        // a tick that moves the course on sends once the course is set
+        await new Promise((resolve) => setImmediate(resolve))
         const values = collect(tick)
         const ms = Date.parse(values.get('navigation.datetime') as string)
         const earlier = byTime.get(ms)

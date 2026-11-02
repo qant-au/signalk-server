@@ -39,6 +39,7 @@ export interface NavigationState {
   rudderDeg: number
   rollDeg: number
   pitchDeg: number
+  offsetM: number
   logM: number
   tripM: number
   tripResetMs: number
@@ -91,6 +92,13 @@ const TRIM_AT_FULL_DEG = 1.5
 const HEEL_MAX_DEG = 20
 const HEEL_FROM_MS = 2
 const HEEL_RANGE_MS = 10
+/** off-track error: a few metres from the helm, more in a current or a sea */
+const TRACK_ERROR_M = 1.5
+const TRACK_ERROR_M_PER_KN = 4
+const TRACK_ERROR_M_PER_M_SEA = 2
+const TRACK_TAU_S = 240
+/** how quickly the boat moves off or back onto the track */
+const TRACK_SETTLE_S = 60
 const LOG_MIN_NM = 500
 const LOG_MAX_NM = 20000
 const SATELLITES_MIN = 5
@@ -111,6 +119,8 @@ export class Navigation {
   private rudderDeg = 0
   private rollDeg = 0
   private pitchDeg = 0
+  /** how far the boat is off its track, to starboard positive */
+  private offsetM = 0
   private logM: number
   private tripM = 0
   private tripResetMs: number
@@ -143,6 +153,7 @@ export class Navigation {
       currentSpeed: new Drift(water, 0.08, 1800),
       currentSet: new Drift(water, 25, 3600),
       yaw: new Drift(helm, 1, 15),
+      track: new Drift(helm, 1, TRACK_TAU_S),
       roll: new Drift(
         sea,
         1,
@@ -160,6 +171,15 @@ export class Navigation {
       satellites: new Drift(gnss, 1.5, 900),
       hdop: new Drift(gnss, 1, 120)
     }
+  }
+
+  /**
+   * Metres off the route's track, positive to starboard: the helm holding the line against
+   * the current and the sea never holds it exactly, and the error settles away when the
+   * boat stops.
+   */
+  get trackOffsetM(): number {
+    return this.offsetM
   }
 
   get heading(): number {
@@ -258,6 +278,16 @@ export class Navigation {
     this.pitchDeg =
       (powered ? TRIM_AT_FULL_DEG * Math.min(1, m.sogKn / p.maxSpeedKn) : 0) +
       pitchAmpDeg * this.drifts.pitch.value
+
+    const steering = !m.atBerth && !m.anchored && m.sogKn >= STEERAGE_KN
+    const offTrackM = steering
+      ? this.drifts.track.value *
+        (TRACK_ERROR_M +
+          TRACK_ERROR_M_PER_KN * currentKn +
+          TRACK_ERROR_M_PER_M_SEA * hs)
+      : 0
+    this.offsetM +=
+      (offTrackM - this.offsetM) * (1 - Math.exp(-dt / TRACK_SETTLE_S))
 
     this.logM += stwMs * dt
     this.tripM += stwMs * dt
@@ -383,6 +413,7 @@ export class Navigation {
       rudderDeg: this.rudderDeg,
       rollDeg: this.rollDeg,
       pitchDeg: this.pitchDeg,
+      offsetM: this.offsetM,
       logM: this.logM,
       tripM: this.tripM,
       tripResetMs: this.tripResetMs,
@@ -407,6 +438,7 @@ export class Navigation {
       'rudderDeg',
       'rollDeg',
       'pitchDeg',
+      'offsetM',
       'logM',
       'tripM',
       'tripResetMs',
@@ -434,6 +466,7 @@ export class Navigation {
     this.rudderDeg = s.rudderDeg
     this.rollDeg = s.rollDeg
     this.pitchDeg = s.pitchDeg
+    this.offsetM = s.offsetM
     this.logM = s.logM
     this.tripM = s.tripM
     this.tripResetMs = s.tripResetMs

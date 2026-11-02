@@ -226,7 +226,9 @@ describe('Simulator plugin resume', () => {
       getDataDirPath: () => dataDir,
       error: (message: string) => errors.push(message),
       debug: () => undefined,
-      resourcesApi: { setResource: async () => undefined }
+      resourcesApi: { setResource: async () => undefined },
+      activateRoute: async () => undefined,
+      clearDestination: async () => undefined
     })
     plugin.start({ sample: 'test', seed: 7, ...settings })
     const deadline = Date.now() + 5000

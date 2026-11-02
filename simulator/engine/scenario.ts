@@ -3,7 +3,8 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import { AisFileConfig, AisReport, readAisReports } from '../ais/targets'
 import { DepthModel, DepthSource, loadDepthModel } from '../depth/depth'
-import { Adjustment, adjustRoute } from '../routes/adjust'
+import { Adjustment, DepthCheck, adjustRoute } from '../routes/adjust'
+import { TurnCheck, clearTurns } from '../routes/turns'
 import {
   Leg,
   Route,
@@ -41,6 +42,8 @@ export interface Scenario {
   plannedRoute: Route
   legs: Leg[]
   adjustments: Adjustment[]
+  /** each arc at a waypoint, checked against the depth and tightened where it cut a corner */
+  turns?: TurnCheck[]
   depth?: DepthModel
   traffic?: Traffic
   /** what is on board, when the route names a profile */
@@ -51,6 +54,9 @@ export interface Scenario {
   notes: string[]
 }
 
+/** the plugin's defaults, which the route tool checks a sample at */
+export const DEFAULT_MIN_DEPTH_UNDER_KEEL_M = 1
+export const DEFAULT_RECEIVER_ANTENNA_HEIGHT_M = 10
 const MIN_CELL_M = 10
 const TRAFFIC_MAX_GAP_S = 20 * 60
 const THINNED_GAP_FACTOR = 1.5
@@ -83,20 +89,32 @@ export async function loadScenario(
   let depth: DepthModel | undefined
   let route = planned
   let adjustments: Adjustment[] = []
+  let legs: Leg[] | undefined
+  let turns: TurnCheck[] = []
   if (sample.depth) {
     try {
       depth = loadDepthModel(dir, sample.depth.sources)
-      const result = adjustRoute(planned, depth, {
+      const adjust = {
         minDepthM: planned.vessel.draftM + options.minDepthUnderKeelM,
         cellM: Math.max(MIN_CELL_M, Math.round(depth.resolutionM)),
         harbourRadiusM: sample.depth.harbourRadiusM,
         harbourNoDataIsWater: sample.depth.harbourNoDataIsWater
-      })
+      }
+      const result = adjustRoute(planned, depth, adjust)
       route = result.route
       adjustments = result.adjustments
       const unresolved = adjustments.filter((a) => !a.resolved).length
       if (unresolved)
         notes.push(`${unresolved} legs could not be cleared of shallow water`)
+      const wps = route.waypoints
+      const check = new DepthCheck(depth, adjust, [wps[0], wps[wps.length - 1]])
+      legs = routeLegs(route)
+      turns = clearTurns(legs, route.vessel.lengthM, (lat, lon) =>
+        check.safe({ lat, lon })
+      )
+      const uncleared = turns.filter((t) => !t.clear).length
+      if (uncleared)
+        notes.push(`${uncleared} turns could not be kept in safe water`)
     } catch (error) {
       notes.push(`no depth: ${(error as Error).message}`)
     }
@@ -131,8 +149,9 @@ export async function loadScenario(
     sampleId,
     route,
     plannedRoute: planned,
-    legs: routeLegs(route),
+    legs: legs ?? routeLegs(route),
     adjustments,
+    turns,
     depth,
     traffic,
     profile,
