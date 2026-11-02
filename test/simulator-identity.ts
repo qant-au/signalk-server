@@ -218,6 +218,7 @@ describe('Simulator vessel identity', () => {
         getDataDirPath: () => dataDir,
         error: (s: string) => statuses.push(`error: ${s}`),
         debug: () => undefined,
+        registerDeltaInputHandler: () => undefined,
         resourcesApi: { setResource: async () => undefined },
         activateRoute: async () => undefined,
         clearDestination: async () => undefined,

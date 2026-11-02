@@ -226,6 +226,7 @@ describe('Simulator plugin resume', () => {
       getDataDirPath: () => dataDir,
       error: (message: string) => errors.push(message),
       debug: () => undefined,
+      registerDeltaInputHandler: () => undefined,
       resourcesApi: { setResource: async () => undefined },
       activateRoute: async () => undefined,
       clearDestination: async () => undefined

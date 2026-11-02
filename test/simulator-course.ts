@@ -223,6 +223,7 @@ describe('Simulator course', function () {
       getDataDirPath: () => dataDir,
       error: (message: string) => errors.push(message),
       debug: () => undefined,
+      registerDeltaInputHandler: () => undefined,
       resourcesApi: {
         setResource: async (_type: string, id: string) => {
           published.push(id)

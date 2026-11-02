@@ -6,6 +6,7 @@ import path from 'path'
 import { reportingIntervalSeconds } from '../simulator/ais/reception'
 import { AisReport, readAisReports } from '../simulator/ais/targets'
 import { NAV_STATES, targetDelta } from '../simulator/engine/deltas'
+import { DroppedTargets } from '../simulator/engine/dropped'
 import { Scenario } from '../simulator/engine/scenario'
 import { Simulation } from '../simulator/engine/simulation'
 import { Traffic } from '../simulator/engine/traffic'
@@ -325,5 +326,33 @@ describe('Simulator AIS traffic', () => {
     sim.forgetAll()
     expect(present.size).to.equal(0)
     expect(sim.trafficCount).to.equal(0)
+  })
+  it("holds back other plugins' deltas for a dropped target until it is heard again", () => {
+    const dropped = new DroppedTargets()
+    const present = new Set<string>()
+    const fromSimulator = (context: string) => {
+      dropped.heard(context)
+      present.add(context)
+    }
+    // the server's AIS status plugin, marking a target lost on its own timer
+    const fromStatusPlugin = (context: string) => {
+      if (!dropped.holdsBack(context)) present.add(context)
+    }
+    fromSimulator('vessels.urn:mrn:imo:mmsi:1')
+    fromSimulator('vessels.urn:mrn:imo:mmsi:2')
+    fromStatusPlugin('vessels.urn:mrn:imo:mmsi:2')
+    expect(dropped.heldBack).to.equal(0)
+
+    present.delete('vessels.urn:mrn:imo:mmsi:1')
+    dropped.forget('vessels.urn:mrn:imo:mmsi:1')
+    fromStatusPlugin('vessels.urn:mrn:imo:mmsi:1')
+    fromStatusPlugin('vessels.urn:mrn:imo:mmsi:1')
+    expect([...present]).to.deep.equal(['vessels.urn:mrn:imo:mmsi:2'])
+    expect(dropped.heldBack).to.equal(2)
+
+    fromSimulator('vessels.urn:mrn:imo:mmsi:1')
+    fromStatusPlugin('vessels.urn:mrn:imo:mmsi:1')
+    expect(present.size).to.equal(2)
+    expect(dropped.heldBack).to.equal(2)
   })
 })

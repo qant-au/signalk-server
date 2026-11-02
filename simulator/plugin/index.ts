@@ -9,6 +9,7 @@ import {
   listSamples,
   loadScenario
 } from '../engine/scenario'
+import { DroppedTargets } from '../engine/dropped'
 import { Simulation } from '../engine/simulation'
 import {
   Delta,
@@ -48,9 +49,18 @@ interface SavedState {
   systems?: SystemsState
 }
 
+/** a delta as the server hands it to an input handler, as far as this plugin reads it */
+interface InputDelta {
+  context?: string
+}
+
 // The subset of the server's plugin API this plugin uses.
 interface App {
   handleMessage(id: string, delta: Partial<Delta>): void
+  /** the server drops the handler when the plugin stops */
+  registerDeltaInputHandler(
+    handler: (delta: InputDelta, next: (delta: InputDelta) => void) => void
+  ): void
   setPluginStatus(message: string): void
   setPluginError(message: string): void
   getDataDirPath(): string
@@ -199,8 +209,29 @@ export = function simulatorPlugin(app: App) {
     )
   }
 
+  /** lost targets, and the deltas from others held back for them (see DroppedTargets) */
+  let dropped = new DroppedTargets()
+
+  function holdBackDropped(
+    delta: InputDelta,
+    next: (delta: InputDelta) => void
+  ) {
+    if (!dropped.holdsBack(delta.context)) next(delta)
+  }
+
+  function send(delta: Delta) {
+    dropped.heard(delta.context)
+    app.handleMessage(PLUGIN_ID, delta)
+  }
+
+  const heldBackNote = () =>
+    dropped.heldBack
+      ? `, ${dropped.heldBack} deltas for lost targets held back`
+      : ''
+
   /** drops a lost target from the server, so vessels.* holds only what is heard */
   function forgetTarget(context: string) {
+    dropped.forget(context)
     app.deltaCache?.deleteContext(context)
     app.signalk?.deleteContext(context)
   }
@@ -340,7 +371,7 @@ export = function simulatorPlugin(app: App) {
           identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
           forget: forgetTarget
         },
-        (delta) => app.handleMessage(PLUGIN_ID, delta),
+        send,
         Date.now()
       )
     const systemsState = savedSystems(options, scenario, saved)
@@ -418,7 +449,7 @@ export = function simulatorPlugin(app: App) {
           ? `, depth ${result.depthM.toFixed(1)} m`
           : ''
       const traffic = options.showTraffic
-        ? `, ${simulation.trafficCount} AIS targets in range`
+        ? `, ${simulation.trafficCount} AIS targets in range${heldBackNote()}`
         : ', traffic off'
       const legs = scenario.legs.length
       const next =
@@ -506,6 +537,8 @@ export = function simulatorPlugin(app: App) {
 
     start(settings: Partial<Options>) {
       stopped = false
+      dropped = new DroppedTargets()
+      app.registerDeltaInputHandler(holdBackDropped)
       const options = { ...DEFAULTS, ...settings }
       run(options).catch((error: Error) => {
         app.setPluginError(error.message)
@@ -519,6 +552,7 @@ export = function simulatorPlugin(app: App) {
       if (timer) clearInterval(timer)
       timer = undefined
       simulation = undefined
+      app.setPluginStatus(`Stopped${heldBackNote()}`)
     }
   }
 }
