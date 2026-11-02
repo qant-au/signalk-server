@@ -133,6 +133,8 @@ export interface VesselProfile {
   airHeightM: number
   /** where the AIS antenna is: metres aft of the bow and to starboard of the centreline */
   aisAntenna: { fromBowM: number; fromCenterM: number }
+  /** the class of the boat's own AIS transponder */
+  aisClass: 'A' | 'B'
   displacementT: number
   typeCode: number
   rig: 'motor' | 'sail'
@@ -195,6 +197,8 @@ const AIR_HEIGHT_SAIL = { perM: 1.45, plusM: 1 }
 const AIR_HEIGHT_MOTOR = { perM: 0.22, plusM: 1.5 }
 /** the AIS antenna sits on the arch or mast, a little aft of amidships */
 const AIS_ANTENNA_FROM_BOW_SHARE = 0.55
+/** a yacht this long carries a Class A transponder, as larger yachts do; smaller ones Class B */
+const AIS_CLASS_A_FROM_M = 24
 /** a bow thruster from this length, a stern thruster too from the next, hydraulic from the last */
 const BOW_THRUSTER_FROM_M = 12
 const STERN_THRUSTER_FROM_M = 18
@@ -460,6 +464,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
   const air = profile.rig === 'sail' ? AIR_HEIGHT_SAIL : AIR_HEIGHT_MOTOR
   profile.airHeightM = p.airHeightM ?? round(air.perM * L + air.plusM, 0.1)
   profile.thrusters = p.thrusters ?? defaultThrusters(profile)
+  profile.aisClass = p.aisClass ?? (L >= AIS_CLASS_A_FROM_M ? 'A' : 'B')
   profile.aisAntenna = p.aisAntenna ?? {
     fromBowM: round(AIS_ANTENNA_FROM_BOW_SHARE * L, 0.1),
     fromCenterM: 0

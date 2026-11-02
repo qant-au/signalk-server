@@ -327,8 +327,7 @@ describe('simulator engine', () => {
       }))
     const options = {
       receiver: { antennaHeightM: 10 },
-      maxGapS: 600,
-      staticIntervalS: 360
+      maxGapS: 600
     }
 
     it('hears a nearby ship, not a distant one, and sends static data first', () => {
@@ -388,8 +387,7 @@ describe('simulator engine', () => {
           })),
           {
             receiver: { antennaHeightM: 10 },
-            maxGapS: 900,
-            staticIntervalS: 360
+            maxGapS: 900
           }
         ),
         notes: []

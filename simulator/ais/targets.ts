@@ -25,6 +25,16 @@ export interface AisFileConfig {
   lengthColumn?: string
   transceiverColumn?: string
   nameColumn?: string
+  /** static and voyage data, where the source keeps it */
+  imoColumn?: string
+  callSignColumn?: string
+  beamColumn?: string
+  draughtColumn?: string
+  destinationColumn?: string
+  etaColumn?: string
+  /** AIS navigational status, 0 to 15, and rate of turn in degrees a minute */
+  statusColumn?: string
+  rotColumn?: string
   /** the source keeps at most one report per vessel per this many seconds */
   thinnedToSeconds?: number
   /** a second file holding per-vessel details, joined on idColumn */
@@ -39,7 +49,17 @@ export interface AisReport {
   sogKn: number
   cogDeg?: number
   headingDeg?: number
+  /** degrees a minute, positive to starboard */
+  rotDegMin?: number
+  /** AIS navigational status, 0 to 15 */
+  navStatus?: number
   name?: string
+  /** seven digits, without the "IMO" the source may prefix */
+  imo?: string
+  callSign?: string
+  destination?: string
+  /** estimated time of arrival, ms since the epoch */
+  etaMs?: number
   target: TargetDescription
 }
 
@@ -85,6 +105,23 @@ function optionalNumber(text: string | undefined): number | undefined {
   if (text === undefined || text.trim() === '') return undefined
   const n = Number(text)
   return Number.isFinite(n) ? n : undefined
+}
+
+/** AIS sends 0 for a dimension it does not have */
+function optionalDimension(text: string | undefined): number | undefined {
+  const n = optionalNumber(text)
+  return n !== undefined && n > 0 ? n : undefined
+}
+
+function optionalText(text: string | undefined): string | undefined {
+  const t = text?.trim()
+  return t ? t : undefined
+}
+
+/** an IMO number's seven digits, from "IMO9395123", "IMO 9395123" or "9395123" */
+function imoNumber(text: string | undefined): string | undefined {
+  const digits = text?.trim().match(/^(?:IMO\s*)?(\d{7})$/i)?.[1]
+  return digits && digits !== '0000000' ? digits : undefined
 }
 
 async function* csvRows(file: string): AsyncGenerator<Record<string, string>> {
@@ -140,14 +177,28 @@ export async function* readAisReports(
       sogKn: optionalNumber(row[config.sogColumn]) ?? 0,
       cogDeg: optionalNumber(column(row, config.cogColumn)),
       headingDeg: optionalNumber(column(row, config.headingColumn)),
-      name: column(row, config.nameColumn)?.trim() || undefined,
+      rotDegMin: optionalNumber(column(row, config.rotColumn)),
+      navStatus: optionalNumber(column(row, config.statusColumn)),
+      name: optionalText(column(row, config.nameColumn)),
+      imo: imoNumber(column(row, config.imoColumn)),
+      callSign: optionalText(column(row, config.callSignColumn)),
+      destination: optionalText(column(row, config.destinationColumn)),
+      etaMs: config.etaColumn
+        ? (() => {
+            const text = optionalText(row[config.etaColumn])
+            const ms = text ? parseTime(text, 'iso-utc') : NaN
+            return Number.isFinite(ms) ? ms : undefined
+          })()
+        : undefined,
       target: {
         transceiver: column(row, config.transceiverColumn),
         typeCode:
           optionalNumber(column(row, config.typeCodeColumn)) ??
           vesselTypes.get(id),
         typeText: column(row, config.typeTextColumn),
-        lengthM: optionalNumber(column(row, config.lengthColumn))
+        lengthM: optionalDimension(column(row, config.lengthColumn)),
+        beamM: optionalDimension(column(row, config.beamColumn)),
+        draughtM: optionalDimension(column(row, config.draughtColumn))
       }
     }
   }

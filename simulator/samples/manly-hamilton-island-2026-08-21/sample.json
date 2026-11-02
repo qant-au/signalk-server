@@ -30,7 +30,9 @@
     "cogColumn": "cog_deg",
     "typeTextColumn": "type",
     "lengthColumn": "length_m",
-    "thinnedToSeconds": 3600
+    "thinnedToSeconds": 3600,
+    "beamColumn": "beam_m",
+    "draughtColumn": "draught_m"
   },
   "depth": {
     "sources": [

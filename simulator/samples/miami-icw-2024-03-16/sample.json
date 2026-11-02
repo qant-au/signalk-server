@@ -258,7 +258,12 @@
     "typeCodeColumn": "vessel_type",
     "lengthColumn": "length",
     "transceiverColumn": "transceiver",
-    "nameColumn": "vessel_name"
+    "nameColumn": "vessel_name",
+    "imoColumn": "imo",
+    "callSignColumn": "call_sign",
+    "statusColumn": "status",
+    "beamColumn": "width",
+    "draughtColumn": "draft"
   },
   "route": {
     "name": "Rickenbacker Marina to Pier 66 Marina by the Intracoastal Waterway",

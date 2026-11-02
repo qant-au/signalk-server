@@ -34,6 +34,8 @@ export interface TargetDescription {
   /** ship type as text (AMSA's `type` column) */
   typeText?: string
   lengthM?: number
+  beamM?: number
+  draughtM?: number
 }
 
 // ITU-R M.1371: Class A transmits at 12.5 W; Class B "CS" units, which nearly all
@@ -61,9 +63,14 @@ const CLASS_A_MOORED_S = 180
 const CLASS_A_SLOW_S = 10
 const CLASS_A_MEDIUM_S = 6
 const CLASS_A_FAST_S = 2
+/** changing course, a Class A station reports faster: 3 1/3 s below 14 kn, 2 s above */
+const CLASS_A_SLOW_TURNING_S = 10 / 3
+const CLASS_A_MEDIUM_TURNING_S = 2
 const CLASS_A_MOORED_MAX_KN = 3
 const CLASS_A_SLOW_MAX_KN = 14
 const CLASS_A_MEDIUM_MAX_KN = 23
+const CLASS_A_STATIC_S = 6 * 60
+const CLASS_B_STATIC_S = 6 * 60
 const CLASS_B_SLOW_S = 180
 const CLASS_B_UNDERWAY_S = 30
 const CLASS_B_SLOW_MAX_KN = 2
@@ -211,7 +218,8 @@ export function receptionProbability(
 export function reportingIntervalSeconds(
   aisClass: AisClass,
   sogKn: number,
-  navStatus?: number
+  navStatus?: number,
+  turning = false
 ): number {
   if (aisClass === 'B') {
     return sogKn <= CLASS_B_SLOW_MAX_KN ? CLASS_B_SLOW_S : CLASS_B_UNDERWAY_S
@@ -224,9 +232,19 @@ export function reportingIntervalSeconds(
   ) {
     return CLASS_A_MOORED_S
   }
-  if (sogKn <= CLASS_A_SLOW_MAX_KN) return CLASS_A_SLOW_S
-  if (sogKn <= CLASS_A_MEDIUM_MAX_KN) return CLASS_A_MEDIUM_S
+  if (sogKn <= CLASS_A_SLOW_MAX_KN)
+    return turning ? CLASS_A_SLOW_TURNING_S : CLASS_A_SLOW_S
+  if (sogKn <= CLASS_A_MEDIUM_MAX_KN)
+    return turning ? CLASS_A_MEDIUM_TURNING_S : CLASS_A_MEDIUM_S
   return CLASS_A_FAST_S
+}
+
+/**
+ * How often a station sends its static and voyage data: every six minutes for a Class A
+ * station's message 5 and a Class B station's message 24 (ITU-R M.1371-5).
+ */
+export function staticIntervalSeconds(aisClass: AisClass): number {
+  return aisClass === 'A' ? CLASS_A_STATIC_S : CLASS_B_STATIC_S
 }
 
 export function lostAfterSeconds(reportingInterval: number): number {

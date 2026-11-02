@@ -35,6 +35,11 @@ export interface SimulationOptions {
   seed: number
   /** the boat's systems as a previous run saved them; throws StaleStateError if they do not fit */
   systemsState?: SystemsState
+  /**
+   * Called with a target's context when the receiver loses it, so whatever holds the
+   * targets can drop it, as the plugin drops it from the server
+   */
+  forget?: (context: string) => void
   /** identity fields not to send, because the server's own vessel settings give them */
   identityWithheld?: readonly string[]
 }
@@ -97,6 +102,12 @@ export class Simulation {
     this.identitySent = identity.sent
     this.emit(identity.delta)
     if (this.systems) this.emit(this.systems.metaDelta(wallStartMs))
+  }
+
+  /** forgets every target still heard, as a receiver switched off does */
+  forgetAll(): void {
+    for (const context of this.heardContexts) this.options.forget?.(context)
+    this.heardContexts.clear()
   }
 
   /** targets currently heard (not yet lost) */
@@ -178,7 +189,10 @@ export class Simulation {
         this.heardContexts.add(target.context)
         this.emit(targetDelta(target, wallMs))
       }
-      for (const context of result.lost) this.heardContexts.delete(context)
+      for (const context of result.lost) {
+        this.heardContexts.delete(context)
+        this.options.forget?.(context)
+      }
       heard = result.heard.length
     }
 

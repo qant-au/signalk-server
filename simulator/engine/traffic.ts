@@ -8,7 +8,8 @@ import {
   isReportReceived,
   lostAfterSeconds,
   receptionRangeNm,
-  reportingIntervalSeconds
+  reportingIntervalSeconds,
+  staticIntervalSeconds
 } from '../ais/reception'
 import { AisReport } from '../ais/targets'
 
@@ -22,8 +23,15 @@ export interface TrafficOptions {
   receiver: Receiver
   /** longest gap between source reports to interpolate across, seconds */
   maxGapS: number
-  /** how often a heard target's static data (name, dimensions) is sent, seconds */
-  staticIntervalS: number
+}
+
+/** a target's static and voyage data: what AIS message 5 (Class A) or 24 (Class B) carries */
+export interface TargetStatic {
+  name?: string
+  imo?: string
+  callSign?: string
+  destination?: string
+  etaMs?: number
 }
 
 export interface TargetState {
@@ -34,11 +42,16 @@ export interface TargetState {
   name?: string
   station: AisStation
   description: TargetDescription
+  voyage: TargetStatic
   lat: number
   lon: number
   sogKn: number
   cogDeg?: number
   headingDeg?: number
+  rotDegMin?: number
+  navStatus?: number
+  /** changing course, which makes a Class A station report faster */
+  turning: boolean
 }
 
 export interface HeardTarget extends TargetState {
@@ -48,11 +61,32 @@ export interface HeardTarget extends TargetState {
 
 const MMSI_PATTERN = /^\d{9}$/
 const DEGREES_PER_TURN = 360
+/** a course changing faster than this, degrees a minute, counts as changing course */
+const TURNING_DEG_MIN = 5
+const MOVING_KN = 0.5
+
+/** the first value any report gives, for data that does not change along a voyage */
+function first<T>(
+  reports: AisReport[],
+  pick: (r: AisReport) => T | undefined
+): T | undefined {
+  for (const r of reports) {
+    const v = pick(r)
+    if (v !== undefined) return v
+  }
+  return undefined
+}
+
+function wrap180(deg: number): number {
+  return ((((deg + 180) % 360) + 360) % 360) - 180
+}
 
 class Track {
   readonly context: string
   readonly mmsi?: string
   readonly station: AisStation
+  readonly description: TargetDescription
+  readonly voyage: TargetStatic
   nextTransmitMs = 0
   lastHeardMs = -Infinity
   lastIntervalS = 0
@@ -63,7 +97,22 @@ class Track {
     readonly reports: AisReport[],
     readonly name: string | undefined
   ) {
-    this.station = estimateStation(reports[0].target)
+    this.description = {
+      transceiver: first(reports, (r) => r.target.transceiver),
+      typeCode: first(reports, (r) => r.target.typeCode),
+      typeText: first(reports, (r) => r.target.typeText),
+      lengthM: first(reports, (r) => r.target.lengthM),
+      beamM: first(reports, (r) => r.target.beamM),
+      draughtM: first(reports, (r) => r.target.draughtM)
+    }
+    this.voyage = {
+      name,
+      imo: first(reports, (r) => r.imo),
+      callSign: first(reports, (r) => r.callSign),
+      destination: first(reports, (r) => r.destination),
+      etaMs: first(reports, (r) => r.etaMs)
+    }
+    this.station = estimateStation(this.description)
     if (MMSI_PATTERN.test(id)) {
       this.mmsi = id
       this.context = `vessels.urn:mrn:imo:mmsi:${id}`
@@ -103,16 +152,32 @@ class Track {
     const f =
       b.timeMs > a.timeMs ? (timeMs - a.timeMs) / (b.timeMs - a.timeMs) : 0
     const near = f < 0.5 ? a : b
+    const sogKn = a.sogKn + (b.sogKn - a.sogKn) * f
+    // turning by its own rate of turn, or by its course between the reports either side
+    const minutes = (b.timeMs - a.timeMs) / 60000
+    const courseRate =
+      a.cogDeg !== undefined && b.cogDeg !== undefined && minutes > 0
+        ? Math.abs(wrap180(b.cogDeg - a.cogDeg)) / minutes
+        : 0
+    const turning =
+      sogKn > MOVING_KN &&
+      (near.rotDegMin !== undefined
+        ? Math.abs(near.rotDegMin) > TURNING_DEG_MIN
+        : courseRate > TURNING_DEG_MIN)
     return {
       id: this.id,
       context: this.context,
       mmsi: this.mmsi,
       name: this.name,
       station: this.station,
-      description: a.target,
+      description: this.description,
+      voyage: this.voyage,
       lat: a.lat + (b.lat - a.lat) * f,
       lon: a.lon + (b.lon - a.lon) * f,
-      sogKn: a.sogKn + (b.sogKn - a.sogKn) * f,
+      sogKn,
+      rotDegMin: near.rotDegMin,
+      navStatus: near.navStatus,
+      turning,
       cogDeg: near.cogDeg,
       headingDeg:
         near.headingDeg !== undefined && near.headingDeg < DEGREES_PER_TURN
@@ -178,7 +243,9 @@ export class Traffic {
         const state = track.at(t, maxGapMs)
         const interval = reportingIntervalSeconds(
           track.station.aisClass,
-          state?.sogKn ?? 0
+          state?.sogKn ?? 0,
+          state?.navStatus,
+          state?.turning
         )
         track.nextTransmitMs = t + interval * 1000
         if (!state) continue
@@ -192,7 +259,8 @@ export class Traffic {
       }
       if (latest) {
         const withStatic =
-          toMs - track.lastStaticMs >= this.options.staticIntervalS * 1000
+          toMs - track.lastStaticMs >=
+          staticIntervalSeconds(track.station.aisClass) * 1000
         if (withStatic) track.lastStaticMs = toMs
         heard.push({ ...latest, withStatic })
       } else if (
@@ -201,6 +269,8 @@ export class Traffic {
       ) {
         lost.push(track.context)
         track.lastHeardMs = -Infinity
+        // heard again, it is a new target to the receiver, as it was the first time
+        track.lastStaticMs = -Infinity
       }
     }
     return { heard, lost }

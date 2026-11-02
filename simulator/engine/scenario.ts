@@ -60,7 +60,6 @@ export const DEFAULT_RECEIVER_ANTENNA_HEIGHT_M = 10
 const MIN_CELL_M = 10
 const TRAFFIC_MAX_GAP_S = 20 * 60
 const THINNED_GAP_FACTOR = 1.5
-const STATIC_INTERVAL_S = 6 * 60
 
 export function listSamples(samplesDir: string): string[] {
   if (!existsSync(samplesDir)) return []
@@ -136,8 +135,7 @@ export async function loadScenario(
     )
     traffic = new Traffic(reports, {
       receiver: { antennaHeightM: options.receiverAntennaHeightM },
-      maxGapS,
-      staticIntervalS: STATIC_INTERVAL_S
+      maxGapS
     })
   } else if (sample.ais) {
     notes.push(

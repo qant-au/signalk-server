@@ -273,6 +273,7 @@ describe('Simulator vessel identity', () => {
       expect([...run.plugin.keys()].sort()).to.deep.equal([
         'design.airHeight',
         'design.displacement',
+        'sensors.ais.class',
         'sensors.ais.fromBow',
         'sensors.ais.fromCenter'
       ])

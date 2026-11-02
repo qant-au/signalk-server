@@ -97,6 +97,7 @@ export interface VesselIdentity {
   displacementT?: number
   typeCode: number
   aisAntenna?: { fromBowM: number; fromCenterM: number }
+  aisClass?: 'A' | 'B'
 }
 
 /** what the identity delta can carry, each a field an owner's own settings may already give */
@@ -110,7 +111,8 @@ export const IDENTITY_FIELDS = [
   'design.displacement',
   'design.aisShipType',
   'sensors.ais.fromBow',
-  'sensors.ais.fromCenter'
+  'sensors.ais.fromCenter',
+  'sensors.ais.class'
 ] as const
 export type IdentityField = (typeof IDENTITY_FIELDS)[number]
 
@@ -155,7 +157,8 @@ export function identityValues(
       { id: id.typeCode, name: AIS_TYPE_NAMES[id.typeCode] }
     ],
     ['sensors.ais.fromBow', id.aisAntenna?.fromBowM],
-    ['sensors.ais.fromCenter', id.aisAntenna?.fromCenterM]
+    ['sensors.ais.fromCenter', id.aisAntenna?.fromCenterM],
+    ['sensors.ais.class', id.aisClass]
   ]
   return new Map(all.filter(([, v]) => v !== undefined))
 }
@@ -190,7 +193,8 @@ const IDENTITY_META: Partial<Record<IdentityField, [string, string]>> = {
   'sensors.ais.fromCenter': [
     'AIS antenna from centreline',
     'AIS antenna to starboard of the centreline, m'
-  ]
+  ],
+  'sensors.ais.class': ['AIS class', 'the class of the own AIS transponder']
 }
 
 const KG_PER_TONNE = 1000
@@ -209,7 +213,8 @@ export function vesselIdentity(
     maxDraftM: profile?.maxDraftM,
     airHeightM: profile?.airHeightM,
     displacementT: profile?.displacementT,
-    aisAntenna: profile?.aisAntenna
+    aisAntenna: profile?.aisAntenna,
+    aisClass: profile?.aisClass
   }
 }
 

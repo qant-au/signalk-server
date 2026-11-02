@@ -78,6 +78,13 @@ interface App {
     }
     settings?: { vessel?: Record<string, unknown> }
   }
+  /**
+   * The server's full model and its delta cache. The server drops a vessel only after an
+   * hour without data (`pruneContextsMinutes`), and the plugin API cannot drop one, so a
+   * target the receiver has lost is dropped from both here, as soon as it is lost.
+   */
+  signalk?: { deleteContext(context: string): void }
+  deltaCache?: { deleteContext(context: string): void }
 }
 
 /** a short name for each identity field, for the status line */
@@ -91,7 +98,8 @@ const FIELD_LABELS: Record<IdentityField, string> = {
   'design.displacement': 'displacement',
   'design.aisShipType': 'ship type',
   'sensors.ais.fromBow': 'AIS antenna from bow',
-  'sensors.ais.fromCenter': 'AIS antenna from centre'
+  'sensors.ais.fromCenter': 'AIS antenna from centre',
+  'sensors.ais.class': 'AIS class'
 }
 
 const PLUGIN_ID = 'signalk-simulator'
@@ -189,6 +197,12 @@ export = function simulatorPlugin(app: App) {
         given(base?.getSelfValue(field)) ||
         ((field === 'name' || field === 'mmsi') && given(legacy[field]))
     )
+  }
+
+  /** drops a lost target from the server, so vessels.* holds only what is heard */
+  function forgetTarget(context: string) {
+    app.deltaCache?.deleteContext(context)
+    app.signalk?.deleteContext(context)
   }
 
   /** the fields this plugin put into the server's vessel settings, in memory, with their values */
@@ -323,7 +337,8 @@ export = function simulatorPlugin(app: App) {
           scenarioStartMs,
           seed: options.seed,
           systemsState,
-          identityWithheld: [...owned, ...SERVER_KEPT_FIELDS]
+          identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
+          forget: forgetTarget
         },
         (delta) => app.handleMessage(PLUGIN_ID, delta),
         Date.now()
@@ -403,7 +418,7 @@ export = function simulatorPlugin(app: App) {
           ? `, depth ${result.depthM.toFixed(1)} m`
           : ''
       const traffic = options.showTraffic
-        ? `, ${simulation.trafficCount} AIS targets heard`
+        ? `, ${simulation.trafficCount} AIS targets in range`
         : ', traffic off'
       const legs = scenario.legs.length
       const next =
@@ -500,6 +515,7 @@ export = function simulatorPlugin(app: App) {
     stop() {
       stopped = true
       returnIdentity()
+      simulation?.forgetAll()
       if (timer) clearInterval(timer)
       timer = undefined
       simulation = undefined
