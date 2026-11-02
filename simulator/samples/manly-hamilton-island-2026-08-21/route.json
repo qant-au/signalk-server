@@ -1,0 +1,192 @@
+{
+  "name": "Manly (Brisbane) to Hamilton Island",
+  "departure": "2026-08-20T20:00:00Z",
+  "vessel": {
+    "description": "15 m motor-sailer, 8.5 kn cruising",
+    "lengthM": 15,
+    "typeCode": 36
+  },
+  "source": "Hand-written from charted headlands, channels and islands, then checked against the Great Barrier Reef 30 m depth model (no leg crosses land or water shallower than 3 m outside the two marinas). Not derived from the AMSA AIS, whose licence does not allow derived works to be shared.",
+  "waypoints": [
+    {
+      "name": "Manly Boat Harbour",
+      "lat": -27.4555,
+      "lon": 153.195,
+      "speedKn": 4,
+      "note": "marina and entrance channel, dead slow"
+    },
+    {
+      "name": "Manly channel, outer end",
+      "lat": -27.438,
+      "lon": 153.215,
+      "speedKn": 7,
+      "note": "Moreton Bay"
+    },
+    {
+      "name": "South-east of Green Island",
+      "lat": -27.435,
+      "lon": 153.248,
+      "speedKn": 8.5
+    },
+    {
+      "name": "East of Mud Island",
+      "lat": -27.4,
+      "lon": 153.26,
+      "speedKn": 8.5
+    },
+    {
+      "name": "East of St Helena Island",
+      "lat": -27.33,
+      "lon": 153.285,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Moreton Bay, central",
+      "lat": -27.2,
+      "lon": 153.25,
+      "speedKn": 8.5
+    },
+    {
+      "name": "North West Channel, south",
+      "lat": -27.05,
+      "lon": 153.22,
+      "speedKn": 8.5
+    },
+    {
+      "name": "North West Channel, north",
+      "lat": -26.9,
+      "lon": 153.2,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Caloundra Head",
+      "lat": -26.8,
+      "lon": 153.25,
+      "speedKn": 8.5,
+      "note": "open coast"
+    },
+    {
+      "name": "Off Mooloolaba",
+      "lat": -26.65,
+      "lon": 153.22,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Noosa Heads",
+      "lat": -26.38,
+      "lon": 153.18,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Double Island Point",
+      "lat": -25.92,
+      "lon": 153.29,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Indian Head, Fraser Island",
+      "lat": -25.0,
+      "lon": 153.43,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Sandy Cape",
+      "lat": -24.69,
+      "lon": 153.37,
+      "speedKn": 8.5
+    },
+    {
+      "name": "North of Breaksea Spit",
+      "lat": -24.18,
+      "lon": 153.3,
+      "speedKn": 8.5,
+      "note": "clear of the spit, turning west"
+    },
+    {
+      "name": "North of Lady Elliot Island",
+      "lat": -24.02,
+      "lon": 152.7,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Bustard Head",
+      "lat": -24.0,
+      "lon": 151.82,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Cape Capricorn",
+      "lat": -23.47,
+      "lon": 151.33,
+      "speedKn": 8.5
+    },
+    {
+      "name": "East of Great Keppel Island",
+      "lat": -23.16,
+      "lon": 151.05,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Cape Manifold",
+      "lat": -22.7,
+      "lon": 150.95,
+      "speedKn": 8.5
+    },
+    {
+      "name": "Off Island Head",
+      "lat": -22.35,
+      "lon": 150.75,
+      "speedKn": 8.5
+    },
+    {
+      "name": "South-west of Middle Percy Island",
+      "lat": -21.72,
+      "lon": 150.2,
+      "speedKn": 8.5
+    },
+    {
+      "name": "South of the Cumberland Islands",
+      "lat": -21.0,
+      "lon": 149.55,
+      "speedKn": 8.5
+    },
+    {
+      "name": "South-west of Brampton Island",
+      "lat": -20.85,
+      "lon": 149.15,
+      "speedKn": 8.5
+    },
+    {
+      "name": "South-west of Lindeman Island",
+      "lat": -20.53,
+      "lon": 149.0,
+      "speedKn": 6,
+      "note": "Whitsundays, slowing for the islands"
+    },
+    {
+      "name": "Between Lindeman and Hamilton islands",
+      "lat": -20.41,
+      "lon": 149.0,
+      "speedKn": 6
+    },
+    {
+      "name": "South of Dent Passage",
+      "lat": -20.385,
+      "lon": 148.945,
+      "speedKn": 4,
+      "note": "harbour approach"
+    },
+    {
+      "name": "Dent Passage",
+      "lat": -20.355,
+      "lon": 148.942,
+      "speedKn": 3
+    },
+    {
+      "name": "Hamilton Island marina",
+      "lat": -20.347,
+      "lon": 148.948,
+      "note": "arrival"
+    }
+  ]
+}

@@ -1,11 +1,15 @@
 # Saronic Gulf: Overnight
 
-|                    |                                                                                                                                                                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **When**           | Friday 13 July 2018 14:00 to Saturday 14 July 10:00 EEST (11:00 to 07:00 UTC), 20 hours.                                                                                                                                                 |
-| **Where**          | The Saronic Gulf out of Piraeus, Greece. The AIS comes from a single receiver beside the port, so the passage stays inside the gulf (for example Piraeus, Aegina, Poros, Hydra and back); traffic thins with distance from the receiver. |
-| **Why this night** | Peak ferry season, with a night wind averaging 7 kn and gusting to 15 kn.                                                                                                                                                                |
-| **Availability**   | Depth and weather are included. The AIS, and the weather that ships with it, have to be downloaded by the user: see [Getting the AIS](#getting-the-ais).                                                                                 |
+|                    |                                                                                                                                                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **When**           | Friday 13 July 2018 14:00 to Saturday 14 July 10:00 EEST (11:00 to 07:00 UTC), 20 hours.                                                                                                                                           |
+| **Where**          | A loop out of Zea Marina, Piraeus: west of Aegina and Angistri, past Methana and Poros, round Cape Skyli to Hydra, and back east of Aegina. It stays inside the gulf because the AIS comes from a single receiver beside the port. |
+| **Why this night** | Peak ferry season, with a night wind averaging 7 kn and gusting to 15 kn.                                                                                                                                                          |
+| **Availability**   | Depth and weather are included. The AIS, and the weather that ships with it, have to be downloaded by the user: see [Getting the AIS](#getting-the-ais).                                                                           |
+
+## Route
+
+`route.json`: a 15 m sailing yacht, 97.4 nm in 19 h 57 min, at 3 kn in the marina, 5 kn under sail by day, 4.5 kn at night and 5.5 kn in the morning breeze. Hand-written from charted features and checked against the EMODnet depth grid; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
 
 ## Data
 

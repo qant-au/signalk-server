@@ -1,0 +1,120 @@
+{
+  "name": "Saronic Gulf overnight loop from Piraeus",
+  "departure": "2018-07-13T11:00:00Z",
+  "vessel": {
+    "description": "15 m sailing yacht",
+    "lengthM": 15,
+    "typeCode": 36
+  },
+  "source": "Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
+  "waypoints": [
+    {
+      "name": "Zea Marina, Piraeus",
+      "lat": 37.9335,
+      "lon": 23.6505,
+      "speedKn": 3,
+      "note": "marina, dead slow"
+    },
+    {
+      "name": "Zea Marina entrance",
+      "lat": 37.92,
+      "lon": 23.655,
+      "speedKn": 5,
+      "note": "under sail in the afternoon sea breeze"
+    },
+    {
+      "name": "Piraeus approaches",
+      "lat": 37.9,
+      "lon": 23.63,
+      "speedKn": 5
+    },
+    {
+      "name": "Between Salamis and Aegina",
+      "lat": 37.83,
+      "lon": 23.4,
+      "speedKn": 5
+    },
+    {
+      "name": "West of Aegina",
+      "lat": 37.74,
+      "lon": 23.36,
+      "speedKn": 5
+    },
+    {
+      "name": "West of Angistri",
+      "lat": 37.67,
+      "lon": 23.28,
+      "speedKn": 5
+    },
+    {
+      "name": "North-east of Methana",
+      "lat": 37.65,
+      "lon": 23.47,
+      "speedKn": 5
+    },
+    {
+      "name": "East of Poros",
+      "lat": 37.53,
+      "lon": 23.58,
+      "speedKn": 4.5,
+      "note": "night, lighter wind"
+    },
+    {
+      "name": "Off Cape Skyli",
+      "lat": 37.43,
+      "lon": 23.6,
+      "speedKn": 4.5
+    },
+    {
+      "name": "North of Hydra",
+      "lat": 37.38,
+      "lon": 23.52,
+      "speedKn": 4.5
+    },
+    {
+      "name": "Off Hydra harbour",
+      "lat": 37.36,
+      "lon": 23.465,
+      "speedKn": 4.5,
+      "note": "turning point"
+    },
+    {
+      "name": "East of Hydra",
+      "lat": 37.45,
+      "lon": 23.65,
+      "speedKn": 5
+    },
+    {
+      "name": "South-east of Aegina",
+      "lat": 37.66,
+      "lon": 23.62,
+      "speedKn": 5.5,
+      "note": "morning breeze"
+    },
+    {
+      "name": "East of Aegina",
+      "lat": 37.77,
+      "lon": 23.62,
+      "speedKn": 5.5
+    },
+    {
+      "name": "Piraeus approaches, inbound",
+      "lat": 37.9,
+      "lon": 23.63,
+      "speedKn": 5.5
+    },
+    {
+      "name": "Zea Marina entrance, inbound",
+      "lat": 37.92,
+      "lon": 23.655,
+      "speedKn": 3,
+      "note": "harbour"
+    },
+    {
+      "name": "Zea Marina, Piraeus",
+      "lat": 37.9335,
+      "lon": 23.6505,
+      "note": "arrival"
+    }
+  ]
+}
