@@ -1,0 +1,7 @@
+{
+  "name": "signalk-sim-rig-config",
+  "version": "0.0.1",
+  "description": "Configuration directory of the simulator test rig; webapps install here.",
+  "private": true,
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,12 @@
+name: signalk-sim-rig
+
+services:
+  signalk:
+    build:
+      context: ../..
+      dockerfile: simulator/rig/Dockerfile
+    container_name: signalk-sim-rig
+    ports:
+      # Loopback only: the rig has no security configured, so anyone who can reach it
+      # can write to it.
+      - '127.0.0.1:4770:3000'

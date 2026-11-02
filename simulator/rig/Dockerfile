@@ -1,0 +1,28 @@
+# The simulator test rig: Signal K Server built from this checkout, with Freeboard for
+# watching a route on a chart. Build from the repository root:
+#
+#   docker compose -f simulator/rig/docker-compose.yml up --build
+#
+# The server is this fork's own code, not a published release, so the rig always tests
+# what is in the working tree. Its configuration is baked in and starts fresh on every run.
+
+# Tag: node:24-bookworm · Refreshed: 2026-11-02
+FROM node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413
+
+ARG FREEBOARD_VERSION=3.4.1
+
+USER node
+WORKDIR /home/node/signalk
+
+COPY --chown=node:node . .
+RUN npm install --no-audit --no-fund \
+  && npm run build:workspaces \
+  && npm run build
+
+# Webapps install into the server's configuration directory, the way the App Store does.
+WORKDIR /home/node/rig
+COPY --chown=node:node simulator/rig/config/ ./
+RUN npm install --no-audit --no-fund "@signalk/freeboard-sk@${FREEBOARD_VERSION}"
+
+EXPOSE 3000
+CMD ["node", "/home/node/signalk/bin/signalk-server", "-c", "/home/node/rig"]
