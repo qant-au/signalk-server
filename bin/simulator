@@ -5,7 +5,7 @@
 # The server runs from its own configuration directory, .simulator/ (ignored by git): the
 # server writes its defaults back into the settings file it runs with, so it is given a
 # copy of settings/simulator.json, made fresh on every start, and the tracked file is
-# never touched. Plugin settings and the simulator's saved scenario time persist there
+# never touched. Plugin settings and the saved run (scenario time and systems) persist there
 # between runs; delete .simulator/ to start over. Pass further server options after it.
 
 set -e
