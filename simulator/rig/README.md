@@ -31,6 +31,13 @@ not be exposed beyond the machine running it.
   server builds), not a published release, so the rig tests what is in the working tree.
   Rebuild with `--build` after changing the code.
 - **Node** is `node:24-bookworm`, pinned by digest in the `Dockerfile`.
+- **The simulator plugin** (`simulator/plugin`) is built and installed, and enabled by
+  default: the rig starts sailing the Miami sample as soon as it is up. Its settings are in
+  the Admin UI under Server, Plugin Config, Signal K Simulator; see
+  [the plugin README](../plugin/README.md).
+- **The samples** are mounted from `simulator/samples`, so the depth grids fetched and the
+  licensed AIS prepared on this machine are available to the plugin without being in the
+  image.
 - **Freeboard** is installed into the server's configuration directory at a pinned version
   (`FREEBOARD_VERSION` in the `Dockerfile`), the way the App Store installs a webapp.
 - **Configuration** (`config/`) is baked into the image: no data connections, no security.

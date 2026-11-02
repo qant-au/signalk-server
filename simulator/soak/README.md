@@ -7,7 +7,8 @@ only**. AIS traffic, faster-than-real time and full-route runs come next.
 
 ## Running One
 
-Start the rig, then:
+Start the rig and **disable the simulator plugin** first (Admin UI, Server, Plugin Config),
+or the plugin and the soak run will both be sailing the own boat. Then:
 
 ```shell
 npx ts-node simulator/tools/soak.ts <sample> [--minutes N] [--start-at N] [--url URL] [--container NAME]
