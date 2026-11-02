@@ -81,15 +81,16 @@ organisation, on 2 November 2026:
 
 ## Current Status
 
-**Early stage: the sample data and its tools are in place; the simulator engine is not
-started. The existing scaffolding above is unchanged.**
+**Early stage: the sample data, its tools and the AIS reception model are in place; the
+simulator engine is not started. The existing scaffolding above is unchanged.**
 
-| Area             | Status                                                                                                                                                      |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Test Rig         | A local Signal K Server built from this fork, running on its own the way it runs on a boat.                                                                 |
-| Scenario Data    | Done for all three samples: data, tools to fetch and prepare it, and instructions for the licensed sources. See [simulator/README.md](simulator/README.md). |
-| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.                                 |
-| Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                                     |
+| Area             | Status                                                                                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Test Rig         | A local Signal K Server built from this fork, running on its own the way it runs on a boat.                                                                                                                                                 |
+| Scenario Data    | Done for all three samples: data, tools to fetch and prepare it, and instructions for the licensed sources. See [simulator/README.md](simulator/README.md).                                                                                 |
+| AIS Reception    | Done, ready for route work: which targets a boat would actually hear, from antenna heights, transmit power and the radio horizon, with real reporting rates and lost-target timing. See [simulator/ais/README.md](simulator/ais/README.md). |
+| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.                                                                                                                 |
+| Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                                                                                                                     |
 
 ## The Three Samples
 
