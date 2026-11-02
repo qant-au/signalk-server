@@ -13,6 +13,7 @@ in: the own boat on its route, the depth under it, and the AIS traffic it would 
 | Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 30, 60, 120 or 300           |
 | Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this       |
 | Show traffic                           | on        | send the AIS targets the boat would hear                                        |
+| Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly       |
 | Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears               |
 | Start this many minutes into the route | 0         | where a new run starts                                                          |
 | Resume where the last run reached      | on        | carry on from the saved scenario time                                           |
@@ -49,6 +50,13 @@ grid: `environment.depth.belowSurface` and `environment.depth.belowKeel` (below 
 the draft). Depths are relative to the grid's datum (mean sea level, lowest astronomical tide
 or the survey datum); tides are not applied yet.
 
+**Systems.** When the sample's route names a vessel profile, the boat also sends its
+engines, generators, batteries, chargers, solar and wind charging, tanks, wind and the
+spaces inside, and each of its depth sounders reports the depth under its own place on the
+hull, in place of the single grid depth. Names for every unit go out as metadata when the
+run starts. The status line adds how many engines and generators are running. Details, and
+the systems that have no standard path, are in [the vessels README](../vessels/README.md).
+
 **Traffic.** Each AIS target in the sample is interpolated along its source track and
 transmits at the real rate for its class and speed. Each transmission reaches the boat only
 if the [reception model](../ais/README.md) says it gets through at that distance. Targets
@@ -59,11 +67,13 @@ identity, never an invented MMSI.
 
 ## Building
 
-The rig image builds it. To build it by hand:
+The rig image builds it, and `bin/simulator` builds it and starts this server with it
+enabled on the Miami sample. To build it by hand:
 
 ```shell
 npx tsc -p simulator/plugin      # writes simulator/plugin/dist
 ```
 
 The plugin uses only Node's own modules. It finds the samples next to its source
-(`simulator/samples`), or wherever `SIGNALK_SIMULATOR_SAMPLES` points.
+(`simulator/samples`), or wherever `SIGNALK_SIMULATOR_SAMPLES` points, and the vessel
+profiles beside them (`simulator/vessels`).

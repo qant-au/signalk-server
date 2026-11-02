@@ -1,7 +1,10 @@
-import { Delta, degreesToRadians, knotsToMetresPerSecond } from '../soak/deltas'
+import {
+  Delta,
+  SOURCE,
+  degreesToRadians,
+  knotsToMetresPerSecond
+} from '../soak/deltas'
 import { HeardTarget } from './traffic'
-
-export const SIMULATOR_SOURCE = 'simulator'
 
 /** Depth under the own boat, from the depth grid at its position. */
 export function depthDelta(
@@ -13,7 +16,7 @@ export function depthDelta(
     context: 'vessels.self',
     updates: [
       {
-        source: { label: SIMULATOR_SOURCE },
+        source: SOURCE,
         timestamp: new Date(sentAtMs).toISOString(),
         values: [
           { path: 'environment.depth.belowSurface', value: belowSurfaceM },
@@ -74,7 +77,7 @@ export function targetDelta(target: HeardTarget, sentAtMs: number): Delta {
     context: target.context,
     updates: [
       {
-        source: { label: SIMULATOR_SOURCE },
+        source: SOURCE,
         timestamp: new Date(sentAtMs).toISOString(),
         values
       }

@@ -18,6 +18,7 @@ interface Options {
   minDepthUnderKeelM: number
   showTraffic: boolean
   receiverAntennaHeightM: number
+  seed: number
 }
 
 interface SavedState {
@@ -52,7 +53,8 @@ const DEFAULTS: Options = {
   timeMultiplier: 1,
   minDepthUnderKeelM: 1,
   showTraffic: true,
-  receiverAntennaHeightM: 10
+  receiverAntennaHeightM: 10,
+  seed: 1
 }
 
 function samplesDir(): string {
@@ -121,7 +123,8 @@ export = function simulatorPlugin(app: App) {
       {
         timeMultiplier: options.timeMultiplier,
         showTraffic: options.showTraffic,
-        scenarioStartMs
+        scenarioStartMs,
+        seed: options.seed
       },
       (delta) => app.handleMessage(PLUGIN_ID, delta),
       Date.now()
@@ -149,9 +152,13 @@ export = function simulatorPlugin(app: App) {
       const traffic = options.showTraffic
         ? `, ${simulation.trafficCount} AIS targets heard`
         : ', traffic off'
+      const onBoard = simulation.systems?.summary()
+      const systems = onBoard
+        ? `, ${onBoard.enginesRunning} engines and ${onBoard.generatorsRunning} generators running`
+        : ''
       app.setPluginStatus(
         `${result.finished ? 'Arrived' : 'Under way'}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${options.timeMultiplier}, ${result.position.sogKn} kn${depth}${traffic}` +
+          `at x${options.timeMultiplier}, ${result.position.sogKn} kn${depth}${traffic}${systems}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
       if (result.finished && timer) {
@@ -165,7 +172,7 @@ export = function simulatorPlugin(app: App) {
     id: PLUGIN_ID,
     name: 'Signal K Simulator',
     description:
-      'Sails a sample scenario: own boat on its route, depth under the keel, and the AIS traffic it would hear',
+      'Sails a sample scenario: own boat on its route with its systems, depth under the keel, and the AIS traffic it would hear',
 
     schema: () => {
       const samples = listSamples(samplesDir())
@@ -198,6 +205,13 @@ export = function simulatorPlugin(app: App) {
             title: 'Show traffic',
             description: 'Send the AIS targets the boat would hear',
             default: DEFAULTS.showTraffic
+          },
+          seed: {
+            type: 'integer',
+            title: 'Seed',
+            description:
+              'Seed for the boat systems: the same seed and start repeat a run exactly',
+            default: DEFAULTS.seed
           },
           receiverAntennaHeightM: {
             type: 'number',

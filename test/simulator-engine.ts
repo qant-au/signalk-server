@@ -400,7 +400,8 @@ describe('simulator engine', () => {
         {
           timeMultiplier: 60,
           showTraffic: true,
-          scenarioStartMs: Date.parse(r.departure)
+          scenarioStartMs: Date.parse(r.departure),
+          seed: 1
         },
         (d) =>
           deltas.push({

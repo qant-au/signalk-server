@@ -5,15 +5,28 @@ import { RoutePosition, RouteVessel } from '../routes/route'
  * second and angles in radians.
  */
 export const SOURCE_LABEL = 'simulator'
+/** `src` tells apart devices of one kind, such as two depth sounders */
+export interface DeltaSource {
+  label: string
+  type: string
+  src?: string
+}
+export const SOURCE: DeltaSource = { label: SOURCE_LABEL, type: 'plugin' }
 const METRES_PER_SECOND_PER_KNOT = 1852 / 3600
 const RADIANS_PER_DEGREE = Math.PI / 180
+/** the AIS ship types an own boat here broadcasts, named as the specification names them */
+const AIS_TYPE_NAMES: Record<number, string> = { 36: 'Sailing', 37: 'Pleasure' }
 
 export interface Delta {
   context: string
   updates: {
-    source: { label: string }
+    source: DeltaSource
     timestamp: string
     values: { path: string; value: unknown }[]
+    meta?: {
+      path: string
+      value: { displayName: string; description: string }
+    }[]
   }[]
 }
 
@@ -40,7 +53,7 @@ export function ownBoatDelta(
     context: 'vessels.self',
     updates: [
       {
-        source: { label: SOURCE_LABEL },
+        source: SOURCE,
         timestamp: new Date(sentAtMs).toISOString(),
         values: [
           {
@@ -73,12 +86,18 @@ export function vesselDelta(
     context: 'vessels.self',
     updates: [
       {
-        source: { label: SOURCE_LABEL },
+        source: SOURCE,
         timestamp: new Date(sentAtMs).toISOString(),
         values: [
           { path: '', value: { name } },
           { path: 'design.length', value: { overall: vessel.lengthM } },
-          { path: 'design.aisShipType', value: { id: vessel.typeCode } }
+          {
+            path: 'design.aisShipType',
+            value: {
+              id: vessel.typeCode,
+              name: AIS_TYPE_NAMES[vessel.typeCode]
+            }
+          }
         ]
       }
     ]

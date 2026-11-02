@@ -4,7 +4,14 @@ import path from 'path'
 import { AisFileConfig, AisReport, readAisReports } from '../ais/targets'
 import { DepthModel, DepthSource, loadDepthModel } from '../depth/depth'
 import { Adjustment, adjustRoute } from '../routes/adjust'
-import { Leg, Route, loadRoute, routeLegs } from '../routes/route'
+import {
+  Leg,
+  Route,
+  loadRoute,
+  routeLegs,
+  vesselsDirFor
+} from '../routes/route'
+import { VesselProfile, loadProfile } from '../vessels/profile'
 import { Traffic } from './traffic'
 
 /**
@@ -35,6 +42,8 @@ export interface Scenario {
   adjustments: Adjustment[]
   depth?: DepthModel
   traffic?: Traffic
+  /** what is on board, when the route names a profile */
+  profile?: VesselProfile
   /** why traffic or depth is missing, for the status line */
   notes: string[]
 }
@@ -111,6 +120,10 @@ export async function loadScenario(
     )
   }
 
+  const profile = planned.vessel.profile
+    ? loadProfile(planned.vessel.profile, vesselsDirFor(dir))
+    : undefined
+
   return {
     sampleId,
     route,
@@ -119,6 +132,7 @@ export async function loadScenario(
     adjustments,
     depth,
     traffic,
+    profile,
     notes
   }
 }
