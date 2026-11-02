@@ -8,14 +8,19 @@
 > can be tested without being on a vessel or relying on recorded logs. It is intended to be
 > offered upstream as a pull request when ready, and is run as a separate project until then.
 >
-> **Status: early stage (design and test data; no simulator code yet).** Three samples are
+> Signal K Server has carried simulator scaffolding since 2017 (a start script and a
+> one-value plugin) but no working simulator. This fork builds on that planned feature; it
+> does not replace it.
+>
+> **Status: early stage (design and test data; no new simulator code yet).** Three samples are
 > planned: two that ship their data, and one long passage whose data the user downloads from
 > a source that cannot be redistributed. The simulator work is Copyright © 2026 Adam Burgess,
 > under the Apache License 2.0.
 >
 > ### 👉 [Read SIMULATOR.md](SIMULATOR.md)
 >
-> The simulator plan, current status, the three samples, plugin testing and licensing.
+> The existing simulator scaffolding and why this builds on it, the plan, current status,
+> the three samples, plugin testing and licensing.
 >
 > Everything below this box is the upstream README, unchanged.
 

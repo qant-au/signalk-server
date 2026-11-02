@@ -25,9 +25,40 @@ to carry unfinished work.
   For the server itself, read the [main README](README.md) and the
   [official documentation](https://demo.signalk.org/documentation/).
 
+## The Simulator Already in Signal K Server
+
+Signal K Server has carried the start of a simulator since 2017. It is scaffolding for a
+planned feature that was never built out, and this fork builds on it rather than replacing
+or competing with it.
+
+| Piece                                                                    | What It Is                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/simulator`                                                          | A start script, added in March 2017 ("add a very simple simulator") and last changed in June 2017. It installs the simulator plugin, writes a default plugin configuration, and starts the server with `settings/simulator.json`. It is not one of the commands the npm package installs, so it only runs from a source checkout. |
+| `settings/simulator.json`                                                | Server settings for a vessel named "s/y Simulator", with a single data connection that uses the null provider. That provider produces no data: everything the server sees comes from the plugin.                                                                                                                                  |
+| [`@signalk/simulatorplugin`](https://github.com/SignalK/simulatorplugin) | The plugin the script installs, version 0.0.1, last changed in June 2017. Each configured path gets a value that ramps between a minimum and a maximum. The default configuration simulates one path, speed over ground between 0 and 10 knots. It knows nothing about position, other vessels, depth, weather or time.           |
+
+Separately, the server can **replay recorded logs**: the `--sample-nmea0183-data` and
+`--sample-n2k-data` options and the `bin/*-from-file` scripts play files from `samples/` (a
+few short logs from particular boats). Replay is useful, but it is fixed. It cannot be
+steered, it covers only the boats and places that were recorded, and it carries no scenario
+of its own.
+
+**Why this fork exists, given the above:**
+
+- **It is not a reproduction of anything that works today.** The existing simulator
+  generates one oscillating number. A scenario with real traffic, depth, weather, alarms and
+  failures has never existed in the project.
+- **It is not an alternative.** It extends the planned feature, using the same plugin
+  approach and the same "start the server with simulator settings" entry point, so the
+  original intent is kept rather than replaced.
+- **It is not replay.** Scenarios are built from openly licensed source data and driven in
+  simulated time, so they can be paused, sped up and given events. Recorded logs remain the
+  right tool for reproducing a specific boat's data.
+
 ## Current Status
 
-**Early stage: design and test data. There is no simulator code in this fork yet.**
+**Early stage: design and test data. No new simulator code has been written in this fork
+yet; the existing scaffolding above is unchanged.**
 
 | Area             | Status                                                                                                                                    |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
