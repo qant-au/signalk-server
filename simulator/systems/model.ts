@@ -86,7 +86,39 @@ export interface SystemsState {
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 3
+export const SYSTEMS_STATE_VERSION = 4
+
+/** where each bank's energy went over the run, in joules, and what fuel was burned */
+export interface EnergyBooks {
+  banks: {
+    id: string
+    /** energy delivered into the bank at its terminals, by source */
+    inJ: Record<string, number>
+    /** energy drawn from it at its terminals, by load */
+    outJ: Record<string, number>
+    /** the change in energy stored, from its state of charge at the start and now */
+    storedJ: number
+    /** lost in its internal resistance */
+    lossJ: number
+    /** charge past full or discharge past empty, which the bank cannot hold or give */
+    clippedJ: number
+  }[]
+  fuel: {
+    /** asked of the tanks by every engine and generator, at their fuel rates */
+    burnedL: number
+    tanksStartL: number
+    tanksNowL: number
+  }
+  generators: { id: string; outputJ: number; fuelL: number }[]
+}
+
+interface BankBook {
+  startSoc: number
+  inJ: Record<string, number>
+  outJ: Record<string, number>
+  lossJ: number
+  clippedJ: number
+}
 
 /** a saved state that cannot be carried on from: another profile, or an older format */
 export class StaleStateError extends Error {}
@@ -103,15 +135,18 @@ const DAY_S = 86400
 
 /** litres of fuel per kWh delivered */
 const FUEL_L_PER_KWH = { diesel: 0.25, petrol: 0.35 }
+/**
+ * a generator's fuel per kWh of electricity at full load: a third of diesel's 9.94 kWh a
+ * litre, as small marine sets manage, the engine's losses and the alternator's together
+ */
+const GENERATOR_FUEL_L_PER_KWH = 0.3
 /** fuel an idling engine burns, as a share of rated power */
 const IDLE_FUEL_SHARE = 0.005
 /** a generator's fuel at no load, as a share of its full-load fuel */
 const GENERATOR_NO_LOAD_FUEL = 0.25
 const ELECTRIC_DRIVE_EFFICIENCY = 0.92
-/** a hybrid drives on electric alone up to this share of the motor's rating: harbour speeds */
-const ELECTRIC_ONLY_SHARE = 0.2
-/** and only while its bank is above this, so the diesel takes over before the generator is needed */
-const ELECTRIC_ONLY_MIN_SOC = 0.4
+/** a hybrid's inline drive, run as a generator off the diesel, gives up to this share of its rating */
+const REGEN_SHARE = 0.25
 const CHARGER_EFFICIENCY = 0.9
 const POWER_FACTOR = 0.9
 /** a generator is loaded to at most this share before another is started */
@@ -148,13 +183,15 @@ const CONVERTER_W = 3000
 const CONVERTER_EFFICIENCY = 0.95
 const CONVERTER_MIN_SOC = 0.2
 const SOLAR_DERATE = 0.85
+/** a generator charging a bank starts below the first and stops above the second */
+const PROPULSION_CHARGE_FROM = 0.3
+const PROPULSION_CHARGE_TO = 0.8
+const HOUSE_CHARGE_FROM = 0.45
+const HOUSE_CHARGE_TO = 0.9
 /** a generator, once started, runs at least this long */
 const GENERATOR_MIN_RUN_S = 15 * 60
 /** one of several running generators is stopped when the rest would be under this share */
 const GENERATOR_STOP_SHARE = 0.6
-/** hotel load, kW, as a factor of length to a power: fitted to 7 kW at 18 m and 50 kW at 45 m */
-const HOTEL_KW_FACTOR = 0.012
-const HOTEL_KW_EXPONENT = 2.2
 /** air conditioning at most this share of the hotel load, rising from HVAC_FROM_C over HVAC_RANGE_C */
 const HVAC_SHARE = 0.4
 const HVAC_FROM_C = 22
@@ -311,6 +348,13 @@ export class SystemsModel {
   private readonly pressureDrift: Drift
   private readonly loadDrift: Drift
   private readonly navigation: Navigation
+  private readonly bankBooks = new Map<BankState, BankBook>()
+  private readonly generatorBooks = new Map<
+    GeneratorState,
+    { outputJ: number; fuelL: number }
+  >()
+  private fuelBurnedL = 0
+  private tanksStartL = 0
   private motion: Motion = {
     lat: 0,
     lon: 0,
@@ -338,6 +382,8 @@ export class SystemsModel {
   private readonly pumping = new Set<TankState>()
   private readonly pumpOuts = new Map<string, number>()
   private sailing = false
+  /** a hybrid's diesels have taken over to charge its bank, until it is full enough again */
+  private hybridCharging = false
   private transferring: string | undefined
   /** AC a small boat's inverter carries from the house bank when no generator runs */
   private inverterKw = 0
@@ -459,6 +505,55 @@ export class SystemsModel {
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
     this.navigation = new Navigation(profile, seed, options.startMs)
     if (options.state) this.restore(options.state)
+    this.openBooks()
+  }
+
+  /** the books start where the model starts, fresh or restored */
+  private openBooks(): void {
+    for (const b of this.banks) {
+      this.bankBooks.set(b, {
+        startSoc: b.soc,
+        inJ: {},
+        outJ: {},
+        lossJ: 0,
+        clippedJ: 0
+      })
+    }
+    for (const g of this.generators) {
+      this.generatorBooks.set(g, { outputJ: 0, fuelL: 0 })
+    }
+    this.tanksStartL = this.tanksOf('fuel').reduce(
+      (sum, t) => sum + t.litres,
+      0
+    )
+  }
+
+  /** the energy and fuel books since the model started */
+  books(): EnergyBooks {
+    return {
+      banks: this.banks.map((b) => {
+        const book = this.bankBooks.get(b)!
+        return {
+          id: b.p.id,
+          inJ: { ...book.inJ },
+          outJ: { ...book.outJ },
+          storedJ:
+            storedEnergyJ(b.p, b.health, b.soc) -
+            storedEnergyJ(b.p, b.health, book.startSoc),
+          lossJ: book.lossJ,
+          clippedJ: book.clippedJ
+        }
+      }),
+      fuel: {
+        burnedL: this.fuelBurnedL,
+        tanksStartL: this.tanksStartL,
+        tanksNowL: this.tanksOf('fuel').reduce((sum, t) => sum + t.litres, 0)
+      },
+      generators: this.generators.map((g) => ({
+        id: g.p.id,
+        ...this.generatorBooks.get(g)!
+      }))
+    }
   }
 
   get scenarioMs(): number {
@@ -506,6 +601,7 @@ export class SystemsModel {
         madeL: this.madeL,
         shoreWaterL: this.shoreWaterL,
         sailing: this.sailing,
+        hybridCharging: this.hybridCharging,
         transferring: this.transferring ?? null,
         inverterKw: this.inverterKw
       },
@@ -652,6 +748,7 @@ export class SystemsModel {
     this.madeL = values.madeL as number
     this.shoreWaterL = values.shoreWaterL as number
     this.sailing = values.sailing as boolean
+    this.hybridCharging = values.hybridCharging as boolean
     this.transferring = (values.transferring as string | null) ?? undefined
     this.inverterKw = values.inverterKw as number
     this.pumping.clear()
@@ -734,6 +831,14 @@ export class SystemsModel {
     const ratedKw = p.engines.reduce((sum, e) => sum + e.powerKw, 0)
     // propeller law: power goes with the cube of speed
     const demandKw = (ratedKw * speedShare ** 3) / Math.max(1, p.engines.length)
+    const rules = p.hybrid
+    const propulsionBank = this.banks.find((b) => b.p.role === 'propulsion')
+    if (rules && propulsionBank) {
+      if (propulsionBank.soc < rules.dieselBelowSoc) this.hybridCharging = true
+      else if (propulsionBank.soc > rules.electricAboveSoc)
+        this.hybridCharging = false
+    }
+    const hybrids = this.engines.filter((e) => e.p.type === 'hybrid').length
 
     for (const e of this.engines) {
       const ep = e.p
@@ -749,9 +854,11 @@ export class SystemsModel {
       } else if (
         ep.type === 'hybrid' &&
         ep.electricKw &&
-        demandKw <= ELECTRIC_ONLY_SHARE * ep.electricKw &&
+        rules &&
         bank &&
-        bank.soc > ELECTRIC_ONLY_MIN_SOC
+        !this.hybridCharging &&
+        sogKn <= rules.electricBelowKn &&
+        demandKw <= ep.electricKw
       ) {
         e.running = false
         e.electricMode = true
@@ -759,9 +866,19 @@ export class SystemsModel {
       } else {
         e.running = true
         e.shaftKw = Math.min(ep.powerKw, demandKw)
-        if (ep.type === 'hybrid' && ep.electricKw && bank && bank.soc < 0.9) {
-          // the inline drive runs as a generator, charging the bank off the diesel
-          const regenKw = Math.min(0.25 * ep.electricKw, ep.powerKw - e.shaftKw)
+        if (
+          ep.type === 'hybrid' &&
+          ep.electricKw &&
+          bank &&
+          rules?.chargeWhileDiesel
+        ) {
+          // the inline drive runs as a generator, charging the bank off the diesel with
+          // as much as the bank will take, shared between the drives
+          const regenKw = Math.min(
+            REGEN_SHARE * ep.electricKw,
+            ep.powerKw - e.shaftKw,
+            acceptanceW(bank) / 1000 / ELECTRIC_DRIVE_EFFICIENCY / hybrids
+          )
           e.shaftKw += regenKw
           e.bankKw = -regenKw * ELECTRIC_DRIVE_EFFICIENCY
         }
@@ -824,7 +941,9 @@ export class SystemsModel {
     const hour = solarHour(this.nowMs, this.motion.lon)
     const meal = isMealTime(hour)
     const awake = hour >= 6.5 && hour < 22.5
-    const scaleKw = HOTEL_KW_FACTOR * p.lengthM ** HOTEL_KW_EXPONENT
+    const scaleKw = p.hotelKw
+    // a hybrid's hotel load runs on its bank, and its generator only charges the bank
+    const batteryHotel = p.hybrid !== undefined
     const baseKw =
       scaleKw *
       (awake ? 1 : 0.6) *
@@ -864,14 +983,23 @@ export class SystemsModel {
         const bank = this.bank(g.p.chargesBank)
         if (bank) {
           const propulsion = bank.p.role === 'propulsion'
-          if (bank.soc < (propulsion ? 0.3 : 0.45)) g.wantsCharge = true
-          else if (bank.soc > (propulsion ? 0.8 : 0.9)) g.wantsCharge = false
+          const low = propulsion
+            ? (p.hybrid?.dieselBelowSoc ?? PROPULSION_CHARGE_FROM)
+            : HOUSE_CHARGE_FROM
+          const high = propulsion
+            ? (p.hybrid?.electricAboveSoc ?? PROPULSION_CHARGE_TO)
+            : HOUSE_CHARGE_TO
+          if (bank.soc < low) g.wantsCharge = true
+          else if (bank.soc > high) g.wantsCharge = false
         }
-        // at anchor a smaller boat runs its generator for cooking and hot water at meals
-        this.setGenerator(
-          g,
-          g.wantsCharge || (anchored && meal) || this.watermakerOn
+        const allowed = !(
+          anchored &&
+          p.hybrid &&
+          !p.hybrid.generatorChargesAtAnchor
         )
+        // at anchor a smaller boat runs its generator for cooking and hot water at meals
+        const forAc = !batteryHotel && ((anchored && meal) || this.watermakerOn)
+        this.setGenerator(g, allowed && (g.wantsCharge || forAc))
       }
     }
 
@@ -879,7 +1007,8 @@ export class SystemsModel {
     this.hvacOn = hasGenerators && (atBerth || running.length > 0)
     this.hvacKw = this.hvacOn ? hvacDemandKw : 0
     this.hotelKw = baseKw
-    this.watermakerRunning = this.watermakerOn && running.length > 0
+    this.watermakerRunning =
+      this.watermakerOn && (running.length > 0 || batteryHotel)
     for (const g of this.generators) g.loadKw = 0
     this.shoreKw = atBerth && hasGenerators ? baseKw + this.hvacKw : 0
     if (!atBerth && running.length) {
@@ -888,7 +1017,13 @@ export class SystemsModel {
       for (const g of running) g.loadKw = acKw / running.length
     }
     this.inverterKw =
-      hasGenerators && !atBerth && !running.length ? INVERTER_SHARE * baseKw : 0
+      atBerth || running.length
+        ? 0
+        : batteryHotel
+          ? baseKw + (this.watermakerRunning ? watermakerKw : 0)
+          : hasGenerators
+            ? INVERTER_SHARE * baseKw
+            : 0
   }
 
   /** once started a generator runs a minimum time, so a passing load cannot cycle it */
@@ -919,11 +1054,16 @@ export class SystemsModel {
       g.loadKw = Math.min(g.p.powerKw, g.loadKw)
       const share = g.running ? g.loadKw / g.p.powerKw : 0
       g.fuelLph = g.running
-        ? FUEL_L_PER_KWH.diesel *
+        ? GENERATOR_FUEL_L_PER_KWH *
           g.p.powerKw *
           (GENERATOR_NO_LOAD_FUEL + (1 - GENERATOR_NO_LOAD_FUEL) * share)
         : 0
       if (g.running) g.runS += dt
+      const book = this.generatorBooks.get(g)
+      if (book && g.running) {
+        book.outputJ += g.loadKw * 1000 * dt
+        book.fuelL += (g.fuelLph * dt) / SECONDS_PER_HOUR
+      }
       g.coolantC = relax(
         g.coolantC,
         g.running ? 78 + 8 * share : this.engineRoomAmbient(),
@@ -992,40 +1132,65 @@ export class SystemsModel {
     }
     const apparentMs = this.apparentWind().speedMs
 
+    // every flow in and out of each bank this step, watts by name, for its books
+    const flowsIn = new Map<BankState, Record<string, number>>()
+    const flowsOut = new Map<BankState, Record<string, number>>()
+    const add = (
+      flows: Map<BankState, Record<string, number>>,
+      bank: BankState,
+      name: string,
+      w: number
+    ) => {
+      const record = flows.get(bank) ?? {}
+      record[name] = (record[name] ?? 0) + w
+      flows.set(bank, record)
+    }
     const loadW = new Map<BankState, number>()
-    const draw = (bank: BankState | undefined, w: number) => {
-      if (bank) loadW.set(bank, (loadW.get(bank) ?? 0) + w)
+    const draw = (bank: BankState | undefined, w: number, name: string) => {
+      if (!bank) return
+      loadW.set(bank, (loadW.get(bank) ?? 0) + w)
+      add(flowsOut, bank, name, w)
     }
     for (const e of this.engines) {
-      if (e.bankKw > 0) draw(this.bank(e.p.bank), e.bankKw * 1000)
+      if (e.bankKw > 0) draw(this.bank(e.p.bank), e.bankKw * 1000, 'drive')
     }
     const house = this.banks.find((b) => b.p.role === 'house')
+    const propulsion = this.banks.find((b) => b.p.role === 'propulsion')
     if (house) {
-      let dcW = 3 * p.lengthM ** 1.4
+      draw(house, 3 * p.lengthM ** 1.4, 'house')
+      let fridgeW = 0
       for (const z of this.zones) {
         if (
           z.compressorOn &&
           (z.p.kind === 'fridge' || z.p.kind === 'freezer')
         ) {
-          dcW +=
+          fridgeW +=
             (z.p.kind === 'freezer' ? 80 : 50) * Math.max(1, p.lengthM / 15)
         }
       }
-      draw(house, dcW + (this.inverterKw * 1000) / CHARGER_EFFICIENCY)
+      draw(house, fridgeW, 'fridges')
     }
+    // a hybrid's inverter hangs off its propulsion bank, which carries its hotel load
+    const inverterBank = p.hybrid && propulsion ? propulsion : house
+    draw(
+      inverterBank,
+      (this.inverterKw * 1000) / CHARGER_EFFICIENCY,
+      'inverter'
+    )
     for (const b of this.banks) {
-      if (b.p.role === 'start') draw(b, 2.5 * (b.p.nominalVoltage / 12))
+      if (b.p.role === 'start')
+        draw(b, 2.5 * (b.p.nominalVoltage / 12), 'standby')
     }
 
     const supplied = new Map<BankState, number>()
-    const take = (bank: BankState, availableW: number) => {
+    const take = (bank: BankState, availableW: number, name: string) => {
       const wanted =
         (loadW.get(bank) ?? 0) + acceptanceW(bank) - (supplied.get(bank) ?? 0)
       const w = clamp(availableW, 0, Math.max(0, wanted))
       supplied.set(bank, (supplied.get(bank) ?? 0) + w)
+      add(flowsIn, bank, name, w)
       return w
     }
-    const propulsion = this.banks.find((b) => b.p.role === 'propulsion')
     // the house bank first, so the converter's draw on the propulsion bank is known
     const ordered = [...this.banks].sort(
       (a, b) => Number(b.p.role === 'house') - Number(a.p.role === 'house')
@@ -1038,7 +1203,7 @@ export class SystemsModel {
         (s) => s.p.peakW * SOLAR_DERATE * sunSin ** 1.2 * (1 - s.cloudCover)
       )
       const totalW = availableW.reduce((sum, w) => sum + w, 0)
-      const takenW = take(b, totalW)
+      const takenW = take(b, totalW, 'solar')
       arrays.forEach((s, i) => {
         s.powerW = totalW > 0 ? (takenW * availableW[i]) / totalW : 0
         s.yieldJ += s.powerW * dt
@@ -1046,20 +1211,21 @@ export class SystemsModel {
       for (const t of this.turbines) {
         if (t.p.bank !== b.p.id) continue
         const share = clamp((apparentMs - 3) / (12.5 - 3), 0, 1)
-        t.powerW = take(b, t.p.ratedW * share ** 3)
+        t.powerW = take(b, t.p.ratedW * share ** 3, 'wind')
         t.revolutionsHz = apparentMs > 2 ? Math.min(25, 2 * apparentMs) : 0
       }
       // on a boat with a propulsion bank the house hangs off its bus, ahead of any alternator
       if (b === house && propulsion && propulsion.soc > CONVERTER_MIN_SOC) {
-        const w = take(b, CONVERTER_W)
-        draw(propulsion, w / CONVERTER_EFFICIENCY)
+        const w = take(b, CONVERTER_W, 'converter')
+        draw(propulsion, w / CONVERTER_EFFICIENCY, 'converter')
       }
       for (const e of this.engines) {
         if (e.running && b.p.role !== 'propulsion' && e.p.type !== 'electric') {
           // alternators: the start bank, and the house bank through a charge splitter
-          take(b, ALTERNATOR_W_PER_KW * e.p.powerKw)
+          take(b, ALTERNATOR_W_PER_KW * e.p.powerKw, 'alternator')
         }
-        if (e.bankKw < 0 && e.p.bank === b.p.id) take(b, -e.bankKw * 1000)
+        if (e.bankKw < 0 && e.p.bank === b.p.id)
+          take(b, -e.bankKw * 1000, 'regeneration')
       }
       b.chargerW = 0
       if (b.p.role === 'start') continue
@@ -1067,7 +1233,8 @@ export class SystemsModel {
       if (atBerth) {
         b.chargerW = take(
           b,
-          Math.min(ratingW, SHORE_CHARGER_W_PER_M * p.lengthM)
+          Math.min(ratingW, SHORE_CHARGER_W_PER_M * p.lengthM),
+          'shore charger'
         )
         this.shoreChargeKw += b.chargerW / CHARGER_EFFICIENCY / 1000
       } else {
@@ -1078,7 +1245,8 @@ export class SystemsModel {
             Math.min(
               ratingW - b.chargerW,
               (g.p.powerKw - g.loadKw) * 1000 * CHARGER_EFFICIENCY
-            )
+            ),
+            'generator charger'
           )
           g.loadKw += w / CHARGER_EFFICIENCY / 1000
           b.chargerW += w
@@ -1089,24 +1257,33 @@ export class SystemsModel {
     for (const b of this.banks) {
       const w = (supplied.get(b) ?? 0) - (loadW.get(b) ?? 0)
       const scale = b.p.nominalVoltage / 12
-      b.currentA = w / Math.max(1, b.voltage)
-      b.soc = clamp(
-        b.soc +
-          (b.currentA * dt) / SECONDS_PER_HOUR / (b.p.capacityAh * b.health),
-        0.02,
-        1
-      )
-      const ocv =
-        b.p.chemistry === 'LiFePO4'
-          ? 12.9 + 0.5 * (b.soc - 0.5) + Math.max(0, b.soc - 0.97) * 15
-          : 11.8 + 1.0 * b.soc
-      const resistance = (0.004 * 100) / b.p.capacityAh
-      const absorption = b.p.chemistry === 'LiFePO4' ? 14.2 : 14.4
-      const perBlock = Math.min(
-        ocv + (b.currentA / scale) * resistance * scale,
-        b.currentA > 0 ? absorption : Infinity
-      )
-      b.voltage = scale * perBlock * (1 + b.drift.step(dt))
+      const ocv = scale * openCircuitVolts(b.p.chemistry, b.soc)
+      const resistance = (scale * BLOCK_RESISTANCE_OHM_AH) / b.p.capacityAh
+      // the terminals take w = I (ocv + I r): the current that does it, through the
+      // resistance, so what goes in at the terminals is what is stored plus I squared r
+      const current =
+        (-ocv + Math.sqrt(Math.max(0, ocv * ocv + 4 * resistance * w))) /
+        (2 * resistance)
+      const capacityAh = b.p.capacityAh * b.health
+      const wantedSoc = b.soc + (current * dt) / SECONDS_PER_HOUR / capacityAh
+      b.soc = clamp(wantedSoc, SOC_FLOOR, 1)
+      b.currentA = current
+      const book = this.bankBooks.get(b)
+      if (book) {
+        for (const [name, flow] of Object.entries(flowsIn.get(b) ?? {}))
+          book.inJ[name] = (book.inJ[name] ?? 0) + flow * dt
+        for (const [name, flow] of Object.entries(flowsOut.get(b) ?? {}))
+          book.outJ[name] = (book.outJ[name] ?? 0) + flow * dt
+        book.lossJ += current * current * resistance * dt
+        book.clippedJ +=
+          (wantedSoc - b.soc) * capacityAh * SECONDS_PER_HOUR * ocv
+      }
+      // the voltage a monitor reads: the charger holds it at absorption, and it wanders
+      const absorption = scale * (b.p.chemistry === 'LiFePO4' ? 14.2 : 14.4)
+      const terminal = ocv + current * resistance
+      b.voltage =
+        Math.min(terminal, current > 0 ? absorption : Infinity) *
+        (1 + b.drift.step(dt))
       const inEngineRoom =
         b.p.role !== 'house' &&
         this.zones.some((z) => z.p.kind === 'engineRoom')
@@ -1134,6 +1311,7 @@ export class SystemsModel {
     const fuel = this.tanksOf('fuel')
     const burn = (t: TankState | undefined, litres: number) => {
       if (!t) return
+      this.fuelBurnedL += litres
       // below its reserve a storage tank is switched for the fullest one, as a crew
       // changes tanks; a day tank is kept full by the transfer pump instead
       const fullest = fuel.reduce((a, b) => (b.litres > a.litres ? b : a), t)
@@ -1548,7 +1726,8 @@ export class SystemsModel {
     put(`${base}.temperature`, round2(b.tempC + KELVIN))
     put(`${base}.capacity.stateOfCharge`, round3(b.soc))
     put(`${base}.capacity.stateOfHealth`, round3(b.health))
-    if (b.currentA < 0) {
+    // a bank resting within a trickle of zero has no time remaining worth showing
+    if (b.currentA < -RESTING_C * b.p.capacityAh) {
       const usableAh = Math.max(0, b.soc - 0.1) * b.p.capacityAh * b.health
       put(
         `${base}.capacity.timeRemaining`,
@@ -1737,6 +1916,41 @@ function restoreUnits<T extends object>(
       ;(record[d] as Drift).restore(checkedDrift(s.drifts?.[d], `${s.id} ${d}`))
     }
   })
+}
+
+/** a 12 V block's resistance times its capacity: 4 milliohms at 100 Ah */
+const BLOCK_RESISTANCE_OHM_AH = 0.4
+/** below this share of its capacity in amps, a bank is resting rather than discharging */
+const RESTING_C = 0.001
+/** a bank is never drawn below this state of charge */
+const SOC_FLOOR = 0.02
+
+/** a 12 V block's open-circuit voltage at a state of charge */
+export function openCircuitVolts(chemistry: string, soc: number): number {
+  return chemistry === 'LiFePO4'
+    ? 12.9 + 0.5 * (soc - 0.5) + Math.max(0, soc - 0.97) * 15
+    : 11.8 + 1.0 * soc
+}
+
+/** energy stored in a bank at a state of charge: its open-circuit voltage integrated over its charge */
+export function storedEnergyJ(
+  bank: BankProfile,
+  health: number,
+  soc: number
+): number {
+  const integral =
+    bank.chemistry === 'LiFePO4'
+      ? 12.9 * soc +
+        0.25 * (soc - 0.5) ** 2 +
+        7.5 * Math.max(0, soc - 0.97) ** 2
+      : 11.8 * soc + 0.5 * soc * soc
+  return (
+    (bank.nominalVoltage / 12) *
+    integral *
+    bank.capacityAh *
+    health *
+    SECONDS_PER_HOUR
+  )
 }
 
 /** charge power a bank will take: full rate until nearly full, tapering to nothing */

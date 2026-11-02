@@ -9,6 +9,14 @@
   "rig": "motor",
   "maxSpeedKn": 16,
   "persons": 8,
+  "hotelKw": 2,
+  "hybrid": {
+    "electricBelowKn": 7,
+    "dieselBelowSoc": 0.3,
+    "electricAboveSoc": 0.8,
+    "chargeWhileDiesel": true,
+    "generatorChargesAtAnchor": true
+  },
   "engines": [
     {
       "id": "port",

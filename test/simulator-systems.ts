@@ -359,6 +359,99 @@ describe('Simulator systems model', () => {
     expect(value(sea, 'propulsion.port.fuel.rate') as number).to.be.above(0)
   })
 
+  it('takes the hybrid passage rules from the profile, with defaults for any left out', () => {
+    const cat = profiles.find((p) => p.id === 'hybrid-catamaran-60ft')!
+    expect(cat.hybrid).to.deep.equal({
+      electricBelowKn: 7,
+      dieselBelowSoc: 0.3,
+      electricAboveSoc: 0.8,
+      chargeWhileDiesel: true,
+      generatorChargesAtAnchor: true
+    })
+    const plain = resolveProfile({
+      id: 'x',
+      name: 'x',
+      lengthM: 18,
+      maxSpeedKn: 16,
+      engines: cat.engines,
+      banks: cat.banks,
+      hybrid: { dieselBelowSoc: 0.25 }
+    })
+    expect(plain.hybrid).to.deep.equal({
+      // where the propeller takes a fifth of the motors' 260 kW of the drives' 522 kW
+      electricBelowKn: 7.5,
+      dieselBelowSoc: 0.25,
+      electricAboveSoc: 0.6,
+      chargeWhileDiesel: true,
+      generatorChargesAtAnchor: true
+    })
+    expect(profiles.filter((p) => p.hybrid).map((p) => p.id)).to.deep.equal([
+      'hybrid-catamaran-60ft'
+    ])
+  })
+
+  /** the catamaran with a small propulsion bank, so its rules come into play within hours */
+  function smallBankCat(rules: Partial<VesselProfile['hybrid']> = {}) {
+    const cat = profiles.find((p) => p.id === 'hybrid-catamaran-60ft')!
+    return {
+      ...cat,
+      hybrid: { ...cat.hybrid!, ...rules },
+      banks: cat.banks.map((b) =>
+        b.role === 'propulsion' ? { ...b, capacityAh: 20 } : b
+      )
+    }
+  }
+  const steady =
+    (sogKn: number, anchored = false) =>
+    (): Motion => ({
+      lat: 37.9,
+      lon: 23.6,
+      cogDeg: 200,
+      sogKn,
+      atBerth: false,
+      anchored
+    })
+  const soc = (m: SystemsModel) =>
+    m.save().banks.find((b) => b.id === 'propulsion')!.values.soc as number
+
+  it('takes the diesels in below the charge floor and goes electric again above the ceiling', () => {
+    const cat = smallBankCat()
+    const m = model(cat)
+    const states: string[] = []
+    let lowest = 1
+    for (let s = 10; s <= 4 * 3600; s += 10) {
+      m.advance(START + s * 1000, steady(5))
+      const state = value(m.deltas(START, false), 'propulsion.port.state')
+      const changed = states[states.length - 1] !== state
+      if (changed) states.push(state as string)
+      if (state === 'started') lowest = Math.min(lowest, soc(m))
+      if (changed && state === 'stopped' && states.includes('started')) {
+        // back on the motors only once the bank is over its ceiling, less ten seconds' draw
+        expect(soc(m)).to.be.above(0.79)
+      }
+    }
+    expect(states.slice(0, 3)).to.deep.equal(['stopped', 'started', 'stopped'])
+    expect(lowest).to.be.below(0.3)
+  })
+
+  it('charges at anchor with the generator only when the bank needs it, and not where the profile says not', () => {
+    const hours = (m: SystemsModel) => {
+      let started: number | undefined
+      for (let minute = 1; minute <= 12 * 60; minute++) {
+        m.advance(START + minute * MINUTE, steady(0, true))
+        if (m.summary().generatorsRunning && started === undefined)
+          started = soc(m)
+      }
+      return started
+    }
+    const startedAt = hours(model(smallBankCat()))
+    // read up to a minute after it started charging
+    expect(startedAt).to.be.a('number').and.below(0.31)
+    expect(
+      hours(model(smallBankCat({ generatorChargesAtAnchor: false })))
+    ).to.equal(undefined)
+  })
+
   it('runs the electric launch from its bank', () => {
     const launch = profiles.find((p) => p.id === 'electric-launch-7m')!
     const m = model(launch)

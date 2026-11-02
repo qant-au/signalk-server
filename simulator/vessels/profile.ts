@@ -85,6 +85,23 @@ export interface ZoneProfile {
   setpointC: number
 }
 
+/**
+ * How a boat with hybrid drives runs its passage. Every figure has a default, so a
+ * profile names only the ones it wants different (see README.md).
+ */
+export interface HybridRules {
+  /** at or below this speed over the ground the drives run on their motors alone, knots */
+  electricBelowKn: number
+  /** below this state of charge of the propulsion bank the diesels take over and charge */
+  dieselBelowSoc: number
+  /** and above this the drives go back to electric */
+  electricAboveSoc: number
+  /** the drives charge the propulsion bank from the diesels while they run */
+  chargeWhileDiesel: boolean
+  /** the generator may charge the propulsion bank while the boat lies at anchor */
+  generatorChargesAtAnchor: boolean
+}
+
 export interface VesselProfile {
   id: string
   name: string
@@ -103,6 +120,10 @@ export interface VesselProfile {
   persons: number
   /** water maker output, litres an hour; 0 for none */
   watermakerLph: number
+  /** AC hotel load through the waking day, kW: lighting, galley, pumps, electronics */
+  hotelKw: number
+  /** passage rules, on a boat with hybrid drives */
+  hybrid?: HybridRules
   engines: EngineProfile[]
   generators: GeneratorProfile[]
   banks: BankProfile[]
@@ -116,11 +137,12 @@ export interface VesselProfile {
 }
 
 /** What a profile file may say; anything left out comes from the length. */
-export type ProfileFile = Partial<Omit<VesselProfile, 'tanks'>> & {
+export type ProfileFile = Partial<Omit<VesselProfile, 'tanks' | 'hybrid'>> & {
   id: string
   name: string
   lengthM: number
   tanks?: Partial<Record<TankType, TankProfile[]>>
+  hybrid?: Partial<HybridRules>
 }
 
 /** the most of each tank type a profile may have */
@@ -137,6 +159,13 @@ const WATERMAKER_LPH_PER_M = 5
 /** the smallest holding tank fitted, litres */
 const MIN_HOLDING_L = { wasteWater: 40, blackWater: 45 }
 const GENERATOR_FROM_M = 10
+/** hotel load, kW, as a factor of length to a power: fitted to 7 kW at 18 m and 50 kW at 45 m */
+const HOTEL_KW_FACTOR = 0.012
+const HOTEL_KW_EXPONENT = 2.2
+/** a hybrid with no figure of its own runs electric up to the speed its motors give at this share of their rating */
+const HYBRID_ELECTRIC_SHARE = 0.2
+const HYBRID_DIESEL_BELOW_SOC = 0.4
+const HYBRID_ELECTRIC_ABOVE_SOC = 0.6
 const SOUNDER_DEPTH_M = 0.5
 const SIDES = ['Port', 'Starboard']
 /** generators sit under propulsion beside the main engines, told apart by their id */
@@ -267,6 +296,27 @@ function defaultZones(lengthM: number): ZoneProfile[] {
 }
 
 /** Fills in what a profile file leaves out and checks it against the limits. */
+/**
+ * What a hybrid without rules of its own gets: electric up to the speed at which the
+ * propeller takes a fifth of the motors' rating, the diesels in below 40 % and electric
+ * again above 60 %, charging from the diesels, and the generator free to charge at anchor.
+ */
+function defaultHybrid(p: VesselProfile): HybridRules {
+  const ratedKw = p.engines.reduce((sum, e) => sum + e.powerKw, 0)
+  const electricKw = p.engines.reduce((sum, e) => sum + (e.electricKw ?? 0), 0)
+  return {
+    // propeller law: power goes with the cube of speed
+    electricBelowKn: round(
+      p.maxSpeedKn * Math.cbrt((HYBRID_ELECTRIC_SHARE * electricKw) / ratedKw),
+      0.5
+    ),
+    dieselBelowSoc: HYBRID_DIESEL_BELOW_SOC,
+    electricAboveSoc: HYBRID_ELECTRIC_ABOVE_SOC,
+    chargeWhileDiesel: true,
+    generatorChargesAtAnchor: true
+  }
+}
+
 export function resolveProfile(p: ProfileFile): VesselProfile {
   const L = p.lengthM
   const draftM = p.draftM ?? round(Math.max(0.3, L * 0.11), 0.1)
@@ -308,6 +358,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
     persons: Math.max(1, Math.round(L / 3.5)),
     watermakerLph:
       L >= WATERMAKER_FROM_M ? round(WATERMAKER_LPH_PER_M * L, 5) : 0,
+    hotelKw: round(HOTEL_KW_FACTOR * L ** HOTEL_KW_EXPONENT, 0.1),
     solar: [],
     windTurbines: [],
     sounders: [
@@ -334,8 +385,12 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
     engines,
     generators,
     banks,
-    tanks
+    tanks,
+    hybrid: undefined
   } as VesselProfile
+  if (engines.some((e) => e.type === 'hybrid')) {
+    profile.hybrid = { ...defaultHybrid(profile), ...p.hybrid }
+  }
 
   // tie engines and generators to tanks and banks when the file does not say
   const fuel = profile.tanks.fuel

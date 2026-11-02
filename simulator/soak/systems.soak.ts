@@ -10,7 +10,7 @@ import { Simulation } from '../engine/simulation'
 import { Scenario } from '../engine/scenario'
 import { Route, Waypoint, loadRoute, routeLegs } from '../routes/route'
 import { VariationGrid, loadVariation } from '../systems/magnetic'
-import { STEP_S, SystemsSummary } from '../systems/model'
+import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
 import { Delta } from './deltas'
@@ -67,6 +67,9 @@ interface CaseResult {
   ticks: Tick[]
   deltas: number
   invalid: string[]
+  books: EnergyBooks
+  /** the fuel rates sent, integrated over the run, litres */
+  sentFuelL: number
 }
 
 /** where each profile not named by a sample spends its day */
@@ -81,6 +84,27 @@ const DAY_AT: Record<string, string> = {
   'yacht-12m': 'saronic-gulf-2018-07-13',
   'electric-launch-7m': 'manly-hamilton-island-2026-08-21'
 }
+/** a sample route sailed by another profile than its own, and for how long */
+const OTHER_PASSAGES: {
+  sample: string
+  profile: string
+  hours: number
+  leadHours: number
+}[] = [
+  {
+    sample: 'manly-hamilton-island-2026-08-21',
+    profile: 'hybrid-catamaran-60ft',
+    hours: 72,
+    leadHours: 2
+  }
+]
+/** diesel's lower heating value, kWh a litre */
+const DIESEL_KWH_PER_L = 9.94
+/** the best a marine diesel generator turns its fuel into electricity */
+const GENERATOR_MAX_EFFICIENCY = 0.38
+/** the books must balance to this share of the energy through each bank */
+const BOOKS_TOLERANCE = 0.01
+
 /** sample routes sailed as they are, and for how long */
 const PASSAGES: Record<string, { hours: number; leadHours: number }> = {
   'miami-icw-2024-03-16': { hours: 24, leadHours: 4 },
@@ -198,6 +222,28 @@ async function cases(): Promise<SoakCase[]> {
       variation: loadVariation(path.join(SAMPLES, sample))
     })
   }
+  for (const other of OTHER_PASSAGES) {
+    const sampleRoute = await loadRoute(path.join(SAMPLES, other.sample))
+    const profile = profiles.find((p) => p.id === other.profile)!
+    const route: Route = {
+      ...sampleRoute,
+      vessel: {
+        description: profile.name,
+        lengthM: profile.lengthM,
+        draftM: profile.draftM,
+        typeCode: profile.typeCode,
+        profile: profile.id
+      }
+    }
+    out.push({
+      name: `${profile.id} on ${other.sample}`,
+      profile,
+      route,
+      startMs: Date.parse(route.departure) - other.leadHours * HOUR_MS,
+      hours: other.hours,
+      variation: loadVariation(path.join(SAMPLES, other.sample))
+    })
+  }
   return out
 }
 
@@ -292,7 +338,23 @@ function run(soak: SoakCase): CaseResult {
       slow: main?.has('environment.outside.temperature') ?? false
     })
   }
-  return { soak, ticks, deltas, invalid }
+  // each fuel rate sent holds until the next tick, as a gauge integrating it would hold it
+  let sentFuelL = 0
+  for (let i = 1; i < ticks.length; i++) {
+    const dtS = (ticks[i].ms - ticks[i - 1].ms) / 1000
+    for (const [key, value] of ticks[i].values) {
+      if (key.endsWith('.fuel.rate') && typeof value === 'number')
+        sentFuelL += value * dtS * 1000
+    }
+  }
+  return {
+    soak,
+    ticks,
+    deltas,
+    invalid,
+    books: sim.systems!.books(),
+    sentFuelL
+  }
 }
 
 type Band = [number, number]
@@ -540,13 +602,15 @@ describe('Simulator systems soak', function () {
     all = (await cases()).filter((c) => !only || c.name.includes(only))
   })
 
-  it('covers every profile, a day each and the motor-sailer for three', function () {
+  it('covers every profile, a day each, and the motor-sailer and the catamaran for three', function () {
     if (process.env.SOAK_CASES) this.skip()
     const covered = new Set(all.map((c) => c.profile.id))
     expect([...covered].sort()).to.deep.equal(listProfiles(VESSELS))
     expect(STEP_S).to.be.at.most(TIME_MULTIPLIER)
     const sailer = all.filter((c) => c.profile.id === 'motor-sailer-15m')
     expect(sailer.map((c) => c.hours)).to.deep.equal([72])
+    const cat = all.filter((c) => c.profile.id === 'hybrid-catamaran-60ft')
+    expect(cat.map((c) => c.hours)).to.deep.equal([24, 72])
     for (const c of all) {
       expect(c.hours, c.name).to.be.at.least(24)
     }
@@ -760,6 +824,146 @@ describe('Simulator systems soak', function () {
   )
 
   it(
+    'balances the energy books of every bank, and the fuel',
+    each((r) => {
+      const rows: Record<string, string>[] = []
+      const problems: string[] = []
+      for (const b of r.books.banks) {
+        const sum = (x: Record<string, number>) =>
+          Object.values(x).reduce((a, v) => a + v, 0)
+        const inJ = sum(b.inJ)
+        const outJ = sum(b.outJ)
+        const accounted = outJ + b.storedJ + b.lossJ
+        const throughput = Math.max(inJ, outJ, 1)
+        const error = (inJ - accounted) / throughput
+        rows.push({
+          case: r.soak.name,
+          bank: b.id,
+          'in (kWh)': (inJ / 3.6e6).toFixed(2),
+          'out (kWh)': (outJ / 3.6e6).toFixed(2),
+          'stored (kWh)': (b.storedJ / 3.6e6).toFixed(2),
+          'loss (kWh)': (b.lossJ / 3.6e6).toFixed(3),
+          'clipped (kWh)': (b.clippedJ / 3.6e6).toFixed(4),
+          error: `${(100 * error).toFixed(3)} %`
+        })
+        if (Math.abs(error) > BOOKS_TOLERANCE)
+          problems.push(`${b.id}: books out by ${(100 * error).toFixed(2)} %`)
+      }
+      console.table(rows)
+      const fuel = r.books.fuel
+      console.table([
+        {
+          case: r.soak.name,
+          'out of the tanks (l)': (fuel.tanksStartL - fuel.tanksNowL).toFixed(
+            2
+          ),
+          'at the fuel rates (l)': fuel.burnedL.toFixed(2),
+          'rates sent, integrated (l)': r.sentFuelL.toFixed(2),
+          ...Object.fromEntries(
+            r.books.generators.map((g) => [
+              `${g.id} efficiency`,
+              g.fuelL
+                ? `${((100 * g.outputJ) / (g.fuelL * DIESEL_KWH_PER_L * 3.6e6)).toFixed(1)} %`
+                : 'did not run'
+            ])
+          )
+        }
+      ])
+      expect(
+        fuel.tanksStartL - fuel.tanksNowL,
+        'fuel out of the tanks'
+      ).to.be.closeTo(fuel.burnedL, 1e-6 * fuel.tanksStartL + 1e-6)
+      if (fuel.burnedL > 1) {
+        expect(r.sentFuelL, `${r.soak.name} fuel rates sent`).to.be.closeTo(
+          fuel.burnedL,
+          BOOKS_TOLERANCE * fuel.burnedL
+        )
+      }
+      for (const g of r.books.generators) {
+        const fuelJ = g.fuelL * DIESEL_KWH_PER_L * 3.6e6
+        expect(g.outputJ, `${r.soak.name} ${g.id} output`).to.be.at.most(
+          GENERATOR_MAX_EFFICIENCY * fuelJ
+        )
+      }
+      expect(problems, r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it('runs the hybrid as a hybrid: electric in harbour, diesels charging on passage, solar by day', () => {
+    const cat = [...results.values()].filter(
+      (r) => r.soak.profile.id === 'hybrid-catamaran-60ft'
+    )
+    expect(cat).to.have.length(2)
+    for (const r of cat) {
+      const rules = r.soak.profile.hybrid!
+      const engines = r.soak.profile.engines.map((e) => e.id)
+      let soc = 1
+      let electric = 0
+      let diesel = 0
+      let charging = 0
+      let solarDays = 0
+      let solarCarries = 0
+      const starts: number[] = []
+      let generatorWas = false
+      for (const t of r.ticks) {
+        const s = num(
+          t,
+          'electrical.batteries.propulsion.capacity.stateOfCharge'
+        )
+        if (s !== undefined) soc = s
+        const label = `${r.soak.name} at ${new Date(t.ms).toISOString()}`
+        const moving = t.sogKn > 0.5 && !t.atBerth
+        const started = engines.filter(
+          (id) => t.values.get(`propulsion.${id}.state`) === 'started'
+        ).length
+        if (
+          moving &&
+          t.sogKn <= rules.electricBelowKn - 0.5 &&
+          soc > rules.electricAboveSoc
+        ) {
+          expect(started, `${label}: electric at ${t.sogKn} kn`).to.equal(0)
+          electric++
+        }
+        if (moving && t.sogKn > rules.electricBelowKn + 0.5) {
+          expect(started, `${label}: diesels at ${t.sogKn} kn`).to.equal(
+            engines.length
+          )
+          diesel++
+          const current = num(t, 'electrical.batteries.propulsion.current')
+          if (current !== undefined && soc < 0.98 && current > 1) charging++
+        }
+        const generator = t.summary.generatorsRunning > 0
+        if (generator && !generatorWas) starts.push(soc)
+        generatorWas = generator
+        if (t.sunDeg > 30 && t.slow && !t.atBerth) {
+          solarDays++
+          const solarW = r.soak.profile.solar.reduce(
+            (sum, a) =>
+              sum + (num(t, `electrical.solar.${a.id}.panelPower`) ?? 0),
+            0
+          )
+          if (solarW >= 1000 * t.summary.hotelKw) solarCarries++
+        }
+      }
+      expect(electric, `${r.soak.name} electric ticks`).to.be.above(0)
+      if (r.soak.hours === 72) {
+        expect(diesel, `${r.soak.name} diesel ticks`).to.be.above(0)
+        expect(charging, `${r.soak.name} charging on passage`).to.be.above(0)
+      }
+      for (const s of starts) {
+        // the generator starts only when the bank needs it; the soc read lags a few ticks
+        expect(s, `${r.soak.name} generator started at`).to.be.below(
+          rules.dieselBelowSoc + 0.02
+        )
+      }
+      expect(
+        solarCarries / Math.max(1, solarDays),
+        `${r.soak.name} solar by day`
+      ).to.be.at.least(0.8)
+    }
+  })
+
+  it(
     'keeps the banks charged and the fuel from running out',
     each((r) => {
       const p = r.soak.profile
@@ -819,6 +1023,23 @@ describe('Simulator systems soak', function () {
         })
         const days = r.soak.hours / 24
         expect(starts, `${r.soak.name} starts`).to.be.at.most(12 * days)
+      }
+      if (profile.hybrid && starts === 0) {
+        // a hybrid's generator charges its bank only when the bank needs it; a run whose
+        // bank never got that low never needs it (the fast tests start one)
+        for (const r of mine) {
+          for (const t of r.ticks) {
+            const soc = num(
+              t,
+              'electrical.batteries.propulsion.capacity.stateOfCharge'
+            )
+            if (soc !== undefined && !t.atBerth)
+              expect(soc, `${r.soak.name} needed its generator`).to.be.at.least(
+                profile.hybrid.dieselBelowSoc
+              )
+          }
+        }
+        continue
       }
       expect(starts, `${profile.id} starts`).to.be.at.least(1)
       expect(stops, `${profile.id} stops`).to.be.at.least(1)
