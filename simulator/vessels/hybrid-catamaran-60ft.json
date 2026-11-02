@@ -1,0 +1,118 @@
+{
+  "id": "hybrid-catamaran-60ft",
+  "name": "60 ft hybrid solar catamaran (modelled on the Xquisite Sixty Solar Power)",
+  "lengthM": 18.5,
+  "beamM": 8.1,
+  "draftM": 1.2,
+  "displacementT": 38,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 16,
+  "persons": 8,
+  "engines": [
+    {
+      "id": "port",
+      "displayName": "Port hybrid drive",
+      "type": "hybrid",
+      "powerKw": 261,
+      "electricKw": 130,
+      "maxRpm": 3000,
+      "idleRpm": 700,
+      "bank": "propulsion",
+      "fuelTank": "fuelPort"
+    },
+    {
+      "id": "starboard",
+      "displayName": "Starboard hybrid drive",
+      "type": "hybrid",
+      "powerKw": 261,
+      "electricKw": 130,
+      "maxRpm": 3000,
+      "idleRpm": 700,
+      "bank": "propulsion",
+      "fuelTank": "fuelStarboard"
+    }
+  ],
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator",
+      "powerKw": 180,
+      "rpm": 1500,
+      "chargesBank": "propulsion",
+      "fuelTank": "fuelPort"
+    }
+  ],
+  "banks": [
+    {
+      "id": "propulsion",
+      "displayName": "Propulsion bank",
+      "nominalVoltage": 400,
+      "capacityAh": 350,
+      "chemistry": "LiFePO4",
+      "role": "propulsion"
+    },
+    {
+      "id": "house",
+      "displayName": "House bank",
+      "nominalVoltage": 24,
+      "capacityAh": 800,
+      "chemistry": "LiFePO4",
+      "role": "house"
+    }
+  ],
+  "solar": [
+    {
+      "id": "arrayPort",
+      "displayName": "Port solar array",
+      "peakW": 4000,
+      "bank": "propulsion"
+    },
+    {
+      "id": "arrayStarboard",
+      "displayName": "Starboard solar array",
+      "peakW": 4000,
+      "bank": "propulsion"
+    }
+  ],
+  "tanks": {
+    "fuel": [
+      {
+        "id": "fuelPort",
+        "displayName": "Port fuel",
+        "capacityL": 1700
+      },
+      {
+        "id": "fuelStarboard",
+        "displayName": "Starboard fuel",
+        "capacityL": 1700
+      }
+    ],
+    "freshWater": [
+      {
+        "id": "freshWaterPort",
+        "displayName": "Port fresh water",
+        "capacityL": 500
+      },
+      {
+        "id": "freshWaterStarboard",
+        "displayName": "Starboard fresh water",
+        "capacityL": 500
+      }
+    ]
+  },
+  "sounders": [
+    {
+      "id": "portSounder",
+      "displayName": "Port hull depth sounder",
+      "depthM": 0.6,
+      "offsetM": -3.0
+    },
+    {
+      "id": "starboardSounder",
+      "displayName": "Starboard hull depth sounder",
+      "depthM": 0.6,
+      "offsetM": 3.0
+    }
+  ]
+}

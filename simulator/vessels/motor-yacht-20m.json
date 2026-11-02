@@ -1,0 +1,41 @@
+{
+  "id": "motor-yacht-20m",
+  "name": "20 m motor yacht",
+  "lengthM": 20,
+  "beamM": 5.4,
+  "draftM": 1.5,
+  "displacementT": 40,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 28,
+  "acVoltage": 120,
+  "acFrequency": 60,
+  "persons": 6,
+  "engines": [
+    {
+      "id": "port",
+      "displayName": "Port engine",
+      "type": "diesel",
+      "powerKw": 735,
+      "maxRpm": 2300,
+      "idleRpm": 650
+    },
+    {
+      "id": "starboard",
+      "displayName": "Starboard engine",
+      "type": "diesel",
+      "powerKw": 735,
+      "maxRpm": 2300,
+      "idleRpm": 650
+    }
+  ],
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator",
+      "powerKw": 22,
+      "rpm": 1800,
+      "chargesBank": "house"
+    }
+  ]
+}

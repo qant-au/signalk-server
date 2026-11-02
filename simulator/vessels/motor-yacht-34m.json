@@ -1,0 +1,42 @@
+{
+  "id": "motor-yacht-34m",
+  "name": "34 m motor yacht",
+  "lengthM": 34,
+  "beamM": 7.4,
+  "draftM": 2.1,
+  "displacementT": 190,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 15,
+  "persons": 12,
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator 1 (port)",
+      "powerKw": 65,
+      "rpm": 1500,
+      "chargesBank": "house"
+    },
+    {
+      "id": "generator2",
+      "displayName": "Generator 2 (starboard)",
+      "powerKw": 65,
+      "rpm": 1500,
+      "chargesBank": "house"
+    }
+  ],
+  "sounders": [
+    {
+      "id": "portSounder",
+      "displayName": "Port depth sounder",
+      "depthM": 1.6,
+      "offsetM": -2.0
+    },
+    {
+      "id": "starboardSounder",
+      "displayName": "Starboard depth sounder",
+      "depthM": 1.6,
+      "offsetM": 2.0
+    }
+  ]
+}

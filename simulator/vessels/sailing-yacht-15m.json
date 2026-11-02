@@ -1,0 +1,65 @@
+{
+  "id": "sailing-yacht-15m",
+  "name": "15 m sailing yacht",
+  "lengthM": 15,
+  "beamM": 4.5,
+  "draftM": 2.2,
+  "displacementT": 14,
+  "typeCode": 36,
+  "rig": "sail",
+  "maxSpeedKn": 9,
+  "persons": 6,
+  "engines": [
+    {
+      "id": "main",
+      "displayName": "Engine",
+      "type": "diesel",
+      "powerKw": 80,
+      "maxRpm": 3000,
+      "idleRpm": 800
+    }
+  ],
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator",
+      "powerKw": 6,
+      "rpm": 1500,
+      "chargesBank": "house"
+    }
+  ],
+  "banks": [
+    {
+      "id": "house",
+      "displayName": "House bank",
+      "nominalVoltage": 12,
+      "capacityAh": 600,
+      "chemistry": "LiFePO4",
+      "role": "house"
+    },
+    {
+      "id": "start",
+      "displayName": "Start battery",
+      "nominalVoltage": 12,
+      "capacityAh": 100,
+      "chemistry": "AGM",
+      "role": "start"
+    }
+  ],
+  "windTurbines": [
+    {
+      "id": "windTurbine",
+      "displayName": "Wind turbine",
+      "ratedW": 400,
+      "bank": "house"
+    }
+  ],
+  "sounders": [
+    {
+      "id": "sounder",
+      "displayName": "Depth sounder",
+      "depthM": 0.6,
+      "offsetM": 0
+    }
+  ]
+}

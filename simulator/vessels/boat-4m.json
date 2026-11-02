@@ -1,0 +1,48 @@
+{
+  "id": "boat-4m",
+  "name": "4 m boat",
+  "lengthM": 4,
+  "beamM": 1.7,
+  "draftM": 0.3,
+  "displacementT": 0.3,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 20,
+  "persons": 2,
+  "engines": [
+    {
+      "id": "main",
+      "displayName": "Outboard",
+      "type": "petrol",
+      "powerKw": 15,
+      "maxRpm": 6000,
+      "idleRpm": 900
+    }
+  ],
+  "generators": [],
+  "banks": [
+    {
+      "id": "start",
+      "displayName": "Battery",
+      "nominalVoltage": 12,
+      "capacityAh": 50,
+      "chemistry": "AGM",
+      "role": "start"
+    }
+  ],
+  "tanks": {
+    "fuel": [
+      {
+        "id": "fuel",
+        "displayName": "Fuel",
+        "capacityL": 25
+      }
+    ],
+    "freshWater": [],
+    "wasteWater": [],
+    "blackWater": []
+  },
+  "radars": [],
+  "wind": false,
+  "zones": []
+}

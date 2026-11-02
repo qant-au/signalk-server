@@ -1,0 +1,22 @@
+{
+  "id": "sailing-yacht-9m",
+  "name": "9 m sailing yacht",
+  "lengthM": 9,
+  "beamM": 3.1,
+  "draftM": 1.6,
+  "displacementT": 4,
+  "typeCode": 36,
+  "rig": "sail",
+  "maxSpeedKn": 6.5,
+  "persons": 4,
+  "engines": [
+    {
+      "id": "main",
+      "displayName": "Engine",
+      "type": "diesel",
+      "powerKw": 15,
+      "maxRpm": 3600,
+      "idleRpm": 900
+    }
+  ]
+}

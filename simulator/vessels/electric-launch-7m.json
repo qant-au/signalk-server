@@ -1,0 +1,43 @@
+{
+  "id": "electric-launch-7m",
+  "name": "7 m electric launch",
+  "lengthM": 7,
+  "beamM": 2.3,
+  "draftM": 0.5,
+  "displacementT": 1.6,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 7,
+  "persons": 6,
+  "engines": [
+    {
+      "id": "main",
+      "displayName": "Electric motor",
+      "type": "electric",
+      "powerKw": 10,
+      "maxRpm": 2500,
+      "idleRpm": 0,
+      "bank": "propulsion"
+    }
+  ],
+  "generators": [],
+  "banks": [
+    {
+      "id": "propulsion",
+      "displayName": "Propulsion bank",
+      "nominalVoltage": 48,
+      "capacityAh": 400,
+      "chemistry": "LiFePO4",
+      "role": "propulsion"
+    }
+  ],
+  "tanks": {
+    "fuel": [],
+    "freshWater": [],
+    "wasteWater": [],
+    "blackWater": []
+  },
+  "radars": [],
+  "wind": false,
+  "zones": []
+}

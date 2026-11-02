@@ -1,0 +1,262 @@
+{
+  "id": "motor-yacht-45m",
+  "name": "45 m motor yacht",
+  "lengthM": 45,
+  "beamM": 8.8,
+  "draftM": 2.6,
+  "displacementT": 380,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 16,
+  "acVoltage": 230,
+  "acFrequency": 50,
+  "acPhases": 3,
+  "persons": 18,
+  "engines": [
+    {
+      "id": "port",
+      "displayName": "Port main engine",
+      "type": "diesel",
+      "powerKw": 1500,
+      "maxRpm": 2100,
+      "idleRpm": 650,
+      "fuelTank": "dayTankPort"
+    },
+    {
+      "id": "starboard",
+      "displayName": "Starboard main engine",
+      "type": "diesel",
+      "powerKw": 1500,
+      "maxRpm": 2100,
+      "idleRpm": 650,
+      "fuelTank": "dayTankStarboard"
+    }
+  ],
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator 1 (port)",
+      "powerKw": 99,
+      "rpm": 1500,
+      "fuelTank": "dayTankPort",
+      "chargesBank": "house"
+    },
+    {
+      "id": "generator2",
+      "displayName": "Generator 2 (starboard)",
+      "powerKw": 99,
+      "rpm": 1500,
+      "fuelTank": "dayTankStarboard",
+      "chargesBank": "house"
+    }
+  ],
+  "banks": [
+    {
+      "id": "house",
+      "displayName": "House bank",
+      "nominalVoltage": 24,
+      "capacityAh": 2000,
+      "chemistry": "LiFePO4",
+      "role": "house"
+    },
+    {
+      "id": "start",
+      "displayName": "Start bank",
+      "nominalVoltage": 24,
+      "capacityAh": 400,
+      "chemistry": "AGM",
+      "role": "start"
+    }
+  ],
+  "solar": [
+    {
+      "id": "arrayPort",
+      "displayName": "Port solar array",
+      "peakW": 1200,
+      "bank": "house"
+    },
+    {
+      "id": "arrayStarboard",
+      "displayName": "Starboard solar array",
+      "peakW": 1200,
+      "bank": "house"
+    }
+  ],
+  "tanks": {
+    "fuel": [
+      {
+        "id": "fuelForwardPort",
+        "displayName": "Forward port fuel",
+        "capacityL": 15000
+      },
+      {
+        "id": "fuelForwardStarboard",
+        "displayName": "Forward starboard fuel",
+        "capacityL": 15000
+      },
+      {
+        "id": "fuelAftPort",
+        "displayName": "Aft port fuel",
+        "capacityL": 12000
+      },
+      {
+        "id": "fuelAftStarboard",
+        "displayName": "Aft starboard fuel",
+        "capacityL": 12000
+      },
+      {
+        "id": "dayTankPort",
+        "displayName": "Port day tank",
+        "capacityL": 1500,
+        "dayTank": true
+      },
+      {
+        "id": "dayTankStarboard",
+        "displayName": "Starboard day tank",
+        "capacityL": 1500,
+        "dayTank": true
+      }
+    ],
+    "freshWater": [
+      {
+        "id": "freshWaterPort",
+        "displayName": "Port fresh water",
+        "capacityL": 5000
+      },
+      {
+        "id": "freshWaterStarboard",
+        "displayName": "Starboard fresh water",
+        "capacityL": 5000
+      }
+    ],
+    "wasteWater": [
+      {
+        "id": "greyWaterPort",
+        "displayName": "Port grey water",
+        "capacityL": 2000
+      },
+      {
+        "id": "greyWaterStarboard",
+        "displayName": "Starboard grey water",
+        "capacityL": 2000
+      }
+    ],
+    "blackWater": [
+      {
+        "id": "blackWaterPort",
+        "displayName": "Port black water",
+        "capacityL": 1500
+      },
+      {
+        "id": "blackWaterStarboard",
+        "displayName": "Starboard black water",
+        "capacityL": 1500
+      }
+    ]
+  },
+  "sounders": [
+    {
+      "id": "portSounder",
+      "displayName": "Port depth sounder",
+      "depthM": 2.0,
+      "offsetM": -2.5
+    },
+    {
+      "id": "starboardSounder",
+      "displayName": "Starboard depth sounder",
+      "depthM": 2.0,
+      "offsetM": 2.5
+    }
+  ],
+  "radars": [
+    {
+      "id": "radarX",
+      "displayName": "X-band radar"
+    },
+    {
+      "id": "radarS",
+      "displayName": "S-band radar"
+    }
+  ],
+  "wind": true,
+  "zones": [
+    {
+      "id": "saloon",
+      "displayName": "Main saloon",
+      "kind": "living",
+      "setpointC": 22
+    },
+    {
+      "id": "skyLounge",
+      "displayName": "Sky lounge",
+      "kind": "living",
+      "setpointC": 22
+    },
+    {
+      "id": "wheelhouse",
+      "displayName": "Wheelhouse",
+      "kind": "living",
+      "setpointC": 21
+    },
+    {
+      "id": "ownerCabin",
+      "displayName": "Owner's cabin",
+      "kind": "living",
+      "setpointC": 21
+    },
+    {
+      "id": "guestCabins",
+      "displayName": "Guest cabins",
+      "kind": "living",
+      "setpointC": 21
+    },
+    {
+      "id": "crewMess",
+      "displayName": "Crew mess",
+      "kind": "living",
+      "setpointC": 22
+    },
+    {
+      "id": "galley",
+      "displayName": "Galley",
+      "kind": "living",
+      "setpointC": 22
+    },
+    {
+      "id": "engineRoom",
+      "displayName": "Engine room",
+      "kind": "engineRoom",
+      "setpointC": 35
+    },
+    {
+      "id": "galleyFridge",
+      "displayName": "Galley fridge",
+      "kind": "fridge",
+      "setpointC": 4
+    },
+    {
+      "id": "galleyFreezer",
+      "displayName": "Galley freezer",
+      "kind": "freezer",
+      "setpointC": -20
+    },
+    {
+      "id": "barFridge",
+      "displayName": "Bar fridge",
+      "kind": "fridge",
+      "setpointC": 5
+    },
+    {
+      "id": "crewFridge",
+      "displayName": "Crew fridge",
+      "kind": "fridge",
+      "setpointC": 4
+    },
+    {
+      "id": "coldRoom",
+      "displayName": "Cold room",
+      "kind": "fridge",
+      "setpointC": 2
+    }
+  ]
+}
