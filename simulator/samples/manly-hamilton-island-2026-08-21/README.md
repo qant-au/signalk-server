@@ -9,6 +9,8 @@
 
 ## Route
 
+**This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC (AMSA), so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
+
 `route.json`: a 15 m motor-sailer, 565.6 nm in 67 h 40 min, at 4 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 3 to 4 kn into Hamilton Island. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
 
 ## Data

@@ -9,6 +9,8 @@
 
 ## Route
 
+**This route follows a real passage**: a vessel that ran it on the same day, from the sample's own CC0 AIS.
+
 `route.json`: a 20 m motor yacht, 21.6 nm in 3 h 11 min including four bridge-opening holds, at 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md) for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
 
 ## Data
