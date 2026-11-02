@@ -80,3 +80,7 @@ Makefile.local
 simulator/downloads/
 simulator/samples/*/restricted/
 simulator/samples/*/cache/
+
+# Soak test reports are per run and per machine
+simulator/soak/reports/
+.gstack/
