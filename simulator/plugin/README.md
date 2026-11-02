@@ -55,7 +55,8 @@ published to the Resources API, so Freeboard shows the passage the boat actually
 **Course.** The published route is then made the server's active route through the Course
 API, before the boat's first position goes out, at the point the boat is heading for: the
 end of its first leg at the start of a run, or wherever a resumed run has reached. So
-`navigation.course.*` comes from the server and follows the passage: next and previous
+`navigation.course.*` comes from the server (in the version 1 stream and tree, under
+`navigation.courseGreatCircle` and `navigation.courseRhumbline`) and follows the passage: next and previous
 point, the active route's `href` and `pointIndex`, and, from the course provider plugin
 the server ships with, bearing and distance to the next point, cross track error, time to
 go and arrival time. The next point moves on in the tick the boat passes it: halfway round
