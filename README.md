@@ -1,5 +1,20 @@
 # Signal K Server
 
+> [!IMPORTANT]
+> **This is the Signal K Simulator fork, maintained deliberately alongside
+> [SignalK/signalk-server](https://github.com/SignalK/signalk-server).** It is kept in step
+> with upstream through regular updates, and it is being built into a full simulator for
+> Signal K: realistic AIS traffic, depth and weather, so systems, events, alarms and plugins
+> can be tested without being on a vessel or relying on recorded logs. It is intended to be
+> offered upstream as a pull request when ready, and is run as a separate project until then.
+>
+> **Status: early stage (design and test data; no simulator code yet).** Three samples are
+> planned: two that ship their data, and one long passage whose data the user downloads from
+> a source that cannot be redistributed. The simulator work is Copyright © 2026 Adam Burgess,
+> under the Apache License 2.0. **Read [SIMULATOR.md](SIMULATOR.md)** for the plan, the
+> samples, plugin testing and licensing. Everything below this box is the upstream README,
+> unchanged.
+
 ![Signal K logo](https://user-images.githubusercontent.com/5200296/226164888-d33b2349-e608-4bed-965f-ebe4339b4376.png)
 
 [![npm version](https://badge.fury.io/js/signalk-server.svg)](https://badge.fury.io/js/signalk-server)
