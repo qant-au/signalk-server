@@ -73,8 +73,9 @@ organisation, on 2 November 2026:
   (third party) is a motion simulator: it works out how the boat moves from autopilot
   output, weather and an active route, which have to be fed to it. This fork is a data
   simulator: it produces the data a boat's instruments and receivers would put on the server
-  (own position, depth, wind and weather, AIS targets) from scenario source data. The data simulator is this fork's own work. The sailboat simulator can run alongside it
-  to move the own boat, fed by the scenario's weather and route.
+  (own position, depth, wind and weather, AIS targets) from scenario source data. The data
+  simulator is this fork's own work. The sailboat simulator can run alongside it to move the
+  own boat, fed by the scenario's weather and route.
 - Log replay issues (for example #313, #415 and #3043) concern playing back recorded files,
   which this fork does not change.
 
