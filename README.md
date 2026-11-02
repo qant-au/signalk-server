@@ -12,10 +12,11 @@
 > one-value plugin) but no working simulator. This fork builds on that planned feature; it
 > does not replace it.
 >
-> **Status: early stage (the simulator plugin runs all three samples with depth and AIS
-> traffic).** Three sample scenarios and their data are in [simulator/](simulator/README.md):
-> one ships everything, and two ship their open data with instructions for the licensed AIS
-> the user downloads.
+> **Status: early stage (the simulator plugin runs all three samples with depth, AIS
+> traffic and the boat's own systems, and `bin/simulator` starts it).** Three sample
+> scenarios and their data are in [simulator/](simulator/README.md): one ships everything,
+> and two ship their open data with instructions for the licensed AIS the user downloads.
+> Each sample sails a vessel from the [profile library](simulator/vessels/README.md).
 > The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0.
 >
 > ### 👉 [Read SIMULATOR.md](SIMULATOR.md)

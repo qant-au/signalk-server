@@ -12,6 +12,8 @@ simulator/
   ais/                      the AIS reception model (what a boat would actually hear)
   depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
   engine/                   the simulation: scenario loading, traffic, own boat, depth
+  systems/                  the boat's systems model: engines, generators, electrics, tanks, inside
+  vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container
   soak/                     real-time soak tests
