@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises'
 import path from 'path'
 import { distanceNm } from '../ais/reception'
+import { loadProfile } from '../vessels/profile'
 
 /**
  * The own boat's planned passage: a list of waypoints, each carrying the speed for the leg
@@ -25,6 +26,8 @@ export interface RouteVessel {
   draftM: number
   /** AIS ship type code the own boat would broadcast */
   typeCode: number
+  /** the profile in simulator/vessels the boat sails as; it supplies the fields above */
+  profile?: string
 }
 
 export interface Route {
@@ -162,6 +165,29 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
   }
 }
 
+/** The profile library sits beside the samples, in simulator/vessels. */
+export function vesselsDirFor(sampleDir: string): string {
+  return path.join(sampleDir, '..', '..', 'vessels')
+}
+
+/**
+ * A route naming a vessel profile takes its length, draft and AIS type from the profile;
+ * a route without one gives them itself.
+ */
 export async function loadRoute(sampleDir: string): Promise<Route> {
-  return JSON.parse(await readFile(path.join(sampleDir, 'route.json'), 'utf8'))
+  const route: Route = JSON.parse(
+    await readFile(path.join(sampleDir, 'route.json'), 'utf8')
+  )
+  const id = route.vessel.profile
+  if (id) {
+    const profile = loadProfile(id, vesselsDirFor(sampleDir))
+    route.vessel = {
+      description: route.vessel.description ?? profile.name,
+      lengthM: profile.lengthM,
+      draftM: profile.draftM,
+      typeCode: profile.typeCode,
+      profile: id
+    }
+  }
+  return route
 }

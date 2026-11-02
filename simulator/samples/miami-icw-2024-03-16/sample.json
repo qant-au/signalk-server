@@ -265,9 +265,7 @@
     "departure": "2024-03-16T14:00:00Z",
     "vessel": {
       "description": "20 m motor yacht",
-      "lengthM": 20,
-      "typeCode": 37,
-      "draftM": 1.5
+      "profile": "motor-yacht-20m"
     },
     "startName": "Biscayne Bay, north of the Rickenbacker Causeway",
     "endName": "Port Everglades",

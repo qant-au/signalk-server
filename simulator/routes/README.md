@@ -12,8 +12,7 @@ simulator runs them.
   "departure": "2018-07-13T11:00:00Z",
   "vessel": {
     "description": "15 m sailing yacht",
-    "lengthM": 15,
-    "typeCode": 36
+    "profile": "sailing-yacht-15m"
   },
   "source": "how the waypoints were made",
   "waypoints": [
@@ -35,13 +34,13 @@ simulator runs them.
 }
 ```
 
-| Field                      | Meaning                                                                                                                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `departure`                | when the boat leaves the first waypoint, UTC                                                                                                                                                |
-| `vessel`                   | the own boat: 10 to 30 m, with the AIS type code it would broadcast                                                                                                                         |
-| `waypoints[].speedKn`      | speed on the leg **leaving** this waypoint. Speed belongs to the leg, not the boat, so marinas, channels and no-wake zones stay slow and open water stays fast. The last waypoint has none. |
-| `waypoints[].holdS`        | seconds to wait at this waypoint before leaving (a bridge opening)                                                                                                                          |
-| `waypoints[].name`, `note` | for people reading the route; optional                                                                                                                                                      |
+| Field                      | Meaning                                                                                                                                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `departure`                | when the boat leaves the first waypoint, UTC                                                                                                                                                                                       |
+| `vessel`                   | the own boat: 10 to 30 m. `profile` names its [vessel profile](../vessels/README.md), which gives its length, draft and AIS type code and everything on board; a route without one gives `lengthM`, `draftM` and `typeCode` itself |
+| `waypoints[].speedKn`      | speed on the leg **leaving** this waypoint. Speed belongs to the leg, not the boat, so marinas, channels and no-wake zones stay slow and open water stays fast. The last waypoint has none.                                        |
+| `waypoints[].holdS`        | seconds to wait at this waypoint before leaving (a bridge opening)                                                                                                                                                                 |
+| `waypoints[].name`, `note` | for people reading the route; optional                                                                                                                                                                                             |
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
 speed and course at any moment (`positionAt`), holding at waypoints and stopping at the end.

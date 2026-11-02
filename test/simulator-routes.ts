@@ -11,6 +11,7 @@ import {
 import {
   Route,
   initialCourseDeg,
+  loadRoute,
   positionAt,
   routeLegs
 } from '../simulator/routes/route'
@@ -160,15 +161,18 @@ describe('simulator routes', () => {
   describe('the sample routes', () => {
     const samples = path.join(__dirname, '..', 'simulator', 'samples')
     for (const sample of readdirSync(samples)) {
-      it(`${sample} has a usable route with no source vessel identity`, () => {
+      it(`${sample} has a usable route with no source vessel identity`, async () => {
         const text = readFileSync(
           path.join(samples, sample, 'route.json'),
           'utf8'
         )
-        const r: Route = JSON.parse(text)
+        const r: Route = await loadRoute(path.join(samples, sample))
         const legs = routeLegs(r)
         expect(legs.length).to.be.greaterThan(2)
+        // the vessel's dimensions come from the profile the route names
+        expect(r.vessel.profile).to.be.a('string')
         expect(r.vessel.lengthM).to.be.within(10, 30)
+        expect(r.vessel.draftM).to.be.within(1, 3)
         expect(text).to.not.match(/mmsi|vessel_id|craft_id|imo|call_?sign/i)
         for (const leg of legs) {
           expect(leg.speedKn).to.be.within(2, 16)

@@ -3,9 +3,7 @@
   "departure": "2018-07-13T11:00:00Z",
   "vessel": {
     "description": "15 m sailing yacht",
-    "lengthM": 15,
-    "typeCode": 36,
-    "draftM": 2.2
+    "profile": "sailing-yacht-15m"
   },
   "source": "Berth to berth (Zea Marina, position from OpenStreetMap; the way between the berth and open water is found against the depth grid). Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
   "waypoints": [
