@@ -11,7 +11,7 @@
 
 **This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC-SA, so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
 
-`route.json`: a 15 m sailing yacht, 97.7 nm from a berth in Zea Marina back to the same berth in 19 h 57 min as planned (98.1 nm, 20 h 03 min once adjusted for depth), at 3 kn in the marina, 5 kn under sail by day, 4.5 kn at night and 5.5 kn in the morning breeze. Hand-written from charted features and checked against the EMODnet depth grid; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
+`route.json`: Meltemi (MMSI 239555210), a 15 m sailing yacht, 97.7 nm from a berth in Zea Marina back to the same berth in 19 h 57 min as planned (98.1 nm, 20 h 03 min once adjusted for depth), at 3 kn in the marina, 5 kn under sail by day, 4.5 kn at night and 5.5 kn in the morning breeze. Hand-written from charted features and checked against the EMODnet depth grid; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
 
 ## Data
 

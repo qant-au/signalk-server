@@ -11,7 +11,7 @@
 
 **This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC (AMSA), so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
 
-`route.json`: a 15 m motor-sailer, 566.1 nm from a berth in Manly Boat Harbour to a berth in Hamilton Island marina in 68 h 04 min as planned (566.4 nm, 68 h 09 min once adjusted for depth), at 3 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 2 to 4 kn into Hamilton Island marina. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
+`route.json`: Coral Passage (MMSI 503555210), a 15 m motor-sailer, 566.1 nm from a berth in Manly Boat Harbour to a berth in Hamilton Island marina in 68 h 04 min as planned (566.4 nm, 68 h 09 min once adjusted for depth), at 3 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 2 to 4 kn into Hamilton Island marina. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
 
 ## Data
 

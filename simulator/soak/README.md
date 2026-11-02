@@ -49,7 +49,8 @@ npx ts-node simulator/tools/soak.ts miami-icw-2024-03-16 --minutes 30 --start-at
 ### What It Does
 
 1. Publishes the route to the server's Resources API, so Freeboard draws it.
-2. Sends the boat's name, length and AIS ship type once.
+2. Sends the boat's identity once: its name, MMSI and dimensions, the same the plugin
+   sends (see [the vessels README](../vessels/README.md#identity)).
 3. Every second, works out where the boat is on its route at that moment of the scenario and
    sends its position, speed over ground, course and heading, and the scenario time, as one
    Signal K delta over the server's WebSocket stream. Deltas carry the wall-clock time they
