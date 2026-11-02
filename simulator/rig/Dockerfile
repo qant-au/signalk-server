@@ -11,6 +11,8 @@
 FROM node:24-bookworm@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413
 
 ARG FREEBOARD_VERSION=3.4.1
+# Sends the AIS targets in vessels.* out as NMEA 0183 VDM sentences, and the own boat as VDO.
+ARG VESSELS_TO_AIS_VERSION=2.1.1
 
 USER node
 WORKDIR /home/node/signalk
@@ -25,6 +27,7 @@ RUN npm install --no-audit --no-fund \
 WORKDIR /home/node/rig
 COPY --chown=node:node simulator/rig/config/ ./
 RUN npm install --no-audit --no-fund "@signalk/freeboard-sk@${FREEBOARD_VERSION}" \
+  "signalk-vessels-to-ais@${VESSELS_TO_AIS_VERSION}" \
   && npm install --no-audit --no-fund /home/node/signalk/simulator/plugin
 
 EXPOSE 3000

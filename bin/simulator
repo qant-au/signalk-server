@@ -22,4 +22,12 @@ if [ ! -f "${CONFIG}" ]; then
   cp "${ROOT}/settings/simulator-plugin.json" "${CONFIG}"
 fi
 
+# The server's own NMEA 0183 converter, sending the own boat as RMC, HDT and VTG on its
+# NMEA 0183 TCP port (10110). AIS targets as VDM need signalk-vessels-to-ais as well; see
+# simulator/plugin/README.md.
+NMEA0183="${RUN}/plugin-config-data/sk-to-nmea0183.json"
+if [ ! -f "${NMEA0183}" ]; then
+  cp "${ROOT}/settings/simulator-nmea0183.json" "${NMEA0183}"
+fi
+
 exec "${ROOT}/bin/signalk-server" -c "${RUN}" "$@"

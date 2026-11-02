@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "configuration": {
+    "position_update": 1,
+    "sendOwn": true,
+    "useTag": false,
+    "distance": 100,
+    "eventName": "nmea0183out"
+  }
+}
