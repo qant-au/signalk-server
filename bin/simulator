@@ -1,30 +1,20 @@
 #!/bin/bash
+#
+# Starts this server with the simulator plugin (simulator/plugin) sailing the Miami sample.
+# The repository is the configuration directory (-s), so the plugin is linked into its
+# node_modules and enabled in its plugin-config-data. Pass further server options after it.
 
-mkdir -p plugin-config-data
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-if [ ! -f node_modules/signalk-simulator ]; then
-  npm install signalk/simulatorplugin
+npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin"
+mkdir -p "${ROOT}/node_modules" "${ROOT}/plugin-config-data"
+ln -sfn "${ROOT}/simulator/plugin" "${ROOT}/node_modules/signalk-simulator"
+
+CONFIG="${ROOT}/plugin-config-data/signalk-simulator.json"
+if [ ! -f "${CONFIG}" ]; then
+  cp "${ROOT}/settings/simulator-plugin.json" "${CONFIG}"
 fi
 
-if [ ! -f plugin-config-data/simulator.json ]; then
-  cat >plugin-config-data/simulator.json <<End-of-message
-{
-  "enabled": true,
-  "configuration": {
-    "items": [
-      {
-        "path": "navigation.speedOverGround",
-        "minValue": 0,
-        "maxValue": 10,
-        "dataPeriod": 60,
-        "outputPeriod": 2
-      }
-    ]
-  }
-}
-End-of-message
-fi
-
-
-DIR=`dirname $0`
-${DIR}/signalk-server -s ${DIR}/../settings/simulator.json $*
+# the server reads -s relative to its own directory
+exec "${ROOT}/bin/signalk-server" -s settings/simulator.json "$@"
