@@ -10,6 +10,11 @@ simulator/
   README.md                 this file
   tools/                    TypeScript tools: fetch and prepare data, routes, AIS coverage
   ais/                      the AIS reception model (what a boat would actually hear)
+  depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
+  engine/                   the simulation: scenario loading, traffic, own boat, depth
+  plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
+  rig/                      the test rig container
+  soak/                     real-time soak tests
   routes/                   own-boat routes: format, timing and position along the way
   downloads/                (git-ignored) files the user downloads from licensed sources
   samples/<sample>/

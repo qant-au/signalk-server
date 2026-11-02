@@ -81,8 +81,8 @@ organisation, on 2 November 2026:
 
 ## Current Status
 
-**Early stage: the sample data, its tools, the AIS reception model and baseline routes are
-in place; the simulator engine is not started. The existing scaffolding above is unchanged.**
+**Early stage: the simulator runs all three samples, with depth and traffic; weather, tides
+and events are next. The existing scaffolding above is unchanged.**
 
 | Area             | Status                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -90,7 +90,7 @@ in place; the simulator engine is not started. The existing scaffolding above is
 | Scenario Data    | Done for all three samples: data, tools to fetch and prepare it, and instructions for the licensed sources. See [simulator/README.md](simulator/README.md).                                                                                                                                                                                                 |
 | AIS Reception    | Done, ready for route work: which targets a boat would actually hear, from antenna heights, transmit power and the radio horizon, with real reporting rates and lost-target timing. See [simulator/ais/README.md](simulator/ais/README.md).                                                                                                                 |
 | Routes           | Baseline routes for all three samples, with leg speeds that slow for harbours, channels and no-wake zones; position and timing along each route. Miami follows a real passage; the Saronic Gulf and Queensland routes are hand-written because their AIS licences do not allow derived works. See [simulator/routes/README.md](simulator/routes/README.md). |
-| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.                                                                                                                                                                                                                                 |
+| Simulator Engine | Built, as a Signal K Server plugin enabled on the rig: the own boat on a depth-adjusted route, depth under the keel, and the AIS traffic it would hear. Settings in the Admin UI (Server, Plugin Config, Signal K Simulator): time multiplier, minimum depth under keel, show traffic. See [simulator/plugin/README.md](simulator/plugin/README.md).        |
 | Soak Tests       | Started: real-time runs of a sample route on the rig, own boat only, checking the server keeps up (read-back, reconnects, memory). See [simulator/soak/README.md](simulator/soak/README.md).                                                                                                                                                                |
 | Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                                                                                                                                                                                                                                     |
 

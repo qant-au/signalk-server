@@ -12,9 +12,10 @@
 > one-value plugin) but no working simulator. This fork builds on that planned feature; it
 > does not replace it.
 >
-> **Status: early stage (sample data and tools ready; no simulator engine yet).** Three sample
-> scenarios and their data are in [simulator/](simulator/README.md): one ships everything,
-> and two ship their open data with instructions for the licensed AIS the user downloads.
+> **Status: early stage (the simulator plugin runs all three samples with depth and AIS
+> traffic).** Three sample scenarios and their data are in [simulator/](simulator/README.md):
+> one ships everything, and two ship their open data with instructions for the licensed AIS
+> the user downloads.
 > The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0.
 >
 > ### 👉 [Read SIMULATOR.md](SIMULATOR.md)
