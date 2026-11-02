@@ -1,20 +1,25 @@
 #!/bin/bash
 #
 # Starts this server with the simulator plugin (simulator/plugin) sailing the Miami sample.
-# The repository is the configuration directory (-s), so the plugin is linked into its
-# node_modules and enabled in its plugin-config-data. Pass further server options after it.
+#
+# The server runs from its own configuration directory, .simulator/ (ignored by git): the
+# server writes its defaults back into the settings file it runs with, so it is given a
+# copy of settings/simulator.json, made fresh on every start, and the tracked file is
+# never touched. Plugin settings and the simulator's saved scenario time persist there
+# between runs; delete .simulator/ to start over. Pass further server options after it.
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+RUN="${ROOT}/.simulator"
 
 npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin"
-mkdir -p "${ROOT}/node_modules" "${ROOT}/plugin-config-data"
-ln -sfn "${ROOT}/simulator/plugin" "${ROOT}/node_modules/signalk-simulator"
+mkdir -p "${RUN}/node_modules" "${RUN}/plugin-config-data"
+cp "${ROOT}/settings/simulator.json" "${RUN}/settings.json"
+ln -sfn "${ROOT}/simulator/plugin" "${RUN}/node_modules/signalk-simulator"
 
-CONFIG="${ROOT}/plugin-config-data/signalk-simulator.json"
+CONFIG="${RUN}/plugin-config-data/signalk-simulator.json"
 if [ ! -f "${CONFIG}" ]; then
   cp "${ROOT}/settings/simulator-plugin.json" "${CONFIG}"
 fi
 
-# the server reads -s relative to its own directory
-exec "${ROOT}/bin/signalk-server" -s settings/simulator.json "$@"
+exec "${ROOT}/bin/signalk-server" -c "${RUN}" "$@"

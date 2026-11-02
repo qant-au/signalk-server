@@ -85,6 +85,5 @@ simulator/samples/*/cache/
 simulator/soak/reports/
 .gstack/
 
-# written by bin/simulator, which uses the checkout as its configuration directory
-/priorities.json
-/priorities.json.tmp
+# bin/simulator's configuration directory
+/.simulator/
