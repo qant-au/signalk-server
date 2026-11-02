@@ -74,6 +74,20 @@ four grids: **D** (23S to 29S, 150E to 156E: Brisbane to Gladstone) and **C** (1
 reports from the same vessel, so the simulator interpolates between them. Ships move smoothly
 but do not show real manoeuvres.
 
+### Magnetic Variation: `magnetic-variation.json`
+
+The magnetic variation over the route on the sample's date, 7.9 to 11.5°E, as a grid every half
+degree. The simulator reads between the grid points to send `navigation.headingMagnetic`,
+`courseOverGroundMagnetic` and `magneticVariation` (see
+[the vessels README](../../vessels/README.md#navigation)).
+
+- **Source:** NOAA NCEI magnetic field calculator
+  (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic
+  Reference Field (IGRF2025) on 20 August 2026.
+  `npx ts-node simulator/tools/magnetic-variation.ts manly-hamilton-island-2026-08-21` rewrites it.
+- **Licence:** the IGRF is published by IAGA for free use; the calculator's output is US
+  Government work.
+
 ## Getting the AIS
 
 **Why it is not included.** The data is published by the Australian Maritime Safety Authority
@@ -113,3 +127,5 @@ Geoscience Australia, High-resolution depth model for the Great Barrier Reef, 30
 CC BY 4.0. Wave buoys: State of Queensland (Department of the Environment, Tourism, Science
 and Innovation), Coastal Data System, CC BY 4.0. Weather: Weather data by Open-Meteo.com
 (https://open-meteo.com/); NOAA GFS; ECMWF IFS and WAM, CC BY 4.0.
+Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
+Reference Field (IAGA).

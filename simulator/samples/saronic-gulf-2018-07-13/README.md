@@ -47,6 +47,20 @@ JSON format (one object per point).
 | `restricted/vessels.csv`     | the dataset's vessel list: `vessel_id`, `country`, `shiptype` (AIS type code)                                                                                                         |
 | `restricted/weather-gfs.csv` | NOAA GFS fields the dataset ships for the area, 3-hourly at 45 grid points: temperature (K), pressure (Pa), humidity, gusts and wind (m/s), wind direction, visibility, precipitation |
 
+### Magnetic Variation: `magnetic-variation.json`
+
+The magnetic variation over the route on the sample's date, 4.4 to 4.6°E, as a grid every half
+degree. The simulator reads between the grid points to send `navigation.headingMagnetic`,
+`courseOverGroundMagnetic` and `magneticVariation` (see
+[the vessels README](../../vessels/README.md#navigation)).
+
+- **Source:** NOAA NCEI magnetic field calculator
+  (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic
+  Reference Field (DGRF2015) on 13 July 2018.
+  `npx ts-node simulator/tools/magnetic-variation.ts saronic-gulf-2018-07-13` rewrites it.
+- **Licence:** the IGRF is published by IAGA for free use; the calculator's output is US
+  Government work.
+
 ## Getting the AIS
 
 **Why it is not included.** The dataset's record on Zenodo states CC BY 4.0, but the README
@@ -79,3 +93,5 @@ https://doi.org/10.1016/j.dib.2021.107782, data at https://zenodo.org/records/63
 Depth: EMODnet Bathymetry Consortium, EMODnet Digital Bathymetry (DTM 2024). Weather: Weather
 data by Open-Meteo.com (https://open-meteo.com/), contains modified Copernicus Climate Change
 Service information 2018.
+Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
+Reference Field (IAGA).

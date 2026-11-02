@@ -90,7 +90,23 @@ layers, plus its `.aux.xml` attribute table. Elevations are metres, positive up.
   `BlueTopo_Tile_Scheme_20261029_142421.gpkg` for 25.68N to 26.16N, 80.30W to 80.00W.
 - **Licence:** CC0 1.0. NOAA asks that it not be used for navigation.
 
+### Magnetic Variation: `magnetic-variation.json`
+
+The magnetic variation over the route on the sample's date, about 7°W, as a grid every half
+degree. The simulator reads between the grid points to send `navigation.headingMagnetic`,
+`courseOverGroundMagnetic` and `magneticVariation` (see
+[the vessels README](../../vessels/README.md#navigation)).
+
+- **Source:** NOAA NCEI magnetic field calculator
+  (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic
+  Reference Field (DGRF2020) on 16 March 2024.
+  `npx ts-node simulator/tools/magnetic-variation.ts miami-icw-2024-03-16` rewrites it.
+- **Licence:** the IGRF is published by IAGA for free use; the calculator's output is US
+  Government work.
+
 ## Attribution
 
 AIS: NOAA Office for Coastal Management and BOEM, MarineCadastre.gov Nationwide AIS. Depth:
 NOAA Office of Coast Survey, BlueTopo. Weather and tides: NOAA NDBC and NOAA CO-OPS.
+Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
+Reference Field (IAGA).

@@ -12,7 +12,7 @@ simulator/
   ais/                      the AIS reception model (what a boat would actually hear)
   depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
   engine/                   the simulation: scenario loading, traffic, own boat, depth
-  systems/                  the boat's systems model: engines, generators, electrics, tanks, inside
+  systems/                  the boat's systems model (engines, generators, electrics, tanks, inside) and its navigation suite
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container
@@ -23,6 +23,7 @@ simulator/
     README.md               the sample: when, where, every dataset, its source and licence
     sample.json             what the tools fetch and prepare, and how its AIS columns map
     route.json              the own boat's passage (see routes/README.md)
+    magnetic-variation.json the magnetic variation over the route on its date (see vessels/README.md)
     open/                   openly licensed data, committed to the repository
     cache/                  (git-ignored) large open files, fetched by the tools
     restricted/             (git-ignored) data prepared from a licensed download
