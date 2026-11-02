@@ -10,7 +10,7 @@ There are two soaks here, and they answer different questions:
 | Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's three-day passage           |
 | Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, and the systems behaving as they should together |
 | Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                      |
-| Takes        | as long as you ask it to run                                            | about five minutes                                                                                                 |
+| Takes        | as long as you ask it to run                                            | about seven minutes                                                                                                |
 | Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                            |
 
 Neither is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
@@ -81,7 +81,7 @@ controllable clock at 60 scenario seconds per tick, so 24 hours takes about 25 s
 most of it schema validation, rather than a day. It uses seed 1, so a failure repeats exactly.
 
 ```shell
-npm run test:simulator-soak                          # every case, about five minutes
+npm run test:simulator-soak                          # every case, about seven minutes
 SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name contains this
 ```
 
@@ -129,6 +129,12 @@ download.
   black water only goes out well offshore (at 5 kn or more) or at a berth's pump-out station.
 - **The wind turbine** charges in proportion to the apparent wind (rank correlation above
   0.9) and is still below 3 m/s.
+- **The navigational state** is `moored`, `anchored`, `sailing` or `motoring` at every
+  tick and agrees with the engines: stopped and out of gear in the first three, something
+  in gear under `motoring`. Every case motors at some point, and the sailing yachts sail.
+- **The heading** stays on the course over the ground, off it only by what a knot of
+  current across the track and a few degrees of yaw allow, and the speed through the
+  water differs from the speed over the ground by at most a knot.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left.
@@ -162,7 +168,7 @@ going overboard away from a berth.
 
 ### Runs So Far
 
-2 November 2026: 14 checks passing in 5 minutes, 60,504 deltas validated. Generator starts
+2 November 2026: 16 checks passing in 7 minutes, 60,504 deltas validated. Generator starts
 count each time one more generator is running.
 
 | Case                                         | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Fuel left      |
@@ -177,7 +183,7 @@ count each time one more generator is running.
 | `sailing-yacht-9m` day out                   | 24    | 4,322  | none fitted      | none       | 1         | 58%                 | 94% (from 95%) |
 | `yacht-12m` day out                          | 24    | 4,322  | 5                | 209 l      | 3         | 85%                 | 79% (from 97%) |
 | `motor-yacht-20m` on the Miami route         | 24    | 4,322  | 0                | none       | 2         | 92%                 | 86% (from 88%) |
-| `sailing-yacht-15m` on the Saronic route     | 24    | 4,322  | 2                | 212 l      | 3         | 58%                 | 93% (from 97%) |
+| `sailing-yacht-15m` on the Saronic route     | 24    | 4,322  | 2                | 212 l      | 3         | 59%                 | 93% (from 97%) |
 | `motor-sailer-15m` on the Queensland passage | 72    | 12,962 | 6                | 632 l      | 5         | 92%                 | 33% (from 97%) |
 
 The 20 m yacht on the Miami route is alongside for all but four hours of the day, so shore
