@@ -1,0 +1,15 @@
+{
+  "name": "signalk-simulator",
+  "version": "0.1.0",
+  "description": "Signal K Simulator: sails a sample scenario with depth and AIS traffic",
+  "main": "dist/plugin/index.js",
+  "private": true,
+  "license": "Apache-2.0",
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-category-utility"
+  ],
+  "scripts": {
+    "build": "tsc -p ."
+  }
+}

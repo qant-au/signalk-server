@@ -24,6 +24,7 @@ export interface AisFileConfig {
   typeTextColumn?: string
   lengthColumn?: string
   transceiverColumn?: string
+  nameColumn?: string
   /** the source keeps at most one report per vessel per this many seconds */
   thinnedToSeconds?: number
   /** a second file holding per-vessel details, joined on idColumn */
@@ -38,6 +39,7 @@ export interface AisReport {
   sogKn: number
   cogDeg?: number
   headingDeg?: number
+  name?: string
   target: TargetDescription
 }
 
@@ -138,6 +140,7 @@ export async function* readAisReports(
       sogKn: optionalNumber(row[config.sogColumn]) ?? 0,
       cogDeg: optionalNumber(column(row, config.cogColumn)),
       headingDeg: optionalNumber(column(row, config.headingColumn)),
+      name: column(row, config.nameColumn)?.trim() || undefined,
       target: {
         transceiver: column(row, config.transceiverColumn),
         typeCode:
