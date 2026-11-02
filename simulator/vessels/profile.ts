@@ -101,6 +101,8 @@ export interface VesselProfile {
   acPhases: 1 | 3
   /** people aboard, for water use */
   persons: number
+  /** water maker output, litres an hour; 0 for none */
+  watermakerLph: number
   engines: EngineProfile[]
   generators: GeneratorProfile[]
   banks: BankProfile[]
@@ -129,7 +131,13 @@ export const MAX_TANKS: Record<TankType, number> = {
   blackWater: 2
 }
 const TWIN_ENGINE_FROM_M = 10
+const WATERMAKER_FROM_M = 12
+/** water maker output per metre of length, litres an hour */
+const WATERMAKER_LPH_PER_M = 5
+/** the smallest holding tank fitted, litres */
+const MIN_HOLDING_L = { wasteWater: 40, blackWater: 45 }
 const GENERATOR_FROM_M = 10
+const SOUNDER_DEPTH_M = 0.5
 const SIDES = ['Port', 'Starboard']
 /** generators sit under propulsion beside the main engines, told apart by their id */
 const GENERATOR_ID = /^generator\d+$/
@@ -145,9 +153,9 @@ export function defaultCapacityL(type: TankType, lengthM: number): number {
     case 'freshWater':
       return round(fresh, 10)
     case 'wasteWater':
-      return round(fresh * 0.25, 10)
+      return round(Math.max(MIN_HOLDING_L.wasteWater, fresh * 0.25), 5)
     case 'blackWater':
-      return round(fresh * 0.15, 10)
+      return round(Math.max(MIN_HOLDING_L.blackWater, fresh * 0.15), 5)
   }
 }
 
@@ -261,6 +269,7 @@ function defaultZones(lengthM: number): ZoneProfile[] {
 /** Fills in what a profile file leaves out and checks it against the limits. */
 export function resolveProfile(p: ProfileFile): VesselProfile {
   const L = p.lengthM
+  const draftM = p.draftM ?? round(Math.max(0.3, L * 0.11), 0.1)
   const tanks = {} as Record<TankType, TankProfile[]>
   for (const type of Object.keys(MAX_TANKS) as TankType[]) {
     tanks[type] = p.tanks?.[type] ?? defaultTanks(type, L)
@@ -288,7 +297,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
       : [])
   const profile: VesselProfile = {
     beamM: round(L * 0.3, 0.1),
-    draftM: round(Math.max(0.3, L * 0.11), 0.1),
+    draftM,
     displacementT: round(Math.max(0.3, 0.004 * L ** 3), 0.1),
     typeCode: 37,
     rig: 'motor',
@@ -297,10 +306,18 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
     acFrequency: 50,
     acPhases: L >= 24 ? 3 : 1,
     persons: Math.max(1, Math.round(L / 3.5)),
+    watermakerLph:
+      L >= WATERMAKER_FROM_M ? round(WATERMAKER_LPH_PER_M * L, 5) : 0,
     solar: [],
     windTurbines: [],
     sounders: [
-      { id: 'sounder', displayName: 'Depth sounder', depthM: 0.5, offsetM: 0 }
+      {
+        id: 'sounder',
+        displayName: 'Depth sounder',
+        // through the hull, and never below the keel
+        depthM: Math.min(SOUNDER_DEPTH_M, round(0.8 * draftM, 0.05)),
+        offsetM: 0
+      }
     ],
     radars:
       L < 9

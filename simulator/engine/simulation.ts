@@ -90,7 +90,8 @@ export class Simulation {
           lon: p.lon,
           sogKn: p.sogKn,
           cogDeg: p.cogDeg,
-          atBerth: p.finished || ms < legs[0].departMs
+          atBerth: !p.anchored && (p.finished || ms < legs[0].departMs),
+          anchored: p.anchored
         }
       })
       const slow = this.ticks % SLOW_EVERY_TICKS === 0

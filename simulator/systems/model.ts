@@ -30,6 +30,8 @@ export interface Motion {
   cogDeg: number
   /** alongside a berth, before departure or after arrival: shore power, engines off */
   atBerth: boolean
+  /** lying at anchor: engines off, no shore power */
+  anchored?: boolean
 }
 
 export interface SystemsOptions {
@@ -57,8 +59,10 @@ const IDLE_FUEL_SHARE = 0.005
 /** a generator's fuel at no load, as a share of its full-load fuel */
 const GENERATOR_NO_LOAD_FUEL = 0.25
 const ELECTRIC_DRIVE_EFFICIENCY = 0.92
-/** a hybrid drives on electric alone up to this share of the motor's rating */
-const ELECTRIC_ONLY_SHARE = 0.6
+/** a hybrid drives on electric alone up to this share of the motor's rating: harbour speeds */
+const ELECTRIC_ONLY_SHARE = 0.2
+/** and only while its bank is above this, so the diesel takes over before the generator is needed */
+const ELECTRIC_ONLY_MIN_SOC = 0.4
 const CHARGER_EFFICIENCY = 0.9
 const POWER_FACTOR = 0.9
 /** a generator is loaded to at most this share before another is started */
@@ -67,11 +71,48 @@ const SAIL_MIN_WIND_KN = 6
 const SAIL_MIN_SPEED_KN = 3.5
 /** grey water as a share of fresh water used */
 const GREY_SHARE = 0.7
-const BLACK_L_PER_PERSON_DAY = 15
+const BLACK_L_PER_PERSON_DAY = 8
+/** a holding tank is emptied from this level, overboard where that is allowed */
 const HOLDING_PUMP_OUT_LEVEL = 0.85
+/** at a berth the pump-out station empties any holding tank above this level */
+const BERTH_PUMP_OUT_LEVEL = 0.5
+/** pumping stops here */
+const HOLDING_EMPTY_LEVEL = 0.05
 const HOLDING_PUMP_OUT_MIN_KN = 5
 const HOLDING_PUMP_OUT_L_PER_H = 2000
+/** the water maker starts below this share of the fresh water capacity and stops above the next */
+const WATERMAKER_START_LEVEL = 0.85
+const WATERMAKER_STOP_LEVEL = 0.98
+/** a reverse-osmosis water maker on AC, energy per litre made */
+const WATERMAKER_KWH_PER_L = 0.025
+/** alongside, the fresh water is topped up from the dock */
+const SHORE_WATER_L_PER_H = 1000
+const SHORE_WATER_FULL_LEVEL = 0.98
+/** shore-power charger rating per metre of length */
+const SHORE_CHARGER_W_PER_M = 200
+/** a charger is rated for the bank's full charge rate */
+const CHARGER_RATING_C = 0.3
+/** engine alternator output per kW of engine */
+const ALTERNATOR_W_PER_KW = 30
+/** DC-DC converter keeping a house bank charged from a propulsion bank */
+const CONVERTER_W = 3000
+const CONVERTER_EFFICIENCY = 0.95
+const CONVERTER_MIN_SOC = 0.2
+const SOLAR_DERATE = 0.85
+/** a generator, once started, runs at least this long */
+const GENERATOR_MIN_RUN_S = 15 * 60
+/** one of several running generators is stopped when the rest would be under this share */
+const GENERATOR_STOP_SHARE = 0.6
+/** hotel load, kW, as a factor of length to a power: fitted to 7 kW at 18 m and 50 kW at 45 m */
+const HOTEL_KW_FACTOR = 0.012
+const HOTEL_KW_EXPONENT = 2.2
+/** air conditioning at most this share of the hotel load, rising from HVAC_FROM_C over HVAC_RANGE_C */
+const HVAC_SHARE = 0.4
+const HVAC_FROM_C = 22
+const HVAC_RANGE_C = 14
 const DAY_TANK_LOW = 0.5
+/** a storage tank is changed for a fuller one below this level */
+const FUEL_SWITCH_LEVEL = 0.15
 const DAY_TANK_FULL = 0.95
 /** on the inverter a boat sheds all but the occasional galley load */
 const INVERTER_SHARE = 0.06
@@ -102,6 +143,10 @@ interface EngineState {
 interface GeneratorState {
   p: GeneratorProfile
   running: boolean
+  /** seconds since it last started */
+  runForS: number
+  /** started to charge its bank, until the bank is charged */
+  wantsCharge: boolean
   loadKw: number
   coolantC: number
   runS: number
@@ -136,6 +181,7 @@ interface SolarState {
   yieldJ: number
   day: number
   cloud: Drift
+  cloudCover: number
 }
 
 interface TurbineState {
@@ -192,8 +238,19 @@ export class SystemsModel {
   private windKn = 0
   private windDeg = 0
   private hotelKw = 0
+  private hvacKw = 0
+  /** AC the shore supply carries alongside: the hotel load and the chargers */
   private shoreKw = 0
+  private shoreChargeKw = 0
   private hvacOn = false
+  /** the water maker wants to run; it makes water while a generator runs */
+  private watermakerOn = false
+  private watermakerRunning = false
+  private freshUsedL = 0
+  private madeL = 0
+  private shoreWaterL = 0
+  private readonly pumping = new Set<TankState>()
+  private readonly pumpOuts = new Map<string, number>()
   private sailing = false
   private transferring: string | undefined
   /** AC a small boat's inverter carries from the house bank when no generator runs */
@@ -232,6 +289,8 @@ export class SystemsModel {
       return {
         p,
         running: false,
+        runForS: 0,
+        wantsCharge: false,
         loadKw: 0,
         coolantC: 20,
         runS: r.between(1000, 9000) * SECONDS_PER_HOUR,
@@ -261,7 +320,7 @@ export class SystemsModel {
           type === 'fuel'
             ? p.dayTank
               ? r.between(0.8, 0.95)
-              : r.between(0.55, 0.95)
+              : r.between(0.85, 0.98)
             : type === 'freshWater'
               ? r.between(0.6, 0.95)
               : r.between(0.05, 0.3)
@@ -278,7 +337,8 @@ export class SystemsModel {
       powerW: 0,
       yieldJ: 0,
       day: -1,
-      cloud: new Drift(rng(`solar:${p.id}`), 0.12, 900)
+      cloud: new Drift(rng(`solar:${p.id}`), 0.12, 900),
+      cloudCover: 0
     }))
     this.turbines = profile.windTurbines.map((p) => ({
       p,
@@ -333,6 +393,7 @@ export class SystemsModel {
     this.stepAc(dt)
     this.stepZones(dt)
     this.stepElectrical(dt)
+    this.stepGenerators(dt)
     this.stepTanks(dt)
     this.stepSounders(dt)
   }
@@ -361,13 +422,14 @@ export class SystemsModel {
   private stepPropulsion(dt: number): void {
     const p = this.profile
     const { sogKn, atBerth } = this.motion
+    const stopped = atBerth || this.motion.anchored === true
     const speedShare = Math.min(1, sogKn / p.maxSpeedKn)
     this.sailing =
       p.rig === 'sail' &&
-      !atBerth &&
+      !stopped &&
       sogKn >= SAIL_MIN_SPEED_KN &&
       this.windKn >= SAIL_MIN_WIND_KN
-    const underway = !atBerth && !this.sailing
+    const underway = !stopped && !this.sailing
     const ratedKw = p.engines.reduce((sum, e) => sum + e.powerKw, 0)
     // propeller law: power goes with the cube of speed
     const demandKw = (ratedKw * speedShare ** 3) / Math.max(1, p.engines.length)
@@ -388,7 +450,7 @@ export class SystemsModel {
         ep.electricKw &&
         demandKw <= ELECTRIC_ONLY_SHARE * ep.electricKw &&
         bank &&
-        bank.soc > 0.25
+        bank.soc > ELECTRIC_ONLY_MIN_SOC
       ) {
         e.running = false
         e.electricMode = true
@@ -449,86 +511,111 @@ export class SystemsModel {
     }
   }
 
-  /** Hotel load, who carries it, and which generators run. */
+  /**
+   * Which generators run and the AC load each source carries before any charging: the
+   * hotel load, the air conditioning and the water maker. Chargers are added in
+   * `stepElectrical`, once the banks' other sources are known.
+   */
   private stepAc(dt: number): void {
     const p = this.profile
     const { atBerth } = this.motion
+    const anchored = this.motion.anchored === true
     const hour = solarHour(this.nowMs, this.motion.lon)
-    const meal =
-      (hour >= 7 && hour < 8.5) ||
-      (hour >= 12 && hour < 13.5) ||
-      (hour >= 18 && hour < 20)
+    const meal = isMealTime(hour)
     const awake = hour >= 6.5 && hour < 22.5
+    const scaleKw = HOTEL_KW_FACTOR * p.lengthM ** HOTEL_KW_EXPONENT
     const baseKw =
-      0.012 *
-      p.lengthM ** 2.2 *
+      scaleKw *
       (awake ? 1 : 0.6) *
       (meal ? 1.3 : 1) *
       (1 + this.loadDrift.step(dt))
-    const hvacKw =
-      0.4 * 0.012 * p.lengthM ** 2.2 * clamp((this.airC - 22) / 8, 0, 1)
-
+    const hvacDemandKw =
+      HVAC_SHARE *
+      scaleKw *
+      clamp((this.airC - HVAC_FROM_C) / HVAC_RANGE_C, 0, 1)
     const hasGenerators = this.generators.length > 0
-    const large = p.lengthM >= LARGE_YACHT_M
-    this.shoreKw = 0
-    for (const g of this.generators) g.loadKw = 0
 
+    this.updateWatermaker(atBerth)
+    const watermakerKw = this.watermakerOn
+      ? WATERMAKER_KWH_PER_L * p.watermakerLph
+      : 0
+
+    for (const g of this.generators) g.runForS = g.running ? g.runForS + dt : 0
     if (atBerth) {
+      // shore power takes over alongside
       for (const g of this.generators) g.running = false
-      this.hvacOn = hasGenerators
-      this.shoreKw = hasGenerators ? baseKw + hvacKw : 0
-    } else if (large && hasGenerators) {
-      const totalKw = baseKw + hvacKw
-      const each = this.generators[0].p.powerKw * GENERATOR_SHARE
-      const needed = Math.min(
-        this.generators.length,
-        Math.max(1, Math.ceil(totalKw / each))
-      )
-      this.generators.forEach((g, i) => {
-        g.running = i < needed
-      })
-      this.hvacOn = true
-    } else if (hasGenerators) {
-      // a smaller boat runs its generator to charge, and has the air conditioning while it runs
+    } else if (hasGenerators && p.lengthM >= LARGE_YACHT_M) {
+      const totalKw = baseKw + hvacDemandKw + watermakerKw
+      const each = this.generators[0].p.powerKw
+      const running = this.generators.filter((g) => g.running).length
+      let needed = Math.ceil(totalKw / (GENERATOR_SHARE * each))
+      // one is stopped only when the rest could carry the load with room to spare
+      if (
+        needed < running &&
+        totalKw > GENERATOR_STOP_SHARE * each * (running - 1)
+      ) {
+        needed = running
+      }
+      needed = clamp(needed, 1, this.generators.length)
+      this.generators.forEach((g, i) => this.setGenerator(g, i < needed))
+    } else {
       for (const g of this.generators) {
         const bank = this.bank(g.p.chargesBank)
-        if (!bank) continue
-        const startAt = bank.p.role === 'propulsion' ? 0.3 : 0.45
-        const stopAt = bank.p.role === 'propulsion' ? 0.8 : 0.9
-        if (bank.soc < startAt) g.running = true
-        else if (bank.soc > stopAt) g.running = false
+        if (bank) {
+          const propulsion = bank.p.role === 'propulsion'
+          if (bank.soc < (propulsion ? 0.3 : 0.45)) g.wantsCharge = true
+          else if (bank.soc > (propulsion ? 0.8 : 0.9)) g.wantsCharge = false
+        }
+        // at anchor a smaller boat runs its generator for cooking and hot water at meals
+        this.setGenerator(
+          g,
+          g.wantsCharge || (anchored && meal) || this.watermakerOn
+        )
       }
-      this.hvacOn = this.generators.some((g) => g.running)
-    } else {
-      this.hvacOn = false
     }
 
     const running = this.generators.filter((g) => g.running)
-    const inverterKw =
+    this.hvacOn = hasGenerators && (atBerth || running.length > 0)
+    this.hvacKw = this.hvacOn ? hvacDemandKw : 0
+    this.hotelKw = baseKw
+    this.watermakerRunning = this.watermakerOn && running.length > 0
+    for (const g of this.generators) g.loadKw = 0
+    this.shoreKw = atBerth && hasGenerators ? baseKw + this.hvacKw : 0
+    if (!atBerth && running.length) {
+      const acKw =
+        baseKw + this.hvacKw + (this.watermakerRunning ? watermakerKw : 0)
+      for (const g of running) g.loadKw = acKw / running.length
+    }
+    this.inverterKw =
       hasGenerators && !atBerth && !running.length ? INVERTER_SHARE * baseKw : 0
-    const acKw =
-      atBerth || !running.length ? 0 : baseKw + (this.hvacOn ? hvacKw : 0)
-    for (const g of running) g.loadKw = acKw / running.length
+  }
 
-    // chargers run from whatever carries the AC
-    for (const b of this.banks) b.chargerW = 0
-    const chargeFrom = (bank: BankState | undefined, availableKw: number) => {
-      if (!bank || bank.p.role === 'start') return 0
-      const limitW = acceptanceW(bank)
-      const w = Math.min(limitW, availableKw * 1000 * CHARGER_EFFICIENCY)
-      bank.chargerW += w
-      return w / CHARGER_EFFICIENCY / 1000
+  /** once started a generator runs a minimum time, so a passing load cannot cycle it */
+  private setGenerator(g: GeneratorState, wanted: boolean): void {
+    if (wanted && !g.running) {
+      g.running = true
+      g.runForS = 0
+    } else if (!wanted && g.running && g.runForS >= GENERATOR_MIN_RUN_S) {
+      g.running = false
     }
-    if (atBerth && hasGenerators) {
-      for (const b of this.banks) this.shoreKw += chargeFrom(b, 0.2 * p.lengthM)
-    }
-    for (const g of running) {
-      g.loadKw += chargeFrom(this.bank(g.p.chargesBank), g.p.powerKw - g.loadKw)
-      g.loadKw = Math.min(g.p.powerKw, g.loadKw)
-    }
-    this.inverterKw = inverterKw
+  }
 
+  /** the water maker runs away from the berth, topping the fresh water tanks up */
+  private updateWatermaker(atBerth: boolean): void {
+    const fresh = this.tanksOf('freshWater')
+    if (!this.profile.watermakerLph || !fresh.length || atBerth) {
+      this.watermakerOn = false
+      return
+    }
+    const level = fillLevel(fresh)
+    if (level < WATERMAKER_START_LEVEL) this.watermakerOn = true
+    else if (level > WATERMAKER_STOP_LEVEL) this.watermakerOn = false
+  }
+
+  /** generator fuel and temperatures, once chargers have added their load */
+  private stepGenerators(dt: number): void {
     for (const g of this.generators) {
+      g.loadKw = Math.min(g.p.powerKw, g.loadKw)
       const share = g.running ? g.loadKw / g.p.powerKw : 0
       g.fuelLph = g.running
         ? FUEL_L_PER_KWH.diesel *
@@ -578,8 +665,16 @@ export class SystemsModel {
     }
   }
 
+  /**
+   * Each bank's loads, then its sources in the order a real system ends up drawing on
+   * them: solar and wind first (they cost nothing, and their controllers hold the bank
+   * up before the chargers' setpoints are reached), then engine alternators and drive
+   * regeneration, the DC-DC converter from a propulsion bank, and AC chargers last. Each
+   * source gives only what the loads and the bank's charge acceptance still want.
+   */
   private stepElectrical(dt: number): void {
     const p = this.profile
+    const { atBerth } = this.motion
     const sunSin = Math.max(
       0,
       Math.sin(sunElevation(this.nowMs, this.motion.lat, this.motion.lon))
@@ -587,50 +682,23 @@ export class SystemsModel {
     const day = Math.floor(
       (this.nowMs / 1000 + (this.motion.lon / 15) * SECONDS_PER_HOUR) / DAY_S
     )
-    const flowW = new Map<BankState, number>()
-    const add = (bank: BankState | undefined, w: number) => {
-      if (bank) flowW.set(bank, (flowW.get(bank) ?? 0) + w)
-    }
-
     for (const s of this.solar) {
       if (s.day !== day) {
         s.day = day
         s.yieldJ = 0
       }
-      const cloud = clamp(1 - Math.abs(s.cloud.step(dt)), 0.3, 1)
-      const bank = this.bank(s.p.bank)
-      s.powerW = bank
-        ? Math.min(
-            s.p.peakW * 0.85 * sunSin ** 1.2 * cloud,
-            acceptanceW(bank) + 1
-          )
-        : 0
-      s.yieldJ += s.powerW * dt
-      add(bank, s.powerW)
+      s.cloudCover = clamp(Math.abs(s.cloud.step(dt)), 0, 0.7)
     }
     const apparentMs = this.apparentWind().speedMs
-    for (const t of this.turbines) {
-      const bank = this.bank(t.p.bank)
-      const share = clamp((apparentMs - 3) / (12.5 - 3), 0, 1)
-      t.powerW = bank
-        ? Math.min(t.p.ratedW * share ** 3, acceptanceW(bank) + 1)
-        : 0
-      t.revolutionsHz = apparentMs > 2 ? Math.min(25, 2 * apparentMs) : 0
-      add(bank, t.powerW)
+
+    const loadW = new Map<BankState, number>()
+    const draw = (bank: BankState | undefined, w: number) => {
+      if (bank) loadW.set(bank, (loadW.get(bank) ?? 0) + w)
     }
     for (const e of this.engines) {
-      add(this.bank(e.p.bank), -e.bankKw * 1000)
-      if (e.running && e.p.type !== 'electric' && e.p.type !== 'hybrid') {
-        // engine alternators: the start bank first, the house bank through a charge splitter
-        for (const b of this.banks) {
-          if (b.p.role === 'propulsion') continue
-          add(b, Math.min(acceptanceW(b), 0.03 * e.p.powerKw * 1000))
-        }
-      }
+      if (e.bankKw > 0) draw(this.bank(e.p.bank), e.bankKw * 1000)
     }
-    for (const b of this.banks) add(b, b.chargerW)
-
-    const house = this.bank(this.banks.find((b) => b.p.role === 'house')?.p.id)
+    const house = this.banks.find((b) => b.p.role === 'house')
     if (house) {
       let dcW = 3 * p.lengthM ** 1.4
       for (const z of this.zones) {
@@ -642,14 +710,83 @@ export class SystemsModel {
             (z.p.kind === 'freezer' ? 80 : 50) * Math.max(1, p.lengthM / 15)
         }
       }
-      add(house, -(dcW + (this.inverterKw * 1000) / CHARGER_EFFICIENCY))
+      draw(house, dcW + (this.inverterKw * 1000) / CHARGER_EFFICIENCY)
     }
     for (const b of this.banks) {
-      if (b.p.role === 'start') add(b, -2.5 * (b.p.nominalVoltage / 12))
+      if (b.p.role === 'start') draw(b, 2.5 * (b.p.nominalVoltage / 12))
+    }
+
+    const supplied = new Map<BankState, number>()
+    const take = (bank: BankState, availableW: number) => {
+      const wanted =
+        (loadW.get(bank) ?? 0) + acceptanceW(bank) - (supplied.get(bank) ?? 0)
+      const w = clamp(availableW, 0, Math.max(0, wanted))
+      supplied.set(bank, (supplied.get(bank) ?? 0) + w)
+      return w
+    }
+    const propulsion = this.banks.find((b) => b.p.role === 'propulsion')
+    // the house bank first, so the converter's draw on the propulsion bank is known
+    const ordered = [...this.banks].sort(
+      (a, b) => Number(b.p.role === 'house') - Number(a.p.role === 'house')
+    )
+    this.shoreChargeKw = 0
+    for (const b of ordered) {
+      // arrays on one bank share what it takes, each in proportion to what it could give
+      const arrays = this.solar.filter((s) => s.p.bank === b.p.id)
+      const availableW = arrays.map(
+        (s) => s.p.peakW * SOLAR_DERATE * sunSin ** 1.2 * (1 - s.cloudCover)
+      )
+      const totalW = availableW.reduce((sum, w) => sum + w, 0)
+      const takenW = take(b, totalW)
+      arrays.forEach((s, i) => {
+        s.powerW = totalW > 0 ? (takenW * availableW[i]) / totalW : 0
+        s.yieldJ += s.powerW * dt
+      })
+      for (const t of this.turbines) {
+        if (t.p.bank !== b.p.id) continue
+        const share = clamp((apparentMs - 3) / (12.5 - 3), 0, 1)
+        t.powerW = take(b, t.p.ratedW * share ** 3)
+        t.revolutionsHz = apparentMs > 2 ? Math.min(25, 2 * apparentMs) : 0
+      }
+      // on a boat with a propulsion bank the house hangs off its bus, ahead of any alternator
+      if (b === house && propulsion && propulsion.soc > CONVERTER_MIN_SOC) {
+        const w = take(b, CONVERTER_W)
+        draw(propulsion, w / CONVERTER_EFFICIENCY)
+      }
+      for (const e of this.engines) {
+        if (e.running && b.p.role !== 'propulsion' && e.p.type !== 'electric') {
+          // alternators: the start bank, and the house bank through a charge splitter
+          take(b, ALTERNATOR_W_PER_KW * e.p.powerKw)
+        }
+        if (e.bankKw < 0 && e.p.bank === b.p.id) take(b, -e.bankKw * 1000)
+      }
+      b.chargerW = 0
+      if (b.p.role === 'start') continue
+      const ratingW = CHARGER_RATING_C * b.p.capacityAh * b.p.nominalVoltage
+      if (atBerth) {
+        b.chargerW = take(
+          b,
+          Math.min(ratingW, SHORE_CHARGER_W_PER_M * p.lengthM)
+        )
+        this.shoreChargeKw += b.chargerW / CHARGER_EFFICIENCY / 1000
+      } else {
+        for (const g of this.generators) {
+          if (!g.running || g.p.chargesBank !== b.p.id) continue
+          const w = take(
+            b,
+            Math.min(
+              ratingW - b.chargerW,
+              (g.p.powerKw - g.loadKw) * 1000 * CHARGER_EFFICIENCY
+            )
+          )
+          g.loadKw += w / CHARGER_EFFICIENCY / 1000
+          b.chargerW += w
+        }
+      }
     }
 
     for (const b of this.banks) {
-      const w = flowW.get(b) ?? 0
+      const w = (supplied.get(b) ?? 0) - (loadW.get(b) ?? 0)
       const scale = b.p.nominalVoltage / 12
       b.currentA = w / Math.max(1, b.voltage)
       b.soc = clamp(
@@ -684,26 +821,32 @@ export class SystemsModel {
     }
   }
 
+  private tanksOf(type: TankType): TankState[] {
+    return this.tanks.filter((t) => t.type === type)
+  }
+
   private stepTanks(dt: number): void {
     const p = this.profile
+    const { atBerth, sogKn } = this.motion
     const tank = (type: TankType, id: string | undefined) =>
       this.tanks.find((t) => t.type === type && t.p.id === id)
-    const ofType = (type: TankType) => this.tanks.filter((t) => t.type === type)
-    const fuel = ofType('fuel')
-    const draw = (t: TankState | undefined, litres: number) => {
+    const fuel = this.tanksOf('fuel')
+    const burn = (t: TankState | undefined, litres: number) => {
       if (!t) return
-      if (t.litres < litres) {
-        // crossfeed from the fullest tank when this one runs dry
-        const fullest = fuel.reduce((a, b) => (b.litres > a.litres ? b : a), t)
-        fullest.litres = Math.max(0, fullest.litres - litres)
-      } else {
-        t.litres -= litres
-      }
+      // below its reserve a storage tank is switched for the fullest one, as a crew
+      // changes tanks; a day tank is kept full by the transfer pump instead
+      const fullest = fuel.reduce((a, b) => (b.litres > a.litres ? b : a), t)
+      const from =
+        t.litres < litres ||
+        (!t.p.dayTank && t.litres < FUEL_SWITCH_LEVEL * t.p.capacityL)
+          ? fullest
+          : t
+      from.litres = Math.max(0, from.litres - litres)
     }
     for (const e of this.engines)
-      draw(tank('fuel', e.p.fuelTank), (e.fuelLph * dt) / SECONDS_PER_HOUR)
+      burn(tank('fuel', e.p.fuelTank), (e.fuelLph * dt) / SECONDS_PER_HOUR)
     for (const g of this.generators)
-      draw(tank('fuel', g.p.fuelTank), (g.fuelLph * dt) / SECONDS_PER_HOUR)
+      burn(tank('fuel', g.p.fuelTank), (g.fuelLph * dt) / SECONDS_PER_HOUR)
 
     // the transfer pump keeps the day tanks topped up from the storage tanks
     const dayTanks = fuel.filter((t) => t.p.dayTank)
@@ -724,35 +867,56 @@ export class SystemsModel {
       if (litres > 0) this.transferring = low.p.id
     }
 
-    const hour = solarHour(this.nowMs, this.motion.lon)
-    const busy =
-      hour >= 6 && hour < 9
-        ? 2
-        : hour >= 17 && hour < 21
-          ? 1.6
-          : hour >= 23 || hour < 6
-            ? 0.2
-            : 1
+    const busy = waterUse(solarHour(this.nowMs, this.motion.lon))
     const perPerson =
-      p.lengthM >= LARGE_YACHT_M ? 100 : p.lengthM >= 10 ? 60 : 30
-    const freshL = (p.persons * perPerson * busy * dt) / DAY_S
-    const fresh = ofType('freshWater')
-    const source = fresh.find((t) => t.litres > 0.2 * t.p.capacityL) ?? fresh[0]
-    if (source) source.litres = Math.max(0, source.litres - freshL)
-    const fill = (tanks: TankState[], litres: number) => {
-      for (const t of tanks)
-        t.litres = Math.min(t.p.capacityL, t.litres + litres / tanks.length)
+      p.lengthM >= LARGE_YACHT_M ? 100 : p.lengthM >= 10 ? 60 : 20
+    const fresh = this.tanksOf('freshWater')
+    if (fresh.length) {
+      const wantL = (p.persons * perPerson * busy * dt) / DAY_S
+      const source =
+        fresh.find((t) => t.litres > 0.2 * t.p.capacityL) ??
+        fresh.reduce((a, b) => (b.litres > a.litres ? b : a))
+      const usedL = Math.min(source.litres, wantL)
+      source.litres -= usedL
+      this.freshUsedL += usedL
+      fillTanks(this.tanksOf('wasteWater'), GREY_SHARE * usedL)
+      const lowest = fresh.reduce((a, b) =>
+        b.litres / b.p.capacityL < a.litres / a.p.capacityL ? b : a
+      )
+      if (this.watermakerRunning) {
+        const madeL = (p.watermakerLph * dt) / SECONDS_PER_HOUR
+        lowest.litres = Math.min(lowest.p.capacityL, lowest.litres + madeL)
+        this.madeL += madeL
+      }
+      if (atBerth && fillLevel(fresh) < SHORE_WATER_FULL_LEVEL) {
+        const hoseL = (SHORE_WATER_L_PER_H * dt) / SECONDS_PER_HOUR
+        lowest.litres = Math.min(lowest.p.capacityL, lowest.litres + hoseL)
+        this.shoreWaterL += hoseL
+      }
     }
-    if (source) fill(ofType('wasteWater'), GREY_SHARE * freshL)
-    fill(
-      ofType('blackWater'),
+    fillTanks(
+      this.tanksOf('blackWater'),
       (p.persons * BLACK_L_PER_PERSON_DAY * busy * dt) / DAY_S
     )
-    for (const t of [...ofType('wasteWater'), ...ofType('blackWater')]) {
-      if (
-        t.litres >= HOLDING_PUMP_OUT_LEVEL * t.p.capacityL &&
-        this.motion.sogKn >= HOLDING_PUMP_OUT_MIN_KN
-      ) {
+
+    // holding tanks: the pump-out station at a berth; grey water overboard anywhere
+    // else, black water only well offshore, which a boat making 5 kn stands for here
+    for (const t of [
+      ...this.tanksOf('wasteWater'),
+      ...this.tanksOf('blackWater')
+    ]) {
+      const level = t.litres / t.p.capacityL
+      const allowed = atBerth
+        ? true
+        : t.type === 'wasteWater' || sogKn >= HOLDING_PUMP_OUT_MIN_KN
+      const startAt = atBerth ? BERTH_PUMP_OUT_LEVEL : HOLDING_PUMP_OUT_LEVEL
+      if (!allowed || level <= HOLDING_EMPTY_LEVEL) {
+        this.pumping.delete(t)
+      } else if (!this.pumping.has(t) && level >= startAt) {
+        this.pumping.add(t)
+        this.pumpOuts.set(t.p.id, (this.pumpOuts.get(t.p.id) ?? 0) + 1)
+      }
+      if (this.pumping.has(t)) {
         t.litres = Math.max(
           0,
           t.litres - (HOLDING_PUMP_OUT_L_PER_H * dt) / SECONDS_PER_HOUR
@@ -777,6 +941,14 @@ export class SystemsModel {
       s.reading =
         depth === undefined ? undefined : depth + s.bias + s.drift.value
     }
+  }
+
+  /** the low-voltage bank a combustion engine's alternator charges */
+  private alternatorBank(): BankState | undefined {
+    return (
+      this.banks.find((b) => b.p.role === 'start') ??
+      this.banks.find((b) => b.p.role === 'house')
+    )
   }
 
   private bank(id: string | undefined): BankState | undefined {
@@ -899,7 +1071,8 @@ export class SystemsModel {
     if (slow) {
       for (const g of this.generators)
         this.putAc(g.p.id, g.running ? g.loadKw : 0, g.running, put)
-      if (this.shoreKw > 0) this.putAc('shore', this.shoreKw, true, put)
+      const shoreKw = this.shoreKw + this.shoreChargeKw
+      if (shoreKw > 0) this.putAc('shore', shoreKw, true, put)
       for (const b of this.banks) this.putBank(b, put)
       for (const s of this.solar) this.putSolar(s, put)
       for (const t of this.turbines) this.putTurbine(t, put)
@@ -993,10 +1166,10 @@ export class SystemsModel {
         : 0
     )
     put(`${base}.fuel.rate`, e.fuelLph / LITRES_PER_M3 / SECONDS_PER_HOUR)
-    const start = this.banks.find((b) => b.p.id === e.p.bank)
+    const charged = this.alternatorBank()
     put(
       `${base}.alternatorVoltage`,
-      e.running && start ? round2(start.voltage) : 0
+      e.running && charged ? round2(charged.voltage) : 0
     )
   }
 
@@ -1141,35 +1314,93 @@ export class SystemsModel {
       round2(this.windKn * METRES_PER_SECOND_PER_KNOT)
     )
     put('environment.wind.directionTrue', round3(from))
-    put('environment.wind.angleTrueWater', round3(wrapPi(from - course)))
+    put('environment.wind.angleTrueWater', roundAngle(wrapPi(from - course)))
     put('environment.wind.speedApparent', round2(apparent.speedMs))
-    put('environment.wind.angleApparent', round3(apparent.angle))
+    put('environment.wind.angleApparent', roundAngle(apparent.angle))
   }
 
-  /** a snapshot for tests and the status line */
-  summary(): {
-    enginesRunning: number
-    generatorsRunning: number
-    sailing: boolean
-    fuelL: number
-    houseSoc?: number
-  } {
+  /** a snapshot of the state behind the values, for the status line and the soak */
+  summary(): SystemsSummary {
+    const fresh = this.tanksOf('freshWater')
     return {
       enginesRunning: this.engines.filter((e) => e.running).length,
       generatorsRunning: this.generators.filter((g) => g.running).length,
+      generators: Object.fromEntries(
+        this.generators.map((g) => [g.p.id, g.running])
+      ),
       sailing: this.sailing,
-      fuelL: this.tanks
-        .filter((t) => t.type === 'fuel')
-        .reduce((s, t) => s + t.litres, 0),
-      houseSoc: this.banks.find((b) => b.p.role === 'house')?.soc
+      fuelL: this.tanksOf('fuel').reduce((sum, t) => sum + t.litres, 0),
+      houseSoc: this.banks.find((b) => b.p.role === 'house')?.soc,
+      airC: this.airC,
+      hotelKw: this.hotelKw,
+      hvacKw: this.hvacKw,
+      watermakerRunning: this.watermakerRunning,
+      freshLevel: fresh.length ? fillLevel(fresh) : undefined,
+      freshUsedL: this.freshUsedL,
+      madeL: this.madeL,
+      shoreWaterL: this.shoreWaterL,
+      pumpOuts: Object.fromEntries(this.pumpOuts),
+      apparentWindMs: this.apparentWind().speedMs,
+      turbineW: this.turbines.reduce((sum, t) => sum + t.powerW, 0)
     }
   }
+}
+
+export interface SystemsSummary {
+  enginesRunning: number
+  generatorsRunning: number
+  generators: Record<string, boolean>
+  sailing: boolean
+  fuelL: number
+  houseSoc?: number
+  airC: number
+  hotelKw: number
+  /** air conditioning load being carried */
+  hvacKw: number
+  watermakerRunning: boolean
+  freshLevel?: number
+  /** fresh water used, made by the water maker, and taken from the dock, litres so far */
+  freshUsedL: number
+  madeL: number
+  shoreWaterL: number
+  /** pump-outs started so far, by tank id */
+  pumpOuts: Record<string, number>
+  apparentWindMs: number
+  turbineW: number
 }
 
 /** charge power a bank will take: full rate until nearly full, tapering to nothing */
 function acceptanceW(b: BankState): number {
   const fullRateA = 0.3 * b.p.capacityAh
   return fullRateA * b.p.nominalVoltage * clamp((1 - b.soc) / 0.08, 0, 1)
+}
+
+/** breakfast, lunch and dinner, local solar time */
+function isMealTime(hour: number): boolean {
+  return (
+    (hour >= 7 && hour < 8.5) ||
+    (hour >= 12 && hour < 13.5) ||
+    (hour >= 18 && hour < 20)
+  )
+}
+
+/** fresh water use through the day, as a multiple of the average rate */
+function waterUse(hour: number): number {
+  if (hour >= 6 && hour < 9) return 2
+  if (hour >= 17 && hour < 21) return 1.6
+  if (hour >= 23 || hour < 6) return 0.2
+  return 1
+}
+
+function fillLevel(tanks: TankState[]): number {
+  const capacity = tanks.reduce((sum, t) => sum + t.p.capacityL, 0)
+  return tanks.reduce((sum, t) => sum + t.litres, 0) / capacity
+}
+
+function fillTanks(tanks: TankState[], litres: number): void {
+  for (const t of tanks) {
+    t.litres = Math.min(t.p.capacityL, t.litres + litres / tanks.length)
+  }
 }
 
 function chargingMode(b: BankState): string {
@@ -1196,4 +1427,6 @@ function wrapPi(angle: number): number {
 
 const round2 = (x: number) => Math.round(x * 100) / 100
 const round3 = (x: number) => Math.round(x * 1000) / 1000
+/** rounded, and kept inside -pi to pi, which rounding alone can step outside */
+const roundAngle = (x: number) => clamp(round3(x), -Math.PI, Math.PI)
 const iso = (ms: number) => new Date(ms).toISOString()

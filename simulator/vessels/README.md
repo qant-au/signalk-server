@@ -24,7 +24,7 @@ systems.
 | `motor-yacht-34m`       | 34 m motor yacht, 2.1 m draft                                            | 2 diesel (from length)                                               | 2 × 65 kW  | house and start (from length)              |                                              | 4, 2, 2, 2                       | 2        | 2      | 5            |                          |
 | `motor-yacht-20m`       | 20 m motor yacht, 1.5 m draft, 60 Hz 120 V                               | 2 diesel, 735 kW each                                                | 1 × 22 kW  | house and start (from length)              |                                              | 4, 2, 1, 1                       | 1        | 1      | 5            | Miami ICW                |
 | `sailing-yacht-15m`     | 15 m sailing yacht, 2.2 m draft                                          | 1 diesel, 80 kW                                                      | 1 × 6 kW   | house 12 V 600 Ah, start 12 V 100 Ah       | 400 W wind turbine                           | 2, 2, 1, 1                       | 1        | 1      | 5            | Saronic Gulf             |
-| `motor-sailer-15m`      | 15 m motor-sailer, 1.8 m draft                                           | 1 diesel, 150 kW                                                     | 1 × 8 kW   | house and start (from length)              | 800 W solar                                  | 2, 2, 1, 1                       | 1        | 1      | 5            | Manly to Hamilton Island |
+| `motor-sailer-15m`      | 15 m motor-sailer, 1.8 m draft                                           | 1 diesel, 110 kW (150 HP)                                            | 1 × 8 kW   | house and start (from length)              | 800 W solar                                  | 2 × 900 l, 2, 1, 1               | 1        | 1      | 5            | Manly to Hamilton Island |
 | `yacht-12m`             | 12 m motor yacht, everything from length                                 | 2 diesel                                                             | 1          | house and start                            |                                              | 2, 1, 1, 1                       | 1        | 1      | 5            |                          |
 | `sailing-yacht-9m`      | 9 m sailing yacht, 1.6 m draft                                           | 1 diesel, 15 kW                                                      | none       | house and start (from length)              |                                              | 1, 1, 0, 1                       | 1        | 1      | 3            |                          |
 | `electric-launch-7m`    | 7 m electric launch                                                      | 1 electric motor, 10 kW                                              | none       | propulsion 48 V 400 Ah                     |                                              | none                             | 1        | 0      | 0            |                          |
@@ -41,19 +41,20 @@ and house bank are **assumptions**: the builder's published figures do not give 
 A profile file needs only `id`, `name` and `lengthM`. Anything it leaves out is filled in
 from the length, and anything it gives is used as it is:
 
-| What                 | Default                                                                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engines              | two diesels from 10 m (port and starboard), one below; total power about 0.9 × L² kW                                                                      |
-| Generators           | one from 10 m, none below                                                                                                                                 |
-| Banks                | house and start; 12 V under 12 m, 24 V from 12 m; house about 10 × L^1.5 Ah                                                                               |
-| Fuel tanks           | 1 under 10 m, 2 under 20 m, 4 from 20 m                                                                                                                   |
-| Fresh water tanks    | none under 6 m, 1 under 15 m, 2 from 15 m                                                                                                                 |
-| Grey and black tanks | grey from 10 m, black from 8 m; 1 each under 25 m, 2 each from 25 m                                                                                       |
-| Tank capacities      | totals by length: fuel about 0.019 × L^3.93 l, fresh water 0.28 × L^2.86 l, grey a quarter of the fresh water, black 0.15 of it, shared between the tanks |
-| Sounders             | one, on the centreline                                                                                                                                    |
-| Radars               | none under 9 m, one under 25 m, an X-band and an S-band from 25 m                                                                                         |
-| Wind instrument      | from 7 m                                                                                                                                                  |
-| Inside zones         | saloon and fridge from 6 m; a cabin from 9 m; engine room and freezer from 12 m                                                                           |
+| What                 | Default                                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engines              | two diesels from 10 m (port and starboard), one below; total power about 0.9 × L² kW                                                                                                      |
+| Generators           | one from 10 m, none below                                                                                                                                                                 |
+| Banks                | house and start; 12 V under 12 m, 24 V from 12 m; house about 10 × L^1.5 Ah                                                                                                               |
+| Fuel tanks           | 1 under 10 m, 2 under 20 m, 4 from 20 m                                                                                                                                                   |
+| Fresh water tanks    | none under 6 m, 1 under 15 m, 2 from 15 m                                                                                                                                                 |
+| Grey and black tanks | grey from 10 m, black from 8 m; 1 each under 25 m, 2 each from 25 m                                                                                                                       |
+| Tank capacities      | totals by length: fuel about 0.019 × L^3.93 l, fresh water 0.28 × L^2.86 l, grey a quarter of the fresh water (at least 40 l), black 0.15 of it (at least 45 l), shared between the tanks |
+| Water maker          | from 12 m, 5 l an hour per metre of length (75 l/h at 15 m, 225 l/h at 45 m)                                                                                                              |
+| Sounders             | one, on the centreline, 80% of the draft below the waterline and at most 0.5 m                                                                                                            |
+| Radars               | none under 9 m, one under 25 m, an X-band and an S-band from 25 m                                                                                                                         |
+| Wind instrument      | from 7 m                                                                                                                                                                                  |
+| Inside zones         | saloon and fridge from 6 m; a cabin from 9 m; engine room and freezer from 12 m                                                                                                           |
 
 **The most a profile can have** is 8 fuel tanks, 4 fresh water tanks, 2 grey and 2 black.
 These are limits, not defaults: a profile with more is refused when it loads.
@@ -72,7 +73,7 @@ real gateway sends slow-changing data less often.
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Main engines       | `propulsion.<id>.state`, `revolutions`, `engineLoad`, `runTime`, `coolantTemperature`, `oilTemperature`, `oilPressure`, `exhaustTemperature`, `fuel.rate`, `alternatorVoltage`, `transmission.gear`; an electric motor sends `temperature` in place of the coolant, oil, exhaust and fuel values                   |
 | Generators         | `propulsion.generator<n>.state`, `revolutions`, `engineLoad`, `runTime`, `coolantTemperature`, `oilPressure`, `fuel.rate`; and `electrical.ac.generator<n>.phase.<single, or A, B and C>.lineNeutralVoltage`, `lineLineVoltage` (three phase), `frequency`, `current`, `realPower`, `apparentPower`, `powerFactor` |
-| Shore power        | `electrical.ac.shore.phase.…`, at a berth, on boats with generators                                                                                                                                                                                                                                                |
+| Shore power        | `electrical.ac.shore.phase.…`, at a berth, while it carries a load or a charger                                                                                                                                                                                                                                    |
 | Batteries          | `electrical.batteries.<id>.voltage`, `current` (positive charging), `temperature`, `capacity.stateOfCharge`, `capacity.stateOfHealth`, `capacity.timeRemaining` (while discharging)                                                                                                                                |
 | Chargers           | `electrical.chargers.<bank>.voltage`, `current`, `chargingMode`, while a generator or shore power charges the bank                                                                                                                                                                                                 |
 | Solar              | `electrical.solar.<id>.controllerMode`, `panelVoltage`, `panelCurrent`, `panelPower`, `yieldToday`, `voltage`, `current`, `chargingMode`                                                                                                                                                                           |
@@ -133,29 +134,46 @@ so a run at x300 is the same run as at x1.
   maximum with the share of top speed, power with its cube (the propeller law), fuel at
   about 0.25 l per kWh for diesel (0.35 for petrol) plus an idle allowance. Coolant, oil and
   exhaust warm towards running temperatures and cool when the engine stops. The engines are
-  stopped alongside a berth, and on a sailing yacht under sail (above 3.5 kn with at least
-  6 kn of wind), idling at bridge holds.
-- **Hybrid drives** run on the electric motor alone up to 60% of its rating, drawing the
-  propulsion bank; the diesel is then stopped and its revolutions read 0. Above that the
-  diesel runs, and while the bank is below 90% the inline drive charges it.
+  stopped alongside a berth, at anchor, and on a sailing yacht under sail (above 3.5 kn with
+  at least 6 kn of wind), and idle at bridge holds. A route marks a waypoint `anchor` where
+  the boat lies at anchor rather than holding under way.
+- **Hybrid drives** run on the electric motor alone at harbour speeds (up to 20% of its
+  rating, about 7 kn on the catamaran) while the propulsion bank is above 40%; the diesel is
+  then stopped and its revolutions read 0. Above that the diesel runs, its alternator charges
+  the low-voltage bank like any diesel's, and while the propulsion bank is below 90% the
+  inline drive charges it.
 - **Electric drives** draw their bank for the power the speed needs.
 - **Generators** on boats from 24 m carry the hotel load whenever the boat is away from the
-  berth, starting a second one when the first would be over 80%. On smaller boats a
-  generator starts when its bank runs low and stops when it is charged, and the air
-  conditioning runs while it does. Alongside, shore power carries the load.
+  berth, starting a second one when the first would be over 80% and stopping it when the
+  rest would be under 60%. On smaller boats a generator runs when its bank runs low (until it
+  is charged), at anchor at meal times for cooking and hot water, and while the water maker
+  needs it; the air conditioning runs while it does. Once started a generator runs at least
+  15 minutes. Alongside, shore power carries the load.
+- **The water maker** runs away from the berth when the fresh water falls below 85% and
+  stops at 98%, on generator power (0.025 kWh a litre). Alongside, the tanks are filled from
+  the dock instead.
 - **The hotel load** grows with the boat's size, follows the day (lower at night, higher at
-  meal times) and adds air conditioning in proportion to the outside temperature.
-- **Batteries** charge from alternators, chargers, solar and wind turbines, limited to
-  what the bank will accept as it fills, and discharge into the house loads, the fridges'
-  compressors, an inverter and any electric drive. Voltage follows the state of charge and
-  the current through the bank's resistance.
+  meal times) and adds air conditioning in proportion to the outside temperature, from nothing at 22 °C to
+  its most at 36 °C.
+- **Batteries** discharge into the house loads, the fridges' compressors, an inverter and
+  any electric drive, and charge from their sources in the order a real system ends up
+  drawing on them: solar and wind first, then the DC-DC converter from a propulsion bank
+  (which carries the house on a hybrid or electric boat), then engine alternators and drive
+  regeneration, then AC chargers, each giving only what the loads and the bank's charge
+  acceptance still want. Chargers are rated at the bank's full charge rate. Voltage follows
+  the state of charge and the current through the bank's resistance.
 - **Solar** follows the sun's elevation at the boat's position and time, through slowly
-  passing cloud. A **wind turbine** follows the apparent wind.
-- **Tanks**: engines and generators draw from the tanks the profile names, a transfer pump
-  tops the day tanks up from the fullest storage tank, fresh water goes with the people
-  aboard and the time of day, grey water takes most of it, black water fills with use, and
-  holding tanks are pumped out above 85% when the boat is making 5 kn or more. Levels slosh a
-  little while the boat moves.
+  passing cloud; arrays on one bank share what it takes. With a full bank and little load
+  the controller backs off, as a real one does. A **wind turbine** follows the apparent
+  wind.
+- **Tanks**: engines and generators draw from the tanks the profile names, changing to the
+  fullest tank when theirs is below 15%; a transfer pump tops the day tanks up from the
+  fullest storage tank. Boats start with their storage tanks 85 to 98% full. Fresh water
+  goes with the people aboard and the time of day (twice the average in the morning, a
+  fifth of it at night), grey water takes most of it, and black water fills with use.
+  Holding tanks are emptied at a berth's pump-out station above 50%; away from a berth grey
+  water goes overboard above 85%, and black water only well offshore, which a boat making
+  5 kn or more stands for here. Levels slosh a little while the boat moves.
 - **Inside**: living spaces go to their setpoint while the air conditioning runs and towards
   the outside temperature (plus the sun) when it does not; the engine room heats with the
   engines; fridges and freezers cycle their compressors in a band around the setpoint.
@@ -179,6 +197,8 @@ for each:
 | Shaft speed while a hybrid runs electrically   | not sent (`revolutions` is the engine's, 0 while the diesel is stopped)                                                  | covered by `motor.revolutions` above                                                                                                                                  |
 | Fuel transfer pump                             | moves fuel between tanks, seen in their levels                                                                           | `electrical.switches.<id>.state` with `meta.displayName`, as a digital switching system reports a pump                                                                |
 | Air conditioning setpoints and mode            | living zones go to their setpoint while it runs                                                                          | the specification has no climate control group; `environment.inside.<zone>.temperature` with `meta.zones` ranges covers alarms, and a setpoint would want a proposal  |
+| Water maker                                    | its water shows in the tank levels and its power in the generator's load                                                 | `electrical.switches.<id>.state` for the unit, as for the transfer pump; output and salinity would want a proposal                                                    |
+| DC-DC converter                                | carries the house bank from the propulsion bank, seen in both banks' currents                                            | the specification has no converter group; `electrical.chargers.<id>` with `chargerRole` comes closest, but a charger is AC-fed                                        |
 | Inverter                                       | its draw shows as the house bank's discharge                                                                             | `electrical.inverters.<id>` exists; it is left out until a profile carries an inverter                                                                                |
 | Radars                                         | counted, silent                                                                                                          | radar images belong outside the data model, in a radar API or a plugin of its own                                                                                     |
 | Sounder identity                               | one source per sounder, `sensors.<id>` with a display name and `fromCenter`                                              | `fromCenter` is positive to starboard in this server's path metadata and positive to port in schema 1.8.2; the model follows the server, and the two want reconciling |

@@ -14,7 +14,7 @@
       "id": "main",
       "displayName": "Engine",
       "type": "diesel",
-      "powerKw": 150,
+      "powerKw": 110,
       "maxRpm": 2800,
       "idleRpm": 700
     }
@@ -43,5 +43,19 @@
       "depthM": 0.7,
       "offsetM": 0
     }
-  ]
+  ],
+  "tanks": {
+    "fuel": [
+      {
+        "id": "fuelPort",
+        "displayName": "Port fuel",
+        "capacityL": 900
+      },
+      {
+        "id": "fuelStarboard",
+        "displayName": "Starboard fuel",
+        "capacityL": 900
+      }
+    ]
+  }
 }
