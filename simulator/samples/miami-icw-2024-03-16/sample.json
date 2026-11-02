@@ -265,6 +265,8 @@
     "departure": "2024-03-16T14:00:00Z",
     "vessel": {
       "description": "20 m motor yacht",
+      "name": "Coquina",
+      "mmsi": "367555210",
       "profile": "motor-yacht-20m"
     },
     "startName": "Biscayne Bay, north of the Rickenbacker Causeway",

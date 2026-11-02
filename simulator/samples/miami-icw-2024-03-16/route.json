@@ -3,6 +3,8 @@
   "departure": "2024-03-16T14:00:00Z",
   "vessel": {
     "description": "20 m motor yacht",
+    "name": "Coquina",
+    "mmsi": "367555210",
     "profile": "motor-yacht-20m"
   },
   "source": "Berth to berth: the berths at each end are from OpenStreetMap, and the way between each berth and the passage is found against the depth grid; the passage between them is derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",

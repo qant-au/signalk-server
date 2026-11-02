@@ -3,6 +3,8 @@
   "departure": "2026-08-20T20:00:00Z",
   "vessel": {
     "description": "15 m motor-sailer, 8.5 kn cruising",
+    "name": "Coral Passage",
+    "mmsi": "503555210",
     "profile": "motor-sailer-15m"
   },
   "source": "Berth to berth (Manly Boat Harbour and Hamilton Island marina, positions from OpenStreetMap; the way between each berth and open water is found against the depth grid). Hand-written from charted headlands, channels and islands, then checked against the Great Barrier Reef 30 m depth model (no leg crosses land or water shallower than 3 m outside the two marinas). Not derived from the AMSA AIS, whose licence does not allow derived works to be shared.",
