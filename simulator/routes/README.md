@@ -54,6 +54,7 @@ the current.
 
 ```shell
 npx ts-node simulator/tools/route.ts show <sample>     # legs, distances, speeds, arrival times
+npx ts-node simulator/tools/route.ts turns <sample>    # the arcs at waypoints against the depth: clear, tightened or not clear
 ```
 
 ## The Three Routes
