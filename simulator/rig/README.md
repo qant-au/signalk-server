@@ -49,6 +49,9 @@ passage, and the own boat moves along it as the run goes.
   ticked. Open the menu, then Routes, and tick the sample's route.
 - **Follow the boat:** http://127.0.0.1:4770/@signalk/freeboard-sk/?zoom=10&movemap=1&northup=1
   opens zoomed in and keeps the boat centred.
-- **Restart the rig between samples** (`down`, then `up`). The server keeps the boat's last
-  position, and Freeboard draws its trail from there, so switching from one sample to another
-  without a restart leaves a line across the world from the old position to the new one.
+- **Clear the trail between samples:** right-click the map and choose "Clear vessel trail".
+  Freeboard keeps the boat's trail in the browser, not on the server, so restarting the rig
+  does not clear it, and switching samples leaves a line across the world from the old
+  position to the new one.
+- **Restart the rig between samples** (`down`, then `up`) as well, so the server starts
+  with no data from the previous run.
