@@ -31,5 +31,15 @@
     "typeTextColumn": "type",
     "lengthColumn": "length_m",
     "thinnedToSeconds": 3600
+  },
+  "depth": {
+    "sources": [
+      {
+        "file": "cache/Great_Barrier_Reef_*_2020_30m_MSL_cog.tif",
+        "format": "geotiff"
+      }
+    ],
+    "harbourRadiusM": 3500,
+    "harbourNoDataIsWater": true
   }
 }

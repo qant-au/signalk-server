@@ -4,34 +4,17 @@
   "vessel": {
     "description": "15 m motor-sailer, 8.5 kn cruising",
     "lengthM": 15,
-    "typeCode": 36
+    "typeCode": 36,
+    "draftM": 1.8
   },
-  "source": "Berth to berth (Manly Boat Harbour and Hamilton Island marina, positions from OpenStreetMap). Hand-written from charted headlands, channels and islands, then checked against the Great Barrier Reef 30 m depth model (no leg crosses land or water shallower than 3 m outside the two marinas). Not derived from the AMSA AIS, whose licence does not allow derived works to be shared.",
+  "source": "Berth to berth (Manly Boat Harbour and Hamilton Island marina, positions from OpenStreetMap; the way between each berth and open water is found against the depth grid). Hand-written from charted headlands, channels and islands, then checked against the Great Barrier Reef 30 m depth model (no leg crosses land or water shallower than 3 m outside the two marinas). Not derived from the AMSA AIS, whose licence does not allow derived works to be shared.",
   "waypoints": [
     {
       "name": "Manly Boat Harbour berth",
       "lat": -27.459,
       "lon": 153.1895,
-      "speedKn": 2,
-      "note": "berth, dead slow"
-    },
-    {
-      "name": "Manly Boat Harbour, inside",
-      "lat": -27.456,
-      "lon": 153.1905,
-      "speedKn": 3
-    },
-    {
-      "name": "Manly Boat Harbour entrance",
-      "lat": -27.4545,
-      "lon": 153.1935,
-      "speedKn": 4
-    },
-    {
-      "name": "Off Manly Boat Harbour",
-      "lat": -27.4555,
-      "lon": 153.195,
-      "speedKn": 4
+      "speedKn": 3,
+      "note": "berth; the way out of the harbour is found against the depth grid"
     },
     {
       "name": "Manly channel, outer end",
@@ -198,19 +181,13 @@
       "name": "Dent Passage",
       "lat": -20.355,
       "lon": 148.942,
-      "speedKn": 3
-    },
-    {
-      "name": "Hamilton Island marina entrance",
-      "lat": -20.3475,
-      "lon": 148.948,
       "speedKn": 2
     },
     {
       "name": "Hamilton Island marina berth",
       "lat": -20.3468,
       "lon": 148.9505,
-      "note": "arrival"
+      "note": "arrival; the way in is found against the depth grid"
     }
   ]
 }

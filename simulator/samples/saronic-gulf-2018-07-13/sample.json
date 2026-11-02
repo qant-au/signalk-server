@@ -26,5 +26,15 @@
       "idColumn": "vessel_id",
       "typeCodeColumn": "shiptype"
     }
+  },
+  "depth": {
+    "sources": [
+      {
+        "file": "open/depth/emodnet-dtm2024-saronic.nc",
+        "format": "netcdf"
+      }
+    ],
+    "harbourRadiusM": 1000,
+    "harbourNoDataIsWater": true
   }
 }

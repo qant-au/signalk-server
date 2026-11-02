@@ -21,7 +21,12 @@ function route(overrides: Partial<Route> = {}): Route {
   return {
     name: 'test',
     departure: '2024-01-01T00:00:00Z',
-    vessel: { description: 'test boat', lengthM: 12, typeCode: 36 },
+    vessel: {
+      description: 'test boat',
+      lengthM: 12,
+      draftM: 1.8,
+      typeCode: 36
+    },
     source: 'test',
     waypoints: [
       { lat: 0, lon: 0, speedKn: 6 },

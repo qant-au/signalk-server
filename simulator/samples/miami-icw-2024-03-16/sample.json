@@ -257,7 +257,8 @@
     "headingColumn": "heading",
     "typeCodeColumn": "vessel_type",
     "lengthColumn": "length",
-    "transceiverColumn": "transceiver"
+    "transceiverColumn": "transceiver",
+    "nameColumn": "vessel_name"
   },
   "route": {
     "name": "Rickenbacker Marina to Pier 66 Marina by the Intracoastal Waterway",
@@ -265,57 +266,32 @@
     "vessel": {
       "description": "20 m motor yacht",
       "lengthM": 20,
-      "typeCode": 37
+      "typeCode": 37,
+      "draftM": 1.5
     },
-    "startName": "South of the William Powell Bridge",
+    "startName": "Biscayne Bay, north of the Rickenbacker Causeway",
     "endName": "Port Everglades",
-    "sourceDescription": "Berth to berth: the marina legs at each end are written by hand from OpenStreetMap marina outlines; the passage between them is derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",
+    "sourceDescription": "Berth to berth: the berths at each end are from OpenStreetMap, and the way between each berth and the passage is found against the depth grid; the passage between them is derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",
     "fromBerth": [
       {
         "name": "Rickenbacker Marina berth",
         "lat": 25.7463,
         "lon": -80.1747,
-        "speedKn": 2,
-        "note": "berth to the marina entrance, dead slow"
-      },
-      {
-        "name": "Rickenbacker Marina entrance",
-        "lat": 25.7451,
-        "lon": -80.1744,
-        "speedKn": 3
-      },
-      {
-        "name": "Off Rickenbacker Marina",
-        "lat": 25.742,
-        "lon": -80.176,
-        "speedKn": 5,
-        "note": "onto the passage"
+        "speedKn": 3,
+        "note": "berth; the way out of the marina is found against the depth grid"
       }
     ],
-    "toBerthSpeedKn": 5,
+    "toBerthSpeedKn": 3,
     "toBerth": [
-      {
-        "name": "South of the 17th Street Causeway",
-        "lat": 26.099,
-        "lon": -80.116,
-        "speedKn": 3,
-        "note": "harbour approach"
-      },
-      {
-        "name": "Pier 66 Marina entrance",
-        "lat": 26.101,
-        "lon": -80.1169,
-        "speedKn": 2
-      },
       {
         "name": "Pier 66 Marina berth",
         "lat": 26.102,
         "lon": -80.119,
-        "note": "arrival"
+        "note": "arrival; the way in is found against the depth grid"
       }
     ],
     "derive": {
-      "startBox": [-80.2, 25.72, -80.16, 25.745],
+      "startBox": [-80.2, 25.75, -80.17, 25.765],
       "endBox": [-80.13, 26.08, -80.1, 26.13],
       "viaBoxes": [[-80.135, 25.97, -80.11, 26.03]],
       "minLengthM": 10,
@@ -326,5 +302,15 @@
       "maxLegKn": 16,
       "minHoldS": 120
     }
+  },
+  "depth": {
+    "sources": [
+      {
+        "file": "cache/BlueTopo_*.tiff",
+        "format": "geotiff"
+      }
+    ],
+    "harbourRadiusM": 250,
+    "harbourNoDataIsWater": false
   }
 }

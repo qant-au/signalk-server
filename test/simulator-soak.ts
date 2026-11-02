@@ -11,7 +11,7 @@ import {
 const ROUTE: Route = {
   name: 'Test passage',
   departure: '2024-01-01T00:00:00Z',
-  vessel: { description: '12 m yacht', lengthM: 12, typeCode: 36 },
+  vessel: { description: '12 m yacht', lengthM: 12, draftM: 1.8, typeCode: 36 },
   source: 'test',
   waypoints: [
     { lat: -27.45, lon: 153.19, speedKn: 4 },

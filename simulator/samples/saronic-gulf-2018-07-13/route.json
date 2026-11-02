@@ -4,28 +4,17 @@
   "vessel": {
     "description": "15 m sailing yacht",
     "lengthM": 15,
-    "typeCode": 36
+    "typeCode": 36,
+    "draftM": 2.2
   },
-  "source": "Berth to berth (Zea Marina, positions from OpenStreetMap). Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
+  "source": "Berth to berth (Zea Marina, position from OpenStreetMap; the way between the berth and open water is found against the depth grid). Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
   "waypoints": [
     {
       "name": "Zea Marina berth",
       "lat": 37.936,
       "lon": 23.649,
-      "speedKn": 2,
-      "note": "berth, dead slow"
-    },
-    {
-      "name": "Zea Marina basin",
-      "lat": 37.9325,
-      "lon": 23.651,
-      "speedKn": 2
-    },
-    {
-      "name": "Zea Marina mouth",
-      "lat": 37.9312,
-      "lon": 23.6522,
-      "speedKn": 4
+      "speedKn": 3,
+      "note": "berth; the way out of the marina is found against the depth grid"
     },
     {
       "name": "Zea Marina entrance",
@@ -123,22 +112,10 @@
       "note": "harbour"
     },
     {
-      "name": "Zea Marina mouth, inbound",
-      "lat": 37.9312,
-      "lon": 23.6522,
-      "speedKn": 2.5
-    },
-    {
-      "name": "Zea Marina basin, inbound",
-      "lat": 37.9325,
-      "lon": 23.651,
-      "speedKn": 2
-    },
-    {
       "name": "Zea Marina berth",
       "lat": 37.936,
       "lon": 23.649,
-      "note": "arrival"
+      "note": "arrival; the way in is found against the depth grid"
     }
   ]
 }

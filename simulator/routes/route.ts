@@ -22,6 +22,7 @@ export interface Waypoint {
 export interface RouteVessel {
   description: string
   lengthM: number
+  draftM: number
   /** AIS ship type code the own boat would broadcast */
   typeCode: number
 }
