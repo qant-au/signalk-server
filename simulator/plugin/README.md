@@ -10,7 +10,7 @@ in: the own boat on its route, the depth under it, and the AIS traffic it would 
 | Setting                                | Default   | What It Does                                                                    |
 | -------------------------------------- | --------- | ------------------------------------------------------------------------------- |
 | Sample                                 | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`) |
-| Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 30, 60, 120 or 300           |
+| Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300       |
 | Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this       |
 | Show traffic                           | on        | send the AIS targets the boat would hear                                        |
 | Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly       |
@@ -46,8 +46,25 @@ this machine).
 against the sample's depth grid, every half grid cell. Any stretch that crosses land, or
 water shallower than the boat's draft plus the minimum depth under the keel, is re-routed
 with a grid search around that stretch alone, and the new path is straightened into as few
-legs as stay in safe water. The adjusted route is published to the Resources API, so
-Freeboard shows the passage the boat actually sails.
+legs as stay in safe water. The arcs the boat turns on at waypoints are checked against
+the same depth, every five metres, and an arc that would cut a corner over shallow water
+or land is tightened until it stays clear; the status line counts them
+(`npx ts-node simulator/tools/route.ts turns <sample>` lists them). The adjusted route is
+published to the Resources API, so Freeboard shows the passage the boat actually sails.
+
+**Course.** The published route is then made the server's active route through the Course
+API, before the boat's first position goes out, at the point the boat is heading for: the
+end of its first leg at the start of a run, or wherever a resumed run has reached. So
+`navigation.course.*` comes from the server and follows the passage: next and previous
+point, the active route's `href` and `pointIndex`, and, from the course provider plugin
+the server ships with, bearing and distance to the next point, cross track error, time to
+go and arrival time. The next point moves on in the tick the boat passes it: halfway round
+the arc at a waypoint it turns through, as it comes abeam of it, or as it leaves a hold or
+an anchor stop, which stays the next point while the boat lies there. The point index is
+always the route model's own leg. Changing the sample, or starting with resume off, sets
+the new route's course before the new position goes out, so no display sees the old
+destination with the new position. At the end of the route the course is cleared, as an
+arrival clears it. Freeboard and any course plugin see the same passage the boat sails.
 
 Marinas are the exception. Berths sit in water shallower than a passage needs, and the
 coarser grids cannot see a marina basin or a dredged channel at all, so each sample sets a

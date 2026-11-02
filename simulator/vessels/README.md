@@ -163,12 +163,30 @@ with what the engines are doing and with each other.
   to both legs. It turns at the rate its length and speed allow, about five lengths of
   turning radius and never faster than five degrees a second, or faster where a short leg
   leaves no room. The arc joins each leg where the boat on the straight legs would be at
-  that moment, so the legs keep their timings, and the boat slows a little round it. The
+  that moment, so the legs keep their timings, and the boat slows a little round it. An arc
+  that would cut a corner over shallow water or land is tightened until it stays clear
+  (see [the plugin README](../plugin/README.md#what-it-does)). Between the arcs the boat
+  sails the great circle between the waypoints, the line the Course API measures from. The
   position, `courseOverGroundTrue`, `speedOverGround` and `rateOfTurn` all come from the
   same arc. The rudder does the work: `steering.rudderAngle` is in proportion to the rate of
   turn times the boat's length over its speed through the water, up to 35 degrees, so a
   steady turn holds a steady angle, and the helm's small corrections show in it as the
   heading wanders. It is central alongside and when there is no way on.
+- **Course.** The server's Course API holds the route the boat sails as its active route
+  (see [the plugin README](../plugin/README.md#what-it-does)), and the course provider
+  works its values out from the position the boat sends, so they follow from the model
+  rather than being sent by it. The helm holds the track to within a few metres: about 1.5
+  m of steering error, plus 4 m for each knot of current and 2 m for each metre of sea,
+  wandering slowly to either side and settling away when the boat stops. The position is
+  that far off the route's line, so `navigation.course.calcValues.crossTrackError` stays
+  small on a leg, and is positive with the boat to starboard of the track, as the
+  specification signs it. Through a turn the arc cuts inside the corner, by up to the
+  turning radius times (1 - cos(half the turn)) abeam of the waypoint: 12 to 25 m for a
+  20 m boat turning 60 to 90 degrees, on the side the boat turns to. `bearingTrackTrue` is
+  the course the track runs; `courseOverGroundTrue` is the boat's own course along it; the
+  heading differs from both by the angle the helm holds against the current. The bearing
+  and distance to the next point, time to go and arrival time all follow from the position
+  and the speed over the ground.
 - **Attitude.** The sea is worked out from the wind, fetch-limited as a coastal sea is,
   and sheltered alongside and at anchor. Roll grows with the sea and falls with the beam;
   pitch grows with the sea and falls with the length; both wander irregularly with the
