@@ -67,11 +67,14 @@ organisation, on 2 November 2026:
   existing plugins. It shows visitors what a Signal K boat looks like. This fork is aimed at
   testing instead: fixed, repeatable scenarios in several regions, with time control and
   injected events, so that a plugin can be run against the same conditions again and again.
-  The two complement each other, and this fork will reuse the same plugins where they fit
-  rather than duplicate them.
+  The two complement each other: the plugins the showcase runs (collision alerts, tides,
+  underkeel and others) are exactly the kind of plugin these scenarios exist to test.
 - **[`signalk-sailboat-simulator`](https://www.npmjs.com/package/signalk-sailboat-simulator)**
-  (third party) simulates the own boat's motion from autopilot output, weather and an active
-  route. Own-boat motion in this fork should build on it rather than reimplement it.
+  (third party) is a motion simulator: it works out how the boat moves from autopilot
+  output, weather and an active route, which have to be fed to it. This fork is a data
+  simulator: it produces the data a boat's instruments and receivers would put on the server
+  (own position, depth, wind and weather, AIS targets) from scenario source data. They do
+  different jobs, and neither depends on the other.
 - Log replay issues (for example #313, #415 and #3043) concern playing back recorded files,
   which this fork does not change.
 
