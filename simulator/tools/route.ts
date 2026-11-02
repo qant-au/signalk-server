@@ -16,7 +16,13 @@ import {
   passageBetween,
   waypointsFromPassage
 } from '../routes/derive'
-import { Route, RouteVessel, loadRoute, routeLegs } from '../routes/route'
+import {
+  Route,
+  RouteVessel,
+  Waypoint,
+  loadRoute,
+  routeLegs
+} from '../routes/route'
 
 interface RouteSection {
   name: string
@@ -26,6 +32,12 @@ interface RouteSection {
   endName: string
   /** describes the source in route.json; never names the source vessel */
   sourceDescription: string
+  /** berth to the start of the derived passage; the last one carries the speed onto it */
+  fromBerth?: Waypoint[]
+  /** after the derived passage to the berth; the berth, last, has no speed */
+  toBerth?: Waypoint[]
+  /** speed from the end of the derived passage onto the first toBerth waypoint */
+  toBerthSpeedKn?: number
   derive: DeriveConfig
 }
 
@@ -67,9 +79,17 @@ async function derive(sample: string): Promise<void> {
     )
   }
 
-  const waypoints = waypointsFromPassage(best, config)
-  waypoints[0].name = section.startName
-  waypoints[waypoints.length - 1].name = section.endName
+  const passage = waypointsFromPassage(best, config)
+  passage[0].name = section.startName
+  const end = passage[passage.length - 1]
+  end.name = section.endName
+  if (section.toBerth?.length) end.speedKn = section.toBerthSpeedKn
+  // berth to berth: the manoeuvring legs at each end are written into sample.json
+  const waypoints = [
+    ...(section.fromBerth ?? []),
+    ...passage,
+    ...(section.toBerth ?? [])
+  ]
   const route: Route = {
     name: section.name,
     departure: section.departure,

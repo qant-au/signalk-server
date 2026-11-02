@@ -6,14 +6,26 @@
     "lengthM": 15,
     "typeCode": 36
   },
-  "source": "Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
+  "source": "Berth to berth (Zea Marina, positions from OpenStreetMap). Hand-written from charted islands and harbours, kept inside the AIS receiver's range, then checked against the EMODnet DTM 2024 depth grid (no leg crosses land). Speeds are sailing speeds for the 7 kn breeze of that night. Not derived from the Piraeus AIS, whose licence does not allow derived works to be shared.",
   "waypoints": [
     {
-      "name": "Zea Marina, Piraeus",
-      "lat": 37.9335,
-      "lon": 23.6505,
-      "speedKn": 3,
-      "note": "marina, dead slow"
+      "name": "Zea Marina berth",
+      "lat": 37.936,
+      "lon": 23.649,
+      "speedKn": 2,
+      "note": "berth, dead slow"
+    },
+    {
+      "name": "Zea Marina basin",
+      "lat": 37.9325,
+      "lon": 23.651,
+      "speedKn": 2
+    },
+    {
+      "name": "Zea Marina mouth",
+      "lat": 37.9312,
+      "lon": 23.6522,
+      "speedKn": 4
     },
     {
       "name": "Zea Marina entrance",
@@ -95,7 +107,7 @@
       "name": "East of Aegina",
       "lat": 37.77,
       "lon": 23.62,
-      "speedKn": 5.5
+      "speedKn": 6
     },
     {
       "name": "Piraeus approaches, inbound",
@@ -111,9 +123,21 @@
       "note": "harbour"
     },
     {
-      "name": "Zea Marina, Piraeus",
-      "lat": 37.9335,
-      "lon": 23.6505,
+      "name": "Zea Marina mouth, inbound",
+      "lat": 37.9312,
+      "lon": 23.6522,
+      "speedKn": 2.5
+    },
+    {
+      "name": "Zea Marina basin, inbound",
+      "lat": 37.9325,
+      "lon": 23.651,
+      "speedKn": 2
+    },
+    {
+      "name": "Zea Marina berth",
+      "lat": 37.936,
+      "lon": 23.649,
       "note": "arrival"
     }
   ]

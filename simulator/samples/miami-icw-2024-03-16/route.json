@@ -1,18 +1,38 @@
 {
-  "name": "Miami to Port Everglades by the Intracoastal Waterway",
+  "name": "Rickenbacker Marina to Pier 66 Marina by the Intracoastal Waterway",
   "departure": "2024-03-16T14:00:00Z",
   "vessel": {
     "description": "20 m motor yacht",
     "lengthM": 20,
     "typeCode": 37
   },
-  "source": "Derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",
+  "source": "Berth to berth: the marina legs at each end are written by hand from OpenStreetMap marina outlines; the passage between them is derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",
   "waypoints": [
+    {
+      "name": "Rickenbacker Marina berth",
+      "lat": 25.7463,
+      "lon": -80.1747,
+      "speedKn": 2,
+      "note": "berth to the marina entrance, dead slow"
+    },
+    {
+      "name": "Rickenbacker Marina entrance",
+      "lat": 25.7451,
+      "lon": -80.1744,
+      "speedKn": 3
+    },
+    {
+      "name": "Off Rickenbacker Marina",
+      "lat": 25.742,
+      "lon": -80.176,
+      "speedKn": 5,
+      "note": "onto the passage"
+    },
     {
       "lat": 25.74108,
       "lon": -80.18389,
       "speedKn": 10,
-      "name": "Biscayne Bay, off Brickell"
+      "name": "South of the William Powell Bridge"
     },
     {
       "lat": 25.75701,
@@ -121,7 +141,27 @@
     {
       "lat": 26.08387,
       "lon": -80.11381,
-      "name": "Port Everglades"
+      "name": "Port Everglades",
+      "speedKn": 5
+    },
+    {
+      "name": "South of the 17th Street Causeway",
+      "lat": 26.099,
+      "lon": -80.116,
+      "speedKn": 3,
+      "note": "harbour approach"
+    },
+    {
+      "name": "Pier 66 Marina entrance",
+      "lat": 26.101,
+      "lon": -80.1169,
+      "speedKn": 2
+    },
+    {
+      "name": "Pier 66 Marina berth",
+      "lat": 26.102,
+      "lon": -80.119,
+      "note": "arrival"
     }
   ]
 }

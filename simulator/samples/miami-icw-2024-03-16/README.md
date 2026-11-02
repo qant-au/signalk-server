@@ -3,7 +3,7 @@
 |                  |                                                                                                                                                    |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **When**         | Saturday 16 March 2024, 10:00 to 14:00 EDT (14:00 to 18:00 UTC). AIS covers 13:00 to 19:00 UTC so traffic is already moving at the start.          |
-| **Where**        | Biscayne Bay off Brickell to Port Everglades along the Atlantic Intracoastal Waterway, 21.6 nm.                                                    |
+| **Where**        | Rickenbacker Marina to Pier 66 Marina, Fort Lauderdale, berth to berth, along the Atlantic Intracoastal Waterway, 23.4 nm.                         |
 | **Why this day** | A spring-break Saturday: heavy recreational traffic on the waterway, and a moderate 8 to 11 kn breeze.                                             |
 | **Availability** | Everything is US government data in the public domain or under CC0, so AIS, weather and tides are included. Depth is fetched because it is 214 MB. |
 
@@ -11,7 +11,7 @@
 
 **This route follows a real passage**: a vessel that ran it on the same day, from the sample's own CC0 AIS.
 
-`route.json`: a 20 m motor yacht, 21.6 nm in 3 h 11 min including four bridge-opening holds, at 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md) for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
+`route.json`: a 20 m motor yacht, 23.4 nm berth to berth in 3 h 40 min including four bridge-opening holds, at 2 to 3 kn in the marinas, 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md) for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
 
 ## Data
 

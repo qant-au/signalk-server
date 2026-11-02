@@ -2,7 +2,7 @@
 
 |                     |                                                                                                                                                                                                                                                                |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **When**            | Depart Manly (Brisbane) Friday 21 August 2026 06:00 AEST (20 August 20:00 UTC) at 8.5 kn on passage; 565.6 nm in about 68 hours, arriving about 01:40 AEST on Monday 24 August. AIS covers 20 August 18:00 to 24 August 00:00 UTC.                             |
+| **When**            | Depart Manly (Brisbane) Friday 21 August 2026 06:00 AEST (20 August 20:00 UTC) at 8.5 kn on passage; 566.2 nm in about 68 hours, arriving about 01:55 AEST on Monday 24 August. AIS covers 20 August 18:00 to 24 August 00:00 UTC.                             |
 | **Where**           | About 566 nm up the Queensland coast: out of Moreton Bay by the North West Channel, outside Fraser Island and round Breaksea Spit, coastal past Bustard Head, Gladstone, the Keppel Islands and the Percy Isles, then into the Whitsundays to Hamilton Island. |
 | **Why this window** | South-easterly 8 to 16 kn on the quarter, after the stronger trades of 15 to 20 August eased.                                                                                                                                                                  |
 | **Availability**    | Weather, waves and wave buoys are included. Depth is fetched (3.8 GB). The AIS has to be downloaded by the user: see [Getting the AIS](#getting-the-ais).                                                                                                      |
@@ -11,7 +11,7 @@
 
 **This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC (AMSA), so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
 
-`route.json`: a 15 m motor-sailer, 565.6 nm in 67 h 40 min, at 4 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 3 to 4 kn into Hamilton Island. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
+`route.json`: a 15 m motor-sailer, 566.2 nm from a berth in Manly Boat Harbour to a berth in Hamilton Island marina in 67 h 55 min, at 2 to 4 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 2 to 4 kn into Hamilton Island marina. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
 
 ## Data
 
