@@ -10,7 +10,7 @@ There are two soaks here, and they answer different questions:
 | Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's and the hybrid catamaran's three-day passages                    |
 | Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, the systems behaving as they should together, and every bank's energy books balancing |
 | Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                                                           |
-| Takes        | as long as you ask it to run                                            | about seven minutes                                                                                                                                     |
+| Takes        | as long as you ask it to run                                            | about eight minutes                                                                                                                                     |
 | Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 |
 
 Neither is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
@@ -81,7 +81,7 @@ controllable clock at 60 scenario seconds per tick, so 24 hours takes about 25 s
 most of it schema validation, rather than a day. It uses seed 1, so a failure repeats exactly.
 
 ```shell
-npm run test:simulator-soak                          # every case, about seven minutes
+npm run test:simulator-soak                          # every case, about eight minutes
 SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name contains this
 ```
 
