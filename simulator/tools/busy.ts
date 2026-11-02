@@ -68,7 +68,7 @@ function summary(report: BusyReport): string {
     rows.reduce((a, r) => a + f(r), 0) / rows.length
   const received = report.subscribers.map((s) => s.received)
   return [
-    `server handled ${report.serverDeltas} deltas; subscribers received ${Math.min(...received)} to ${Math.max(...received)}`,
+    `server handled ${report.serverDeltas} deltas, ${report.heldBack} of them for lost targets held back by the plugin; subscribers received ${Math.min(...received)} to ${Math.max(...received)}`,
     `deltas a second: server mean ${mean((r) => r.serverDeltasPerS).toFixed(0)}, peak ${max((r) => r.serverDeltasPerS).toFixed(0)}`,
     `scenario clock at most ${max((r) => r.clockBehindS).toFixed(0)} s behind; the own boat's longest gap ${max((r) => r.ownBoatGapS).toFixed(1)} s`,
     `event loop lag p99 at most ${max((r) => r.lagP99Ms).toFixed(0)} ms, max ${max((r) => r.lagMaxMs).toFixed(0)} ms`,

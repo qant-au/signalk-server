@@ -66,6 +66,8 @@ export interface BusyReport {
   rows: MinuteRow[]
   /** deltas the server handled from the plugin's start to its stop */
   serverDeltas: number
+  /** of those, deltas for lost targets the plugin held back, so never sent on */
+  heldBack: number
   subscribers: SubscriberTotal[]
   readerRequests: number
   failedRequests: number
@@ -148,6 +150,12 @@ export function heapStillGrowing(heapMiB: number[]): string | undefined {
 export function targetsInStatus(status: string): number | undefined {
   const match = /(\d+) AIS targets in range/.exec(status)
   return match ? Number(match[1]) : undefined
+}
+
+/** the deltas for lost targets the plugin held back, from its status */
+export function heldBackInStatus(status: string): number {
+  const match = /(\d+) deltas for lost targets held back/.exec(status)
+  return match ? Number(match[1]) : 0
 }
 
 interface Subscriber {
@@ -476,6 +484,12 @@ export async function busy(
 
     await post(false)
     await sleep(QUIET_MS)
+    const stoppedStatus = await timed<{ id: string; statusMessage?: string }[]>(
+      `${base}/skServer/plugins`
+    )
+    const heldBack = heldBackInStatus(
+      stoppedStatus.body?.find((p) => p.id === PLUGIN_ID)?.statusMessage ?? ''
+    )
     const serverDeltas = serverCount - serverAtStart
     const totals = subscribers.map((s, i) => ({
       ...s.total,
@@ -484,13 +498,16 @@ export async function busy(
     stopping = true
     await Promise.all(readers)
     const problems = serverExited ? ['the server exited during the run'] : []
-    problems.push(...judge(rows, serverDeltas, totals, failedRequests))
+    problems.push(
+      ...judge(rows, serverDeltas - heldBack, totals, failedRequests)
+    )
     return {
       options,
       startedAt,
       finishedAt: new Date().toISOString(),
       rows,
       serverDeltas,
+      heldBack,
       subscribers: totals,
       readerRequests,
       failedRequests,

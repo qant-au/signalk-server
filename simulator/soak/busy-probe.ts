@@ -47,6 +47,9 @@ function sample(): ProbeSample {
   return result
 }
 
+// the server goes with the busy run, however the run ends
+process.on('disconnect', () => process.exit(0))
+
 process.on('message', (message) => {
   if (message === 'sample') process.send?.({ probe: sample() })
 })
