@@ -81,27 +81,30 @@ organisation, on 2 November 2026:
 
 ## Current Status
 
-**Early stage: design and test data. No new simulator code has been written in this fork
-yet; the existing scaffolding above is unchanged.**
+**Early stage: the sample data and its tools are in place; the simulator engine is not
+started. The existing scaffolding above is unchanged.**
 
-| Area             | Status                                                                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Test Rig         | A local Signal K Server built from this fork, running on its own the way it runs on a boat.                                               |
-| Scenario Data    | Sources chosen and licences checked for the three samples below. The data has been collected for review and is not in the repository yet. |
-| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.               |
-| Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                   |
+| Area             | Status                                                                                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Test Rig         | A local Signal K Server built from this fork, running on its own the way it runs on a boat.                                                                 |
+| Scenario Data    | Done for all three samples: data, tools to fetch and prepare it, and instructions for the licensed sources. See [simulator/README.md](simulator/README.md). |
+| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.                                 |
+| Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                                     |
 
 ## The Three Samples
 
-By design there are three samples. Two ship their data so anyone can run them straight away.
-The third does not ship its data, because the source does not allow redistribution, and it
-shows how a scenario works when the user has to fetch the data themselves.
+By design there are three samples. The first ships all of its data, so anyone can run it
+straight away. The other two ship their openly licensed data, but their AIS comes from
+sources that do not allow redistribution: each sample's README shows the user where to
+download it, and one command prepares it. Everything about the data (its structure, where it
+comes from, its licence and how it was cut) is in [simulator/README.md](simulator/README.md)
+and each sample's README.
 
-| Sample                       | Where and When                                                                                             | Length         | Data                                                                                                                                                                                                                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Short Run, US**            | Miami Beach to Port Everglades along the Intracoastal Waterway, Saturday 16 March 2024, 10:00 to 14:00 EDT | About 4 hours  | **Included.** AIS, depth and weather from US government sources (public domain / CC0).                                                                                                                                                                                                   |
-| **Overnight, Mediterranean** | Saronic Gulf from Piraeus, Greece, Friday 13 July 2018 14:00 to Saturday 10:00 EEST                        | 20 hours       | **Planned to be included**, subject to a licence point being confirmed with the data's authors. Attribution will be listed in a NOTICE file.                                                                                                                                             |
-| **Long Passage, Australia**  | Manly (Brisbane) to Hamilton Island, Queensland, departing Friday 21 August 2026 06:00 AEST at 8.5 knots   | About 64 hours | **Not included.** The AIS source is licensed for non-commercial use only and cannot be redistributed. The sample ships instructions and a script that prepares the data once the user has downloaded it from the source. Depth and weather come from openly licensed Australian sources. |
+| Sample                                                                                      | Where and When                                                                                             | Length         | Data                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[Short Run, US](simulator/samples/miami-icw-2024-03-16/README.md)**                       | Miami Beach to Port Everglades along the Intracoastal Waterway, Saturday 16 March 2024, 10:00 to 14:00 EDT | About 4 hours  | **[Included.](simulator/samples/miami-icw-2024-03-16/README.md#data)** AIS, weather and tides are in the repository; 4 m depth is fetched by one command. All US government data (public domain / CC0).                                                                                                                     |
+| **[Overnight, Mediterranean](simulator/samples/saronic-gulf-2018-07-13/README.md)**         | Saronic Gulf from Piraeus, Greece, Friday 13 July 2018 14:00 to Saturday 10:00 EEST                        | 20 hours       | **[Partly included.](simulator/samples/saronic-gulf-2018-07-13/README.md#getting-the-ais)** Depth and weather are in the repository. The AIS archives state CC BY-NC-SA 4.0, so the user downloads them; instructions and a prepare command are provided.                                                                   |
+| **[Long Passage, Australia](simulator/samples/manly-hamilton-island-2026-08-21/README.md)** | Manly (Brisbane) to Hamilton Island, Queensland, departing Friday 21 August 2026 06:00 AEST at 8.5 knots   | About 64 hours | **[Partly included.](simulator/samples/manly-hamilton-island-2026-08-21/README.md#getting-the-ais)** Weather, waves and wave buoys are in the repository; 30 m depth is fetched by one command. The AIS is licensed for non-commercial use only, so the user downloads it; instructions and a prepare command are provided. |
 
 Each sample combines:
 
