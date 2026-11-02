@@ -1,4 +1,4 @@
-# Signal K Simulator (this fork)
+# Signal K Simulator (This Fork)
 
 This repository is a **deliberately maintained parallel fork** of
 [SignalK/signalk-server](https://github.com/SignalK/signalk-server). It is not an abandoned
@@ -14,7 +14,7 @@ The work is intended to be offered upstream as a pull request once it is ready. 
 is run as a separate project, so it can move at its own pace without asking the main project
 to carry unfinished work.
 
-## How the fork is kept in step
+## How the Fork Is Kept in Step
 
 - `upstream` is the official Signal K Server repository, used for fetching only. Nothing is
   pushed or proposed from this fork until the simulator is ready to offer.
@@ -25,28 +25,28 @@ to carry unfinished work.
   For the server itself, read the [main README](README.md) and the
   [official documentation](https://demo.signalk.org/documentation/).
 
-## Current status
+## Current Status
 
 **Early stage: design and test data. There is no simulator code in this fork yet.**
 
-| Area             | Status                                                                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Test rig         | A local Signal K Server built from this fork, with no Home Assistant or other host in the path: the server on its own, the way it runs on a boat. |
-| Scenario data    | Sources chosen and licences checked for the three samples below. The data has been collected for review and is not in the repository yet.         |
-| Simulator engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.                       |
-| Plugin testing   | Not started. See "Testing with existing plugins" below.                                                                                           |
+| Area             | Status                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Test Rig         | A local Signal K Server built from this fork, running on its own the way it runs on a boat.                                               |
+| Scenario Data    | Sources chosen and licences checked for the three samples below. The data has been collected for review and is not in the repository yet. |
+| Simulator Engine | Not started. Planned: scenario playback into the server as ordinary Signal K deltas, with time control and injected events.               |
+| Plugin Testing   | Not started. See "Testing With Existing Plugins" below.                                                                                   |
 
-## The three samples
+## The Three Samples
 
 By design there are three samples. Two ship their data so anyone can run them straight away.
 The third does not ship its data, because the source does not allow redistribution, and it
 shows how a scenario works when the user has to fetch the data themselves.
 
-| Sample                       | Where and when                                                                                             | Length         | Data                                                                                                                                                                                                                                                                                     |
+| Sample                       | Where and When                                                                                             | Length         | Data                                                                                                                                                                                                                                                                                     |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Short run, US**            | Miami Beach to Port Everglades along the Intracoastal Waterway, Saturday 16 March 2024, 10:00 to 14:00 EDT | About 4 hours  | **Included.** AIS, depth and weather from US government sources (public domain / CC0).                                                                                                                                                                                                   |
+| **Short Run, US**            | Miami Beach to Port Everglades along the Intracoastal Waterway, Saturday 16 March 2024, 10:00 to 14:00 EDT | About 4 hours  | **Included.** AIS, depth and weather from US government sources (public domain / CC0).                                                                                                                                                                                                   |
 | **Overnight, Mediterranean** | Saronic Gulf from Piraeus, Greece, Friday 13 July 2018 14:00 to Saturday 10:00 EEST                        | 20 hours       | **Planned to be included**, subject to a licence point being confirmed with the data's authors. Attribution will be listed in a NOTICE file.                                                                                                                                             |
-| **Long passage, Australia**  | Manly (Brisbane) to Hamilton Island, Queensland, departing Friday 21 August 2026 06:00 AEST at 8.5 knots   | About 64 hours | **Not included.** The AIS source is licensed for non-commercial use only and cannot be redistributed. The sample ships instructions and a script that prepares the data once the user has downloaded it from the source. Depth and weather come from openly licensed Australian sources. |
+| **Long Passage, Australia**  | Manly (Brisbane) to Hamilton Island, Queensland, departing Friday 21 August 2026 06:00 AEST at 8.5 knots   | About 64 hours | **Not included.** The AIS source is licensed for non-commercial use only and cannot be redistributed. The sample ships instructions and a script that prepares the data once the user has downloaded it from the source. Depth and weather come from openly licensed Australian sources. |
 
 Each sample combines:
 
@@ -60,7 +60,7 @@ Each sample combines:
 None of the data is for navigation. It is used to make a simulation
 realistic, nothing more.
 
-## Testing with existing plugins
+## Testing With Existing Plugins
 
 The simulator feeds a normal Signal K Server through the normal data path, so installed
 plugins and webapps see the same deltas they would see from real instruments. That is the
@@ -68,18 +68,18 @@ point: a plugin is tested as it will run on a boat, not against a mock.
 
 Planned test areas include:
 
-- **Notifications and alarms:** anchor drag, depth, wind and battery thresholds, and how
+- **Notifications and Alarms:** anchor drag, depth, wind and battery thresholds, and how
   `notifications.*` are raised, escalated and cleared.
 - **AIS:** target handling, collision warnings, and many targets at once (the long passage
   carries over two thousand vessels).
-- **Lost and returning data:** sources going quiet and coming back, devices faulting, and
+- **Lost and Returning Data:** sources going quiet and coming back, devices faulting, and
   values out of range.
-- **Long running:** memory and stability over a multi-day passage rather than a short test.
+- **Long Running:** memory and stability over a multi-day passage rather than a short test.
 
 Results and any issues found in third-party plugins will be reported to their authors, not
 fixed in this fork.
 
-## Two new plugins built against the simulator
+## Two New Plugins Built Against the Simulator
 
 The simulator is also the test bed for two open-source projects, each getting a Signal K
 plugin.
