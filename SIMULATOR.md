@@ -46,14 +46,34 @@ of its own.
 **Why this fork exists, given the above:**
 
 - **It is not a reproduction of anything that works today.** The existing simulator
-  generates one oscillating number. A scenario with real traffic, depth, weather, alarms and
-  failures has never existed in the project.
+  generates one oscillating number. A repeatable test scenario with recorded traffic, depth,
+  weather, alarms and injected failures does not exist in the project.
 - **It is not an alternative.** It extends the planned feature, using the same plugin
   approach and the same "start the server with simulator settings" entry point, so the
   original intent is kept rather than replaced.
 - **It is not replay.** Scenarios are built from openly licensed source data and driven in
   simulated time, so they can be paused, sped up and given events. Recorded logs remain the
   right tool for reproducing a specific boat's data.
+
+## Related Work
+
+Checked against every issue and pull request in Signal K Server, and the wider SignalK
+organisation, on 2 November 2026:
+
+- **[#3243](https://github.com/SignalK/signalk-server/issues/3243) and
+  [#3252](https://github.com/SignalK/signalk-server/pull/3252), the new demo showcase (open).**
+  This is a live demonstration for latest.signalk.org: a simulated sailing boat on a route in
+  the Dutch Wadden Sea, live AIS from Open Waters, an emulated autopilot and radar, built from
+  existing plugins. It shows visitors what a Signal K boat looks like. This fork is aimed at
+  testing instead: fixed, repeatable scenarios in several regions, with time control and
+  injected events, so that a plugin can be run against the same conditions again and again.
+  The two complement each other, and this fork will reuse the same plugins where they fit
+  rather than duplicate them.
+- **[`signalk-sailboat-simulator`](https://www.npmjs.com/package/signalk-sailboat-simulator)**
+  (third party) simulates the own boat's motion from autopilot output, weather and an active
+  route. Own-boat motion in this fork should build on it rather than reimplement it.
+- Log replay issues (for example #313, #415 and #3043) concern playing back recorded files,
+  which this fork does not change.
 
 ## Current Status
 
