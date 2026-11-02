@@ -35,6 +35,7 @@ describe('simulator soak', () => {
         lon: -80.15,
         sogKn: 10,
         cogDeg: 90,
+        rateOfTurnDegS: 0,
         legIndex: 0,
         finished: false,
         anchored: false

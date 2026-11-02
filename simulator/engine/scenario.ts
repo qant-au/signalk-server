@@ -11,6 +11,7 @@ import {
   routeLegs,
   vesselsDirFor
 } from '../routes/route'
+import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { VesselProfile, loadProfile } from '../vessels/profile'
 import { Traffic } from './traffic'
 
@@ -44,6 +45,8 @@ export interface Scenario {
   traffic?: Traffic
   /** what is on board, when the route names a profile */
   profile?: VesselProfile
+  /** magnetic variation over the sample's area, when the sample has it */
+  variation?: VariationGrid
   /** why traffic or depth is missing, for the status line */
   notes: string[]
 }
@@ -133,6 +136,7 @@ export async function loadScenario(
     depth,
     traffic,
     profile,
+    variation: loadVariation(dir),
     notes
   }
 }

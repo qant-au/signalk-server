@@ -9,6 +9,7 @@ import { DepthModel } from '../depth/depth'
 import { Simulation } from '../engine/simulation'
 import { Scenario } from '../engine/scenario'
 import { Route, Waypoint, loadRoute, routeLegs } from '../routes/route'
+import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
@@ -35,6 +36,7 @@ const SEED = 1
 const MMSI_CONTEXT = 'vessels.urn:mrn:imo:mmsi:230099999'
 const KELVIN = 273.15
 const KNOT_MS = 1852 / 3600
+const RAD = Math.PI / 180
 
 interface SoakCase {
   name: string
@@ -42,6 +44,8 @@ interface SoakCase {
   route: Route
   startMs: number
   hours: number
+  /** the sample's magnetic variation, which the day out from its berth shares */
+  variation?: VariationGrid
 }
 
 interface Tick {
@@ -178,7 +182,8 @@ async function cases(): Promise<SoakCase[]> {
       profile,
       route,
       startMs: Date.parse(route.departure),
-      hours: 24
+      hours: 24,
+      variation: loadVariation(path.join(SAMPLES, sample))
     })
   }
   for (const [sample, { hours, leadHours }] of Object.entries(PASSAGES)) {
@@ -189,7 +194,8 @@ async function cases(): Promise<SoakCase[]> {
       profile,
       route,
       startMs: Date.parse(route.departure) - leadHours * HOUR_MS,
-      hours
+      hours,
+      variation: loadVariation(path.join(SAMPLES, sample))
     })
   }
   return out
@@ -223,6 +229,7 @@ function run(soak: SoakCase): CaseResult {
     legs,
     adjustments: [],
     depth: SEABED,
+    variation: soak.variation,
     profile: soak.profile,
     notes: []
   }
@@ -459,10 +466,27 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     'environment.outside.temperature': [KELVIN - 10, KELVIN + 50],
     'environment.outside.pressure': [95000, 106000],
     'environment.water.temperature': [KELVIN - 2, KELVIN + 35],
-    'navigation.speedThroughWater': [0, p.maxSpeedKn * KNOT_MS * 1.01],
+    // the water speed is the ground speed less a current of at most a knot
+    'navigation.speedThroughWater': [0, (p.maxSpeedKn + 1) * KNOT_MS * 1.01],
     'navigation.speedOverGround': [0, p.maxSpeedKn * KNOT_MS * 1.01],
     'navigation.courseOverGroundTrue': [0, 2 * Math.PI],
+    'navigation.courseOverGroundMagnetic': [0, 2 * Math.PI],
     'navigation.headingTrue': [0, 2 * Math.PI],
+    'navigation.headingMagnetic': [0, 2 * Math.PI],
+    'navigation.magneticVariation': [-Math.PI / 6, Math.PI / 6],
+    'navigation.rateOfTurn': [-5 * RAD, 5 * RAD],
+    'steering.rudderAngle': [-35 * RAD, 35 * RAD],
+    'navigation.attitude.roll': [-25 * RAD, 25 * RAD],
+    'navigation.attitude.pitch': [-10 * RAD, 10 * RAD],
+    'navigation.log': [0, 1e8],
+    'navigation.trip.log': [0, 1e7],
+    'navigation.gnss.satellites': [5, 16],
+    'navigation.gnss.horizontalDilution': [0.5, 3],
+    'navigation.gnss.positionDilution': [0.85, 5.1],
+    'navigation.trip.lastReset': 'string',
+    'navigation.state': 'string',
+    'navigation.gnss.type': 'string',
+    'navigation.gnss.methodQuality': 'string',
     'navigation.datetime': 'string'
   }
   return fixed[pathOnly]
@@ -586,6 +610,21 @@ describe('Simulator systems soak', function () {
       for (const t of r.ticks) {
         for (const [key, value] of t.values) {
           if (key === '' || key.startsWith('design.')) continue
+          if (key === 'navigation.attitude') {
+            for (const [axis, angle] of Object.entries(
+              value as Record<string, number>
+            )) {
+              const b = band(r.soak.profile, `${key}.${axis}`)
+              if (
+                !Array.isArray(b) ||
+                !Number.isFinite(angle) ||
+                angle < b[0] ||
+                angle > b[1]
+              )
+                report(`${key}.${axis} = ${angle}`)
+            }
+            continue
+          }
           if (key === 'navigation.position') {
             const pos = value as { latitude: number; longitude: number }
             if (
@@ -656,6 +695,67 @@ describe('Simulator systems soak', function () {
           }
         }
       }
+    })
+  )
+
+  it(
+    'keeps the navigation state in step with the engines',
+    each((r) => {
+      const p = r.soak.profile
+      const states = new Map<string, number>()
+      const problems: string[] = []
+      for (const t of r.ticks) {
+        const state = t.values.get('navigation.state') as string
+        states.set(state, (states.get(state) ?? 0) + 1)
+        const started = p.engines.filter(
+          (e) => t.values.get(`propulsion.${e.id}.state`) === 'started'
+        ).length
+        const inGear = p.engines.filter(
+          (e) =>
+            t.values.get(`propulsion.${e.id}.transmission.gear`) === 'Forward'
+        ).length
+        const at = `${state} at ${new Date(t.ms).toISOString()}`
+        const stopped = state !== 'motoring'
+        if (stopped && (started || inGear))
+          problems.push(`${at}: ${started} started, ${inGear} in gear`)
+        if (!stopped && !inGear) problems.push(`${at}: nothing in gear`)
+        if (state === 'moored' && !t.atBerth)
+          problems.push(`${at}: not at a berth`)
+        if (problems.length > 5) break
+      }
+      expect(problems, r.soak.name).to.deep.equal([])
+      expect([...states.keys()], r.soak.name).to.include('motoring')
+      if (p.rig === 'sail')
+        expect([...states.keys()], r.soak.name).to.include('sailing')
+    })
+  )
+
+  it(
+    'holds the heading to the course over the ground, off it only by the current and the sea',
+    each((r) => {
+      const problems: string[] = []
+      for (const t of r.ticks) {
+        const sogKn = (num(t, 'navigation.speedOverGround') ?? 0) / KNOT_MS
+        if (
+          sogKn < 2 ||
+          Math.abs(num(t, 'navigation.rateOfTurn') ?? 0) > 0.5 * RAD
+        )
+          continue
+        const off =
+          (((num(t, 'navigation.headingTrue')! -
+            num(t, 'navigation.courseOverGroundTrue')!) /
+            RAD +
+            540) %
+            360) -
+          180
+        // a knot of current across the track at this speed, and a few degrees of yaw
+        const allowed = Math.asin(Math.min(1, 1 / sogKn)) / RAD + 10
+        if (Math.abs(off) > allowed && problems.length < 5)
+          problems.push(
+            `${off.toFixed(1)} degrees at ${sogKn.toFixed(1)} kn, ${new Date(t.ms).toISOString()}`
+          )
+      }
+      expect(problems, r.soak.name).to.deep.equal([])
     })
   )
 

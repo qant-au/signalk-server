@@ -39,16 +39,21 @@ export function degreesToRadians(degrees: number): number {
 }
 
 /**
- * The boat's navigation state. `timestamp` is the wall-clock time the delta is sent, so
- * plugins that check data age treat it as live; the scenario's own time goes in
- * `navigation.datetime`, which is where a GNSS receiver puts the time it reports.
+ * The boat's position and its motion over the ground. `timestamp` is the wall-clock time
+ * the delta is sent, so plugins that check data age treat it as live; the scenario's own
+ * time goes in `navigation.datetime`, which is where a GNSS receiver puts the time it
+ * reports. The heading is the course unless a systems model sends its own.
  */
 export function ownBoatDelta(
   position: RoutePosition,
   scenarioTimeMs: number,
-  sentAtMs: number
+  sentAtMs: number,
+  withHeading = true
 ): Delta {
   const course = degreesToRadians(position.cogDeg)
+  const heading = withHeading
+    ? [{ path: 'navigation.headingTrue', value: course }]
+    : []
   return {
     context: 'vessels.self',
     updates: [
@@ -65,7 +70,7 @@ export function ownBoatDelta(
             value: knotsToMetresPerSecond(position.sogKn)
           },
           { path: 'navigation.courseOverGroundTrue', value: course },
-          { path: 'navigation.headingTrue', value: course },
+          ...heading,
           {
             path: 'navigation.datetime',
             value: new Date(scenarioTimeMs).toISOString()

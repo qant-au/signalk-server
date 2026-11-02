@@ -10,6 +10,7 @@ import {
   WindTurbineProfile,
   ZoneProfile
 } from '../vessels/profile'
+import { Navigation, NavigationState } from './navigation'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
 
@@ -32,6 +33,10 @@ export interface Motion {
   atBerth: boolean
   /** lying at anchor: engines off, no shore power */
   anchored?: boolean
+  /** the track's rate of turn, degrees a second, positive to starboard */
+  rateOfTurnDegS?: number
+  /** stopped, and leaving within a few minutes */
+  leavingSoon?: boolean
 }
 
 export interface SystemsOptions {
@@ -40,6 +45,8 @@ export interface SystemsOptions {
   startMs: number
   /** depth below the surface at a position, metres, or undefined with no data */
   depthAt?: (lat: number, lon: number) => number | undefined
+  /** magnetic variation at a position, degrees, positive east, where the sample has it */
+  variationAt?: (lat: number, lon: number) => number
   /** a saved run to carry on from, in place of starting fresh at `startMs` */
   state?: SystemsState
 }
@@ -73,12 +80,13 @@ export interface SystemsState {
   turbines: UnitState[]
   zones: UnitState[]
   sounders: UnitState[]
+  navigation: NavigationState
   /** holding tanks being pumped out, as `type.id` */
   pumping: string[]
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 1
+export const SYSTEMS_STATE_VERSION = 2
 
 /** a saved state that cannot be carried on from: another profile, or an older format */
 export class StaleStateError extends Error {}
@@ -302,6 +310,7 @@ export class SystemsModel {
   private readonly airDrift: Drift
   private readonly pressureDrift: Drift
   private readonly loadDrift: Drift
+  private readonly navigation: Navigation
   private motion: Motion = {
     lat: 0,
     lon: 0,
@@ -448,6 +457,7 @@ export class SystemsModel {
     this.airDrift = new Drift(weather, 0.8, 3600)
     this.pressureDrift = new Drift(weather, 150, 7200)
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
+    this.navigation = new Navigation(profile, seed, options.startMs)
     if (options.state) this.restore(options.state)
   }
 
@@ -517,6 +527,7 @@ export class SystemsModel {
       sounders: this.sounders.map((s) =>
         saveUnit(s.id, s, ['reading'], ['drift'])
       ),
+      navigation: this.navigation.save(),
       pumping: [...this.pumping].map(tankKey),
       pumpOuts: Object.fromEntries(this.pumpOuts)
     }
@@ -604,6 +615,14 @@ export class SystemsModel {
     for (const [k, d] of Object.entries(this.modelDrifts())) {
       d.restore(checkedDrift(state.drifts?.[k], k))
     }
+    this.navigation.restore(
+      state.navigation,
+      (ok, what) => {
+        if (!ok)
+          throw new StaleStateError(`saved systems state has a bad ${what}`)
+      },
+      checkedDrift
+    )
     const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
     const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
     if (pumping.some((t) => !t)) {
@@ -651,6 +670,22 @@ export class SystemsModel {
     this.motion = motion
     this.stepWeather(dt)
     this.stepPropulsion(dt)
+    this.navigation.step(
+      dt,
+      this.nowMs,
+      {
+        lat: motion.lat,
+        lon: motion.lon,
+        sogKn: motion.sogKn,
+        cogDeg: motion.cogDeg,
+        rateOfTurnDegS: motion.rateOfTurnDegS ?? 0,
+        atBerth: motion.atBerth,
+        anchored: motion.anchored === true,
+        leavingSoon: motion.leavingSoon === true
+      },
+      { kn: this.windKn, deg: this.windDeg },
+      this.sailing
+    )
     this.stepAc(dt)
     this.stepZones(dt)
     this.stepElectrical(dt)
@@ -1237,9 +1272,10 @@ export class SystemsModel {
     const east = -windMs * Math.sin(from) - boatMs * Math.sin(course)
     const north = -windMs * Math.cos(from) - boatMs * Math.cos(course)
     const apparentFrom = Math.atan2(-east, -north)
+    // the vane sits on the boat, so its angle is off the bow, not off the track
     return {
       speedMs: Math.hypot(east, north),
-      angle: wrapPi(apparentFrom - course)
+      angle: wrapPi(apparentFrom - this.navigation.heading * RADIANS)
     }
   }
 
@@ -1324,10 +1360,8 @@ export class SystemsModel {
     for (const e of this.engines) this.putEngine(e, put)
     for (const g of this.generators) this.putGenerator(g, put)
     if (this.profile.wind) this.putWind(put)
-    put(
-      'navigation.speedThroughWater',
-      this.motion.sogKn * METRES_PER_SECOND_PER_KNOT
-    )
+    const { lat, lon } = this.motion
+    this.navigation.put(put, this.options.variationAt?.(lat, lon))
 
     if (slow) {
       for (const g of this.generators)
@@ -1400,7 +1434,11 @@ export class SystemsModel {
     put(`${base}.revolutions`, round3(e.rpm / 60))
     put(`${base}.engineLoad`, round3(e.load))
     put(`${base}.runTime`, Math.round(e.runS))
-    put(`${base}.transmission.gear`, turning ? 'Forward' : 'Neutral')
+    // a hybrid's motor turns the shaft in gear while its diesel is still
+    put(
+      `${base}.transmission.gear`,
+      turning || e.electricMode ? 'Forward' : 'Neutral'
+    )
     if (e.p.type === 'electric') {
       put(
         `${base}.temperature`,
@@ -1567,7 +1605,7 @@ export class SystemsModel {
   }
 
   private putWind(put: (path: string, value: unknown) => void): void {
-    const course = this.motion.cogDeg * RADIANS
+    const bow = this.navigation.heading * RADIANS
     const from = this.windDeg * RADIANS
     const apparent = this.apparentWind()
     put(
@@ -1575,7 +1613,7 @@ export class SystemsModel {
       round2(this.windKn * METRES_PER_SECOND_PER_KNOT)
     )
     put('environment.wind.directionTrue', round3(from))
-    put('environment.wind.angleTrueWater', roundAngle(wrapPi(from - course)))
+    put('environment.wind.angleTrueWater', roundAngle(wrapPi(from - bow)))
     put('environment.wind.speedApparent', round2(apparent.speedMs))
     put('environment.wind.angleApparent', roundAngle(apparent.angle))
   }
