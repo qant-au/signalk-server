@@ -99,6 +99,7 @@ export interface RoutePosition {
 }
 
 const MS_PER_HOUR = 3600 * 1000
+const METRES_PER_NM = 1852
 /** the sphere the leg distances are measured on, as the server's Course API measures them */
 const EARTH_RADIUS_M = 6371000
 const METRES_PER_DEG_LAT = (EARTH_RADIUS_M * Math.PI) / 180
@@ -391,6 +392,27 @@ export function nextPointIndex(
     if (next && timeMs < next.departMs) return i + 1
   }
   return undefined
+}
+
+/**
+ * Metres from the berth the boat is leaving, on the first leg, or coming to, on the last;
+ * undefined elsewhere, and at an end that is an anchorage. A berthing manoeuvre belongs to
+ * its own end of the passage: a boat that passes the spot where it will berth later, on its
+ * way out, is not coming alongside.
+ */
+export function berthApproachM(
+  legs: Leg[],
+  p: RoutePosition
+): number | undefined {
+  const metres = (w: Waypoint) =>
+    distanceNm(p.lat, p.lon, w.lat, w.lon) * METRES_PER_NM
+  const first = legs[0].from
+  const last = legs[legs.length - 1].to
+  const distances: number[] = []
+  if (p.legIndex === 0 && !first.anchor) distances.push(metres(first))
+  if (p.legIndex === legs.length - 1 && !last.anchor)
+    distances.push(metres(last))
+  return distances.length ? Math.min(...distances) : undefined
 }
 
 /** a position moved `metres` across its course, to starboard positive */

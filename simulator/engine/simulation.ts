@@ -1,4 +1,9 @@
-import { RoutePosition, offTrack, positionAt } from '../routes/route'
+import {
+  RoutePosition,
+  berthApproachM,
+  offTrack,
+  positionAt
+} from '../routes/route'
 import { ScenarioClock } from '../soak/clock'
 import {
   Delta,
@@ -36,6 +41,7 @@ export interface SimulationOptions {
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
 const SLOW_EVERY_TICKS = 5
+
 /** how long before leaving a stop the crew swings the boat onto her course */
 const SWING_BEFORE_LEAVING_MS = 5 * 60000
 
@@ -124,6 +130,7 @@ export class Simulation {
           rateOfTurnDegS: p.rateOfTurnDegS,
           atBerth: !p.anchored && (p.finished || ms < legs[0].departMs),
           anchored: p.anchored,
+          nearBerthM: p.sogKn > 0 ? berthApproachM(legs, p) : undefined,
           leavingSoon:
             p.sogKn === 0 &&
             !p.finished &&

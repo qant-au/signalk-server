@@ -6,6 +6,7 @@ import {
   SolarProfile,
   TankProfile,
   TankType,
+  ThrusterProfile,
   VesselProfile,
   WindTurbineProfile,
   ZoneProfile
@@ -37,6 +38,8 @@ export interface Motion {
   rateOfTurnDegS?: number
   /** stopped, and leaving within a few minutes */
   leavingSoon?: boolean
+  /** under way, metres from the berth the boat left or is coming to */
+  nearBerthM?: number
 }
 
 export interface SystemsOptions {
@@ -78,6 +81,7 @@ export interface SystemsState {
   tanks: UnitState[]
   solar: UnitState[]
   turbines: UnitState[]
+  thrusters: UnitState[]
   zones: UnitState[]
   sounders: UnitState[]
   navigation: NavigationState
@@ -86,7 +90,7 @@ export interface SystemsState {
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 4
+export const SYSTEMS_STATE_VERSION = 5
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -178,6 +182,19 @@ const SHORE_CHARGER_W_PER_M = 200
 const CHARGER_RATING_C = 0.3
 /** engine alternator output per kW of engine */
 const ALTERNATOR_W_PER_KW = 30
+/** however big the engine, an alternator gives at most this many amps at its bank's voltage */
+const ALTERNATOR_MAX_A = 150
+/** and at idle about half of that */
+const ALTERNATOR_IDLE_SHARE = 0.5
+/** thrusters run within this many boat lengths of a berth */
+const THRUSTER_ZONE_LENGTHS = 3
+/** a thruster runs in bursts of a few seconds, with pauses between, at part to full power */
+const THRUSTER_BURST_S = { low: 2, high: 8 }
+const THRUSTER_GAP_S = { low: 4, high: 20 }
+const THRUSTER_LOAD = { low: 0.5, high: 1 }
+/** an electric thruster's motor, and a hydraulic one's pump, motor and pipes */
+const THRUSTER_MOTOR_EFFICIENCY = 0.85
+const HYDRAULIC_EFFICIENCY = 0.7
 /** DC-DC converter keeping a house bank charged from a propulsion bank */
 const CONVERTER_W = 3000
 const CONVERTER_EFFICIENCY = 0.95
@@ -270,6 +287,24 @@ interface SolarState {
   cloudCover: number
 }
 
+interface ThrusterState {
+  p: ThrusterProfile
+  running: boolean
+  /** share of rated power this burst */
+  load: number
+  /** seconds left of the burst, or of the pause before the next */
+  burstS: number
+  gapS: number
+  runS: number
+  /** watts drawn from its bank, for an electric thruster */
+  drawW: number
+  /** the stream that times the bursts, and where it has reached */
+  rng: Rng
+  rngState: number
+  /** the hardest burst so far: the bank current while thrusters drew this, for the soak */
+  peak?: { drawW: number; currentA: number; voltage: number }
+}
+
 interface TurbineState {
   p: WindTurbineProfile
   powerW: number
@@ -328,6 +363,15 @@ const BANK_FIELDS = [
 ] as const
 const SOLAR_FIELDS = ['powerW', 'yieldJ', 'day', 'cloudCover'] as const
 const TURBINE_FIELDS = ['powerW', 'revolutionsHz'] as const
+const THRUSTER_FIELDS = [
+  'running',
+  'load',
+  'burstS',
+  'gapS',
+  'runS',
+  'drawW',
+  'rngState'
+] as const
 const ZONE_FIELDS = ['tempC', 'humidity', 'compressorOn'] as const
 
 export class SystemsModel {
@@ -338,6 +382,7 @@ export class SystemsModel {
   private readonly tanks: TankState[]
   private readonly solar: SolarState[]
   private readonly turbines: TurbineState[]
+  private readonly thrusters: ThrusterState[]
   private readonly zones: ZoneState[]
   private readonly sounders: SounderState[]
   private readonly windBaseKn: number
@@ -472,6 +517,20 @@ export class SystemsModel {
       cloud: new Drift(rng(`solar:${p.id}`), 0.12, 900),
       cloudCover: 0
     }))
+    this.thrusters = profile.thrusters.map((p) => {
+      const r = rng(`thruster:${p.id}`)
+      return {
+        p,
+        running: false,
+        load: 0,
+        burstS: 0,
+        gapS: 0,
+        runS: 0,
+        drawW: 0,
+        rng: r,
+        rngState: r.save()
+      }
+    })
     this.turbines = profile.windTurbines.map((p) => ({
       p,
       powerW: 0,
@@ -624,6 +683,9 @@ export class SystemsModel {
       turbines: this.turbines.map((t) =>
         saveUnit(t.p.id, t, TURBINE_FIELDS, [])
       ),
+      thrusters: this.thrusters.map((t) =>
+        saveUnit(t.p.id, t, THRUSTER_FIELDS, [])
+      ),
       zones: this.zones.map((z) => saveUnit(z.p.id, z, ZONE_FIELDS, ['drift'])),
       sounders: this.sounders.map((s) =>
         saveUnit(s.id, s, ['reading'], ['drift'])
@@ -695,6 +757,15 @@ export class SystemsModel {
       TURBINE_FIELDS,
       []
     )
+    restoreUnits(
+      'thrusters',
+      this.thrusters,
+      state.thrusters,
+      (t) => t.p.id,
+      THRUSTER_FIELDS,
+      []
+    )
+    for (const t of this.thrusters) t.rng.restore(t.rngState)
     restoreUnits('zones', this.zones, state.zones, (z) => z.p.id, ZONE_FIELDS, [
       'drift'
     ])
@@ -772,6 +843,7 @@ export class SystemsModel {
     this.motion = motion
     this.stepWeather(dt)
     this.stepPropulsion(dt)
+    this.stepThrusters(dt)
     this.navigation.step(
       dt,
       this.nowMs,
@@ -926,6 +998,62 @@ export class SystemsModel {
       )
       e.tempDrift.step(dt)
       e.pressureDrift.step(dt)
+    }
+  }
+
+  /**
+   * Thrusters run in bursts in the last and first few boat lengths to and from a berth,
+   * and never at anchor or under way beyond them. A hydraulic one runs only
+   * with its main engine running, which carries its load and burns its fuel; an electric
+   * one draws its bank, in stepElectrical.
+   */
+  private stepThrusters(dt: number): void {
+    const m = this.motion
+    const near =
+      !m.atBerth &&
+      m.anchored !== true &&
+      m.nearBerthM !== undefined &&
+      m.nearBerthM <= THRUSTER_ZONE_LENGTHS * this.profile.lengthM
+    for (const t of this.thrusters) {
+      const engine =
+        t.p.type === 'hydraulic'
+          ? this.engines.find((e) => e.p.id === t.p.engine)
+          : undefined
+      const powered = t.p.type === 'electric' || engine?.running === true
+      if (!near || !powered) {
+        t.running = false
+        t.load = 0
+        t.burstS = 0
+        t.gapS = 0
+        t.drawW = 0
+        continue
+      }
+      if (t.running) {
+        t.burstS -= dt
+        if (t.burstS <= 0) {
+          t.running = false
+          t.load = 0
+          t.gapS = t.rng.between(THRUSTER_GAP_S.low, THRUSTER_GAP_S.high)
+        }
+      } else {
+        t.gapS -= dt
+        if (t.gapS <= 0) {
+          t.running = true
+          t.burstS = t.rng.between(THRUSTER_BURST_S.low, THRUSTER_BURST_S.high)
+          t.load = t.rng.between(THRUSTER_LOAD.low, THRUSTER_LOAD.high)
+        }
+      }
+      t.rngState = t.rng.save()
+      const kw = t.running ? t.p.powerKw * t.load : 0
+      if (t.running) t.runS += dt
+      t.drawW =
+        t.p.type === 'electric' ? (kw * 1000) / THRUSTER_MOTOR_EFFICIENCY : 0
+      if (engine && kw > 0) {
+        const pumpKw = kw / HYDRAULIC_EFFICIENCY
+        engine.shaftKw += pumpKw
+        engine.fuelLph += FUEL_L_PER_KWH.diesel * pumpKw
+        engine.load = Math.min(1, engine.shaftKw / engine.p.powerKw)
+      }
     }
   }
 
@@ -1181,6 +1309,9 @@ export class SystemsModel {
       if (b.p.role === 'start')
         draw(b, 2.5 * (b.p.nominalVoltage / 12), 'standby')
     }
+    for (const t of this.thrusters) {
+      if (t.drawW > 0) draw(this.bank(t.p.bank), t.drawW, 'thrusters')
+    }
 
     const supplied = new Map<BankState, number>()
     const take = (bank: BankState, availableW: number, name: string) => {
@@ -1192,6 +1323,25 @@ export class SystemsModel {
       return w
     }
     // the house bank first, so the converter's draw on the propulsion bank is known
+    // each running engine's alternator: half its output at idle, all of it flat out
+    const alternatorW = new Map<EngineState, number>()
+    const charged = this.alternatorBank()
+    for (const e of this.engines) {
+      if (!e.running || e.p.type === 'electric' || !charged) continue
+      const revs = clamp(
+        (e.rpm - e.p.idleRpm) / (e.p.maxRpm - e.p.idleRpm),
+        0,
+        1
+      )
+      alternatorW.set(
+        e,
+        Math.min(
+          ALTERNATOR_W_PER_KW * e.p.powerKw,
+          ALTERNATOR_MAX_A * charged.p.nominalVoltage
+        ) *
+          (ALTERNATOR_IDLE_SHARE + (1 - ALTERNATOR_IDLE_SHARE) * revs)
+      )
+    }
     const ordered = [...this.banks].sort(
       (a, b) => Number(b.p.role === 'house') - Number(a.p.role === 'house')
     )
@@ -1220,9 +1370,11 @@ export class SystemsModel {
         draw(propulsion, w / CONVERTER_EFFICIENCY, 'converter')
       }
       for (const e of this.engines) {
-        if (e.running && b.p.role !== 'propulsion' && e.p.type !== 'electric') {
-          // alternators: the start bank, and the house bank through a charge splitter
-          take(b, ALTERNATOR_W_PER_KW * e.p.powerKw, 'alternator')
+        if (b.p.role !== 'propulsion' && alternatorW.has(e)) {
+          // one alternator per engine, shared through a charge splitter: what the house
+          // bank takes first, the start bank cannot also have
+          const w = take(b, alternatorW.get(e)!, 'alternator')
+          alternatorW.set(e, alternatorW.get(e)! - w)
         }
         if (e.bankKw < 0 && e.p.bank === b.p.id)
           take(b, -e.bankKw * 1000, 'regeneration')
@@ -1268,6 +1420,21 @@ export class SystemsModel {
       const wantedSoc = b.soc + (current * dt) / SECONDS_PER_HOUR / capacityAh
       b.soc = clamp(wantedSoc, SOC_FLOOR, 1)
       b.currentA = current
+      const thrusting = this.thrusters.filter(
+        (t) => t.drawW > 0 && t.p.bank === b.p.id
+      )
+      if (thrusting.length) {
+        const drawW = thrusting.reduce((sum, t) => sum + t.drawW, 0)
+        for (const t of thrusting) {
+          if (!t.peak || current < t.peak.currentA) {
+            t.peak = {
+              drawW,
+              currentA: current,
+              voltage: ocv + current * resistance
+            }
+          }
+        }
+      }
       const book = this.bankBooks.get(b)
       if (book) {
         for (const [name, flow] of Object.entries(flowsIn.get(b) ?? {}))
@@ -1500,6 +1667,17 @@ export class SystemsModel {
         `${s.p.peakW} W solar array`
       )
     }
+    for (const t of this.thrusters) {
+      const where =
+        t.p.type === 'electric'
+          ? `on the ${t.p.bank} bank`
+          : `off ${t.p.engine}`
+      name(
+        `propulsion.${t.p.id}`,
+        t.p.displayName,
+        `${t.p.type} thruster, ${t.p.powerKw} kW, ${where}; not a main engine`
+      )
+    }
     for (const t of this.turbines) {
       name(
         `electrical.alternators.${t.p.id}`,
@@ -1541,10 +1719,23 @@ export class SystemsModel {
     const put = (path: string, value: unknown) => values.push({ path, value })
 
     for (const e of this.engines) this.putEngine(e, put)
+    for (const t of this.thrusters) {
+      const base = `propulsion.${t.p.id}`
+      put(`${base}.state`, t.running ? 'started' : 'stopped')
+      put(`${base}.engineLoad`, round3(t.load))
+      put(`${base}.runTime`, Math.round(t.runS))
+    }
     for (const g of this.generators) this.putGenerator(g, put)
     if (this.profile.wind) this.putWind(put)
     const { lat, lon } = this.motion
     this.navigation.put(put, this.options.variationAt?.(lat, lon))
+    if (!slow) {
+      // a battery monitor reports every second: a thruster burst is over in a few
+      for (const b of this.banks) {
+        if (this.thrusters.some((t) => t.drawW > 0 && t.p.bank === b.p.id))
+          this.putBank(b, put)
+      }
+    }
 
     if (slow) {
       for (const g of this.generators)
@@ -1823,6 +2014,12 @@ export class SystemsModel {
       madeL: this.madeL,
       shoreWaterL: this.shoreWaterL,
       pumpOuts: Object.fromEntries(this.pumpOuts),
+      thrusters: Object.fromEntries(
+        this.thrusters.map((t) => [
+          t.p.id,
+          { running: t.running, runS: t.runS, peak: t.peak }
+        ])
+      ),
       apparentWindMs: this.apparentWind().speedMs,
       turbineW: this.turbines.reduce((sum, t) => sum + t.powerW, 0)
     }
@@ -1850,6 +2047,15 @@ export interface SystemsSummary {
   pumpOuts: Record<string, number>
   apparentWindMs: number
   turbineW: number
+  /** each thruster: running now, seconds run, and its hardest burst on its bank */
+  thrusters: Record<
+    string,
+    {
+      running: boolean
+      runS: number
+      peak?: { drawW: number; currentA: number; voltage: number }
+    }
+  >
 }
 
 function tankKey(t: TankState): string {

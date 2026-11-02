@@ -228,7 +228,15 @@ describe('Simulator systems model', () => {
         expect(generators.sort()).to.deep.equal(
           profile.generators.map((g) => g.id).sort()
         )
-        expect(propulsion.size).to.equal(mains.length + generators.length)
+        const thrusters = [...propulsion].filter((id) =>
+          profile.thrusters.some((t) => t.id === id)
+        )
+        expect(thrusters.sort()).to.deep.equal(
+          profile.thrusters.map((t) => t.id).sort()
+        )
+        expect(propulsion.size).to.equal(
+          mains.length + generators.length + thrusters.length
+        )
         for (const type of Object.keys(MAX_TANKS) as TankType[]) {
           expect(idsUnder(all, `tanks.${type}.`).size, type).to.equal(
             profile.tanks[type].length

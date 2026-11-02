@@ -53,6 +53,24 @@ export interface SolarProfile {
   bank: string
 }
 
+export type ThrusterId = 'bowThruster' | 'sternThruster'
+
+/**
+ * A tunnel thruster for berthing. An electric one draws its bank; a hydraulic one, on the
+ * big yachts, is driven off a main engine's pump and draws no bank at all.
+ */
+export interface ThrusterProfile {
+  id: ThrusterId
+  displayName: string
+  type: 'electric' | 'hydraulic'
+  /** rated power, kW */
+  powerKw: number
+  /** the bank an electric thruster draws */
+  bank?: string
+  /** the main engine whose pump drives a hydraulic thruster */
+  engine?: string
+}
+
 export interface WindTurbineProfile {
   id: string
   displayName: string
@@ -136,6 +154,7 @@ export interface VesselProfile {
   banks: BankProfile[]
   solar: SolarProfile[]
   windTurbines: WindTurbineProfile[]
+  thrusters: ThrusterProfile[]
   tanks: Record<TankType, TankProfile[]>
   sounders: SounderProfile[]
   radars: { id: string; displayName: string }[]
@@ -176,6 +195,12 @@ const AIR_HEIGHT_SAIL = { perM: 1.45, plusM: 1 }
 const AIR_HEIGHT_MOTOR = { perM: 0.22, plusM: 1.5 }
 /** the AIS antenna sits on the arch or mast, a little aft of amidships */
 const AIS_ANTENNA_FROM_BOW_SHARE = 0.55
+/** a bow thruster from this length, a stern thruster too from the next, hydraulic from the last */
+const BOW_THRUSTER_FROM_M = 12
+const STERN_THRUSTER_FROM_M = 18
+const HYDRAULIC_THRUSTER_FROM_M = 30
+/** thruster power from length: about 5 kW at 12 m, 14 kW at 20 m, 70 kW at 45 m */
+const THRUSTER_KW_PER_M2 = 0.035
 const HYBRID_DIESEL_BELOW_SOC = 0.4
 const HYBRID_ELECTRIC_ABOVE_SOC = 0.6
 const SOUNDER_DEPTH_M = 0.5
@@ -309,6 +334,35 @@ function defaultZones(lengthM: number): ZoneProfile[] {
 
 /** Fills in what a profile file leaves out and checks it against the limits. */
 /**
+ * What a boat gets with no thrusters of its own: none under 12 m, a bow thruster from 12 m,
+ * a stern thruster too from 18 m, both hydraulic off the first main engine from 30 m and
+ * electric on the house bank below that.
+ */
+function defaultThrusters(p: VesselProfile): ThrusterProfile[] {
+  const L = p.lengthM
+  if (L < BOW_THRUSTER_FROM_M) return []
+  const hydraulic = L >= HYDRAULIC_THRUSTER_FROM_M
+  const house = p.banks.find((b) => b.role === 'house') ?? p.banks[0]
+  const powerKw = round(THRUSTER_KW_PER_M2 * L * L, 0.5)
+  const thruster = (id: ThrusterId, displayName: string): ThrusterProfile =>
+    hydraulic
+      ? {
+          id,
+          displayName,
+          type: 'hydraulic',
+          powerKw,
+          engine: p.engines[0]?.id
+        }
+      : { id, displayName, type: 'electric', powerKw, bank: house?.id }
+  return L < STERN_THRUSTER_FROM_M
+    ? [thruster('bowThruster', 'Bow thruster')]
+    : [
+        thruster('bowThruster', 'Bow thruster'),
+        thruster('sternThruster', 'Stern thruster')
+      ]
+}
+
+/**
  * What a hybrid without rules of its own gets: electric up to the speed at which the
  * propeller takes a fifth of the motors' rating, the diesels in below 40 % and electric
  * again above 60 %, charging from the diesels, and the generator free to charge at anchor.
@@ -405,6 +459,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
   }
   const air = profile.rig === 'sail' ? AIR_HEIGHT_SAIL : AIR_HEIGHT_MOTOR
   profile.airHeightM = p.airHeightM ?? round(air.perM * L + air.plusM, 0.1)
+  profile.thrusters = p.thrusters ?? defaultThrusters(profile)
   profile.aisAntenna = p.aisAntenna ?? {
     fromBowM: round(AIS_ANTENNA_FROM_BOW_SHARE * L, 0.1),
     fromCenterM: 0
@@ -463,6 +518,13 @@ export function validateProfile(p: VesselProfile): void {
     if (e.type !== 'electric' && (!e.fuelTank || !fuelIds.has(e.fuelTank))) {
       throw new Error(`${p.id}: ${e.id} needs a fuel tank`)
     }
+  }
+  const engineIds = new Set(p.engines.map((e) => e.id))
+  for (const t of p.thrusters) {
+    if (t.type === 'electric' && (!t.bank || !bankIds.has(t.bank)))
+      throw new Error(`${p.id}: ${t.id} needs a bank`)
+    if (t.type === 'hydraulic' && (!t.engine || !engineIds.has(t.engine)))
+      throw new Error(`${p.id}: ${t.id} needs a main engine to drive its pump`)
   }
   for (const s of [...p.solar, ...p.windTurbines]) {
     if (!bankIds.has(s.bank))

@@ -10,6 +10,7 @@
   "maxSpeedKn": 16,
   "persons": 8,
   "hotelKw": 2,
+  "thrusters": [],
   "hybrid": {
     "electricBelowKn": 7,
     "dieselBelowSoc": 0.3,

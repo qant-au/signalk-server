@@ -8,7 +8,14 @@ import path from 'path'
 import { DepthModel } from '../depth/depth'
 import { Simulation } from '../engine/simulation'
 import { Scenario } from '../engine/scenario'
-import { Route, Waypoint, loadRoute, routeLegs } from '../routes/route'
+import {
+  Route,
+  Waypoint,
+  berthApproachM,
+  loadRoute,
+  positionAt,
+  routeLegs
+} from '../routes/route'
 import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
@@ -375,6 +382,12 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     p.engines.find((e) => e.id === id) ?? p.generators.find((g) => g.id === id)
   let r: RegExpExecArray | null
   if ((r = m(/^propulsion\.(\w+)\.(.+)$/))) {
+    if (p.thrusters.some((t) => t.id === r![1])) {
+      if (r[2] === 'state') return 'string'
+      if (r[2] === 'engineLoad') return [0, 1]
+      if (r[2] === 'runTime') return [0, 1e9]
+      return undefined
+    }
     const engine = p.engines.find((e) => e.id === r![1])
     const generator = p.generators.find((g) => g.id === r![1])
     const u = unit(r[1])
@@ -654,6 +667,11 @@ describe('Simulator systems soak', function () {
         'water made (l)': Math.round(last.madeL),
         'pump-outs': Object.values(last.pumpOuts).reduce((a, b) => a + b, 0),
         'lowest house SoC': socs.length ? Math.min(...socs).toFixed(2) : '-',
+        'thrusters run (s)': Object.keys(last.thrusters).length
+          ? Object.entries(last.thrusters)
+              .map(([id, t]) => `${id.replace('Thruster', '')} ${t.runS}`)
+              .join(', ')
+          : '-',
         'fuel left': fuelL
           ? `${Math.round((100 * last.fuelL) / fuelL)} % (from ${Math.round((100 * first.fuelL) / fuelL)} %)`
           : '-'
@@ -972,6 +990,58 @@ describe('Simulator systems soak', function () {
       ).to.be.at.least(0.8)
     }
   })
+
+  it(
+    'runs the thrusters only coming alongside and leaving, in bursts the bank carries',
+    each((r) => {
+      const p = r.soak.profile
+      if (!p.thrusters.length) return
+      const legs = routeLegs(r.soak.route)
+      // the berth the boat is leaving or coming to, at its own end of the passage
+      const fromBerthM = (t: Tick) =>
+        berthApproachM(legs, positionAt(legs, t.ms)) ?? Infinity
+      // the thrusters' zone, and as far as a tick can carry the boat at its top speed
+      const reachM =
+        3 * p.lengthM +
+        (TICK_MS * TIME_MULTIPLIER * p.maxSpeedKn * KNOT_MS) / 1000
+      const last = r.ticks[r.ticks.length - 1].summary.thrusters
+      for (const th of p.thrusters) {
+        // every case comes alongside at the end, so the bow thruster has run
+        expect(last[th.id].runS, `${r.soak.name} ${th.id} ran`).to.be.above(0)
+        for (let i = 1; i < r.ticks.length; i++) {
+          const a = r.ticks[i - 1]
+          const t = r.ticks[i]
+          const at = `${r.soak.name} ${th.id} at ${new Date(t.ms).toISOString()}`
+          if (t.values.get(`propulsion.${th.id}.state`) === 'started') {
+            expect(t.values.get('navigation.state'), at).to.equal('motoring')
+            expect(fromBerthM(t), at).to.be.at.most(3 * p.lengthM + 1)
+          }
+          const ran =
+            (num(t, `propulsion.${th.id}.runTime`) ?? 0) -
+            (num(a, `propulsion.${th.id}.runTime`) ?? 0)
+          if (ran > 0) {
+            expect(
+              Math.min(fromBerthM(a), fromBerthM(t)),
+              `${at}: ran ${ran} s away from a berth`
+            ).to.be.at.most(reachM)
+          }
+        }
+        // an electric thruster's hardest burst shows on its bank's current
+        const peak = last[th.id].peak
+        if (th.type === 'electric') {
+          expect(peak, `${r.soak.name} ${th.id} burst`).to.not.equal(undefined)
+          expect(
+            -peak!.currentA * peak!.voltage,
+            `${r.soak.name} ${th.id}`
+          ).to.be.within(0.5 * peak!.drawW, 1.1 * peak!.drawW)
+        } else {
+          expect(peak, `${r.soak.name} ${th.id} draws no bank`).to.equal(
+            undefined
+          )
+        }
+      }
+    })
+  )
 
   it(
     'keeps the banks charged and the fuel from running out',
