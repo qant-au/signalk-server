@@ -17,3 +17,6 @@ appstore-cache
 applicationData
 # AssemblyScript build outputs
 packages/assemblyscript-plugin-sdk/build
+
+# Simulator sample data is kept exactly as its sources publish it
+simulator/samples/*/open/

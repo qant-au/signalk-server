@@ -75,3 +75,8 @@ nul
 test/server-test-config/debug
 # Per-developer local Makefile (deploy shortcuts, scratch targets)
 Makefile.local
+
+# Simulator: gated source data and large downloads stay on the machine that fetched them
+simulator/downloads/
+simulator/samples/*/restricted/
+simulator/samples/*/cache/

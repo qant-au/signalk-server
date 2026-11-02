@@ -96,3 +96,6 @@ nul
 # debug artefacts
 *.sln
 
+
+# Simulator sample data and tools are not part of the server package
+simulator
