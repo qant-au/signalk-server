@@ -1,0 +1,22 @@
+{
+  "id": "manly-hamilton-island-2026-08-21",
+  "downloads": [
+    {
+      "url": "https://files.ausseabed.gov.au/survey/Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip",
+      "file": "gbr30-2020.zip",
+      "sha256": "6d50bf758f251953b80b6c0dc8ef2a44f3018c8ac2f0792dd7219e538bf6fd55",
+      "extract": [
+        "Great_Barrier_Reef_C_2020_30m_MSL_cog.tif",
+        "Great_Barrier_Reef_D_2020_30m_MSL_cog.tif",
+        "metadata.txt"
+      ]
+    }
+  ],
+  "restricted": {
+    "source": "amsa-cts",
+    "archive": "Vessel Traffic Data August 2026.zip",
+    "start": "2026-08-20T18:00:00Z",
+    "end": "2026-08-24T00:00:00Z",
+    "bbox": [148.4, -28.0, 154.0, -19.8]
+  }
+}
