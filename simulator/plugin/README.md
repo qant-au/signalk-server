@@ -113,12 +113,42 @@ run starts. The status line adds how many engines and generators are running. De
 the systems that have no standard path, are in [the vessels README](../vessels/README.md).
 
 **Traffic.** Each AIS target in the sample is interpolated along its source track and
-transmits at the real rate for its class and speed. Each transmission reaches the boat only
-if the [reception model](../ais/README.md) says it gets through at that distance. Targets
-are sent with position, speed, course and heading, and every six minutes with their name,
-MMSI, length, ship type and AIS class. A target not heard for long enough is lost and is no
-longer sent. Sources that do not publish MMSIs (Piraeus, AMSA) get a stable `urn:mrn:signalk:uuid`
-identity, never an invented MMSI.
+transmits at the real rate for its class, speed, status and turning. Each transmission
+reaches the boat only if the [reception model](../ais/README.md) says it gets through at
+that distance. With every report a target carries its position, course and speed over
+ground, heading, rate of turn and navigational state where the source has them, and its AIS
+class; every six minutes its name, MMSI, call sign, IMO number, ship type, length, beam,
+draught, destination and ETA where the source has them. What the source lacks is left out.
+The [AIS README](../ais/README.md#what-each-target-carries) has the whole list. A target not
+heard for long enough is lost: the plugin stops sending it and drops it from the server
+there and then, rather than leaving it for the server's hour-long prune, so the status
+line's "AIS targets in range" is the number of targets in `vessels.*` at that moment. A
+target heard again comes back. Sources that do not publish MMSIs (Piraeus, AMSA) get a
+stable `urn:mrn:signalk:uuid` identity, never an invented MMSI.
+
+**NMEA 0183 out.** The server sends NMEA 0183 on its TCP port (10110, `NMEA0183PORT`) from
+whatever its converters put on its `nmea0183out` event. Two plugins do it:
+
+- **The own boat**: the server's own `@signalk/signalk-to-nmea0183` (Convert Signal K to
+  NMEA0183), with RMC, HDT and VTG enabled, once a second each. `bin/simulator` and the rig
+  configure it so (`settings/simulator-nmea0183.json`).
+- **The AIS targets**: [`signalk-vessels-to-ais`](https://github.com/KEGustafsson/signalk-vessels-to-ais)
+  (MIT), which turns the targets in `vessels.*` into `!AIVDM` sentences (messages 3 and 5 for
+  Class A, 18 and 24 for Class B) and the own boat into `!AIVDO`, once a minute, out
+  to 100 km. The rig installs it (2.1.1) and enables it. For `bin/simulator`, install it into
+  the run directory once and restart:
+
+  ```shell
+  npm install --prefix .simulator signalk-vessels-to-ais@2.1.1
+  ```
+
+  and enable it on the plugin page (Other vessels data to AIS NMEA0183) with the defaults:
+  every 1 minute, own data on, 100 km.
+
+The server's other NMEA 0183 output, UDP, is the separate `@signalk/udp-nmea-plugin`, which
+sends the same `nmea0183out` event to a UDP address and port; enable it and give it the
+plotter's address. The [rig README](../rig/README.md#a-chart-plotter) says how to point a
+chart plotter at the rig.
 
 ## Building
 

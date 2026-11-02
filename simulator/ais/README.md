@@ -94,10 +94,16 @@ track at these intervals and judges each one.
 | A      | 14 to 23 kn                       | 6 s      |
 | A      | over 23 kn                        | 2 s      |
 | B (CS) | 2 kn or less                      | 3 min    |
+| A      | up to 14 kn, changing course      | 3 1/3 s  |
+| A      | 14 to 23 kn, changing course      | 2 s      |
+| B (CS) | 2 kn or less                      | 3 min    |
 | B (CS) | over 2 kn                         | 30 s     |
 
-Where the source has no navigational status, a Class A target under 0.5 kn is treated as
-moored.
+The navigational status comes from the source where it has one (NOAA's `status`); where it
+has none, a Class A target under 0.5 kn is treated as moored. A target is changing course
+when its rate of turn, or failing that its course between the source reports either side,
+changes by more than 5 degrees a minute. Each station's static and voyage data (message 5
+for Class A, 24 for Class B) goes every six minutes.
 
 ### 5. Losing a Target
 
@@ -109,9 +115,44 @@ for anything under way and 9 minutes for a moored Class A ship.
 has had no update for `pruneContextsMinutes` (default 60), checked once a minute
 (`src/index.ts`, `pruneContexts` in `src/deltacache.ts`). That is housekeeping, not radio: no
 boat's receiver keeps a target for an hour after its last report. The simulator therefore
-stops sending a target as soon as it is lost, and every target is lost in a quarter of the
-server's prune time or less (the tests check this). What a display does with a target that
-has stopped updating is up to the display, exactly as with a real receiver.
+stops sending a target as soon as it is lost, and drops it from the server's model and delta
+cache there and then, so `vessels.*` holds exactly the targets in range and the plugin's
+count agrees with it. A target heard again comes back as a new one, its static data with
+its first report, as when it was first heard. Stopping the plugin drops every target it was
+sending.
+
+## What Each Target Carries
+
+Each target goes to the server the way a real AIS receiver puts it there, in the shapes the
+server's own AIS parser gives (`@signalk/nmea0183-signalk`), with only what the sample's
+source records. Nothing is made up to fill a gap: a field the source does not have is
+absent.
+
+| When              | Path                                                                                                                       | From                                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Every report      | `navigation.position`, `speedOverGround`, `courseOverGroundTrue`                                                           | the source track, interpolated                                                                                                          |
+| Every report      | `navigation.headingTrue`, `navigation.rateOfTurn`                                                                          | where the source has them (heading 511, not available, is left out)                                                                     |
+| Every report      | `navigation.state`                                                                                                         | the source's AIS navigational status, mapped below                                                                                      |
+| Every report      | `sensors.ais.class`                                                                                                        | A or B, as every AIS message carries by its type                                                                                        |
+| Every six minutes | `name`, `mmsi`, `communication.callsignVhf`, `registrations.imo` (`IMO nnnnnnn`)                                           | the source's records; anonymised sources (Piraeus, AMSA) have none of these, and get a stable `urn:mrn:signalk:uuid` instead of an MMSI |
+| Every six minutes | `design.aisShipType` (`id` and the specification's `name`), `design.length.overall`, `design.beam`, `design.draft.current` | the source's records; a ship type given only in words (AMSA) is left out rather than guessed into a code                                |
+| Every six minutes | `navigation.destination.commonName`, `navigation.destination.eta`                                                          | where the source has them (none of the three samples does)                                                                              |
+
+The navigational status maps to `navigation.state` as the specification names it: 0
+`motoring` (under way using engine), 1 `anchored`, 2 `not under command`, 3 `restricted
+manouverability`, 4 `constrained by draft`, 5 `moored`, 6 `aground`, 7 `fishing`, 8
+`sailing`, 9 and 10 the reserved high-speed craft and wing-in-ground values, 11 to 14
+`Reserved for future use-11` to `-14`, and 15 `not defined (example)`. For 0 to 8 these are
+the values the server's own AIS parser gives; for 9 to 15 it gives names the specification
+does not list, so these keep to the specification.
+
+What each sample's source has:
+
+| Sample       | Source  | Status | Heading | Name, call sign, IMO | Ship type | Length | Beam, draught |
+| ------------ | ------- | ------ | ------- | -------------------- | --------- | ------ | ------------- |
+| Miami        | NOAA    | yes    | yes     | yes                  | code      | yes    | yes           |
+| Saronic Gulf | Piraeus | no     | yes     | no (anonymised)      | code      | no     | no            |
+| Queensland   | AMSA    | no     | no      | no (anonymised)      | in words  | yes    | yes           |
 
 ## Checked Against the Samples
 

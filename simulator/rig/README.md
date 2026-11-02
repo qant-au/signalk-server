@@ -63,3 +63,14 @@ passage, and the own boat moves along it as the run goes.
   position to the new one.
 - **Restart the rig between samples** (`down`, then `up`) as well, so the server starts
   with no data from the previous run.
+
+## A Chart Plotter
+
+The rig sends NMEA 0183 over TCP on **127.0.0.1:4772** (the server's port 10110 inside the
+container): the own boat as `$..RMC`, `$..HDT` and `$..VTG` once a second (the server's own
+`signalk-to-nmea0183` converter), and every AIS target in range as `!AIVDM` with the own
+boat as `!AIVDO`, once a minute (`signalk-vessels-to-ais`, installed in the image). Point
+a chart plotter or navigation program that takes NMEA 0183 over TCP at that address: in
+OpenCPN, Options, Connections, Add Connection, Network, TCP, address 127.0.0.1, port 4772,
+receive. The port is bound to loopback, like the rest of the rig; a plotter on another
+machine needs it forwarded deliberately, and the rig has no security.
