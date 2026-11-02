@@ -214,3 +214,10 @@ produces against the Signal K schema, and check the counts against the profile:
 ```shell
 npx mocha test/simulator-systems.ts
 ```
+
+Then run the [systems soak](../soak/README.md#systems-soak), which sails every profile
+for a day of scenario time and checks that nothing drifts, runs dry or goes out of band:
+
+```shell
+npm run test:simulator-soak
+```

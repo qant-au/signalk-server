@@ -68,7 +68,11 @@ identity, never an invented MMSI.
 ## Building
 
 The rig image builds it, and `bin/simulator` builds it and starts this server with it
-enabled on the Miami sample. To build it by hand:
+enabled on the Miami sample. That script runs the server from its own configuration
+directory, `.simulator/` in the checkout (ignored by git), with a fresh copy of
+`settings/simulator.json` on every start, because the server writes its defaults back into
+the settings file it runs with. The plugin's settings and saved scenario time persist there
+between runs; delete `.simulator/` to start over. To build the plugin by hand:
 
 ```shell
 npx tsc -p simulator/plugin      # writes simulator/plugin/dist

@@ -16,7 +16,7 @@ simulator/
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container
-  soak/                     real-time soak tests
+  soak/                     the soaks: the rig soak (real time, against a server) and the systems soak (days on the clock)
   routes/                   own-boat routes: format, timing and position along the way
   downloads/                (git-ignored) files the user downloads from licensed sources
   samples/<sample>/
