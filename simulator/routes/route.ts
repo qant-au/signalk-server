@@ -17,6 +17,11 @@ export interface Waypoint {
   speedKn?: number
   /** time to wait here before leaving, seconds (a bridge opening, a lock) */
   holdS?: number
+  /**
+   * the boat lies at anchor here rather than holding under way or at a berth: while it
+   * holds, before it leaves a first waypoint, or after it reaches a last one
+   */
+  anchor?: boolean
   note?: string
 }
 
@@ -58,6 +63,8 @@ export interface RoutePosition {
   cogDeg: number
   legIndex: number
   finished: boolean
+  /** stopped at a waypoint marked `anchor` */
+  anchored: boolean
 }
 
 const MS_PER_HOUR = 3600 * 1000
@@ -122,7 +129,8 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
       sogKn: 0,
       cogDeg: first.courseDeg,
       legIndex: 0,
-      finished: false
+      finished: false,
+      anchored: first.from.anchor === true
     }
   }
   for (let i = 0; i < legs.length; i++) {
@@ -139,7 +147,8 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
         sogKn: leg.speedKn,
         cogDeg: leg.courseDeg,
         legIndex: i,
-        finished: false
+        finished: false,
+        anchored: false
       }
     }
     if (next && timeMs < next.departMs) {
@@ -150,7 +159,8 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
         sogKn: 0,
         cogDeg: next.courseDeg,
         legIndex: i + 1,
-        finished: false
+        finished: false,
+        anchored: leg.to.anchor === true
       }
     }
   }
@@ -161,7 +171,8 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
     sogKn: 0,
     cogDeg: last.courseDeg,
     legIndex: legs.length - 1,
-    finished: true
+    finished: true,
+    anchored: last.to.anchor === true
   }
 }
 

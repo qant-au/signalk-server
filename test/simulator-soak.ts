@@ -36,7 +36,8 @@ describe('simulator soak', () => {
         sogKn: 10,
         cogDeg: 90,
         legIndex: 0,
-        finished: false
+        finished: false,
+        anchored: false
       },
       scenario,
       sent

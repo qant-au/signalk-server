@@ -40,6 +40,7 @@ simulator runs them.
 | `vessel`                   | the own boat: 10 to 30 m. `profile` names its [vessel profile](../vessels/README.md), which gives its length, draft and AIS type code and everything on board; a route without one gives `lengthM`, `draftM` and `typeCode` itself |
 | `waypoints[].speedKn`      | speed on the leg **leaving** this waypoint. Speed belongs to the leg, not the boat, so marinas, channels and no-wake zones stay slow and open water stays fast. The last waypoint has none.                                        |
 | `waypoints[].holdS`        | seconds to wait at this waypoint before leaving (a bridge opening)                                                                                                                                                                 |
+| `waypoints[].anchor`       | the boat lies at anchor here (engines off, no shore power) while it holds, before it leaves a first waypoint or after it reaches a last one; without it a hold is under way and a route's ends are berths                          |
 | `waypoints[].name`, `note` | for people reading the route; optional                                                                                                                                                                                             |
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
