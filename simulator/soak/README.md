@@ -195,24 +195,26 @@ going overboard away from a berth.
 
 ### Runs So Far
 
-2 November 2026: 18 checks passing in 8 minutes, 73,466 deltas validated, every bank's books
-balancing to 0.000 %. Generator starts count each time one more generator is running.
+2 November 2026: 19 checks passing in 9 minutes, 73,466 deltas validated, every bank's books
+balancing to 0.000 %. A thruster runs in each manoeuvre for as long as the boat takes to
+cross its three boat lengths at the leg's speed: seconds on the day out's 6 kn harbour legs,
+half a minute at Miami's 3 kn. Generator starts count each time one more generator is running.
 
-| Case                                              | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Fuel left      |
-| ------------------------------------------------- | ----- | ------ | ---------------- | ---------- | --------- | ------------------- | -------------- |
-| `boat-4m` day out                                 | 24    | 4,322  | none fitted      | none       | none      | no house bank       | 63% (from 95%) |
-| `electric-launch-7m` day out                      | 24    | 4,322  | none fitted      | none       | none      | propulsion only     | no fuel        |
-| `hybrid-catamaran-60ft` day out                   | 24    | 4,322  | 0                | 389 l      | 3         | 92%                 | 91% (from 97%) |
-| `motor-yacht-20m` day out                         | 24    | 4,322  | 2                | 267 l      | 2         | 72%                 | 64% (from 88%) |
-| `motor-yacht-34m` day out                         | 24    | 4,322  | 1                | 1,376 l    | 2         | 92%                 | 85% (from 88%) |
-| `motor-yacht-45m` day out                         | 24    | 4,322  | 2                | 2,171 l    | 0         | 92%                 | 89% (from 91%) |
-| `sailing-yacht-15m` day out                       | 24    | 4,322  | 5                | 282 l      | 4         | 48%                 | 95% (from 97%) |
-| `sailing-yacht-9m` day out                        | 24    | 4,322  | none fitted      | none       | 1         | 58%                 | 94% (from 95%) |
-| `yacht-12m` day out                               | 24    | 4,322  | 5                | 209 l      | 3         | 85%                 | 78% (from 97%) |
-| `motor-yacht-20m` on the Miami route              | 24    | 4,322  | 0                | none       | 2         | 92%                 | 86% (from 88%) |
-| `sailing-yacht-15m` on the Saronic route          | 24    | 4,322  | 2                | 212 l      | 3         | 59%                 | 93% (from 97%) |
-| `motor-sailer-15m` on the Queensland passage      | 72    | 12,962 | 6                | 632 l      | 5         | 92%                 | 33% (from 97%) |
-| `hybrid-catamaran-60ft` on the Queensland passage | 72    | 12,962 | 0                | 1,286 l    | 6         | 92%                 | 54% (from 97%) |
+| Case                                              | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Thrusters run        | Fuel left      |
+| ------------------------------------------------- | ----- | ------ | ---------------- | ---------- | --------- | ------------------- | -------------------- | -------------- |
+| `boat-4m` day out                                 | 24    | 4,322  | none fitted      | none       | none      | no house bank       | none fitted          | 63% (from 95%) |
+| `electric-launch-7m` day out                      | 24    | 4,322  | none fitted      | none       | none      | propulsion only     | none fitted          | no fuel        |
+| `hybrid-catamaran-60ft` day out                   | 24    | 4,322  | 0                | 389 l      | 3         | 92%                 | none fitted          | 91% (from 97%) |
+| `motor-yacht-20m` day out                         | 24    | 4,322  | 2                | 267 l      | 2         | 72%                 | bow 6 s, stern 8 s   | 64% (from 88%) |
+| `motor-yacht-34m` day out                         | 24    | 4,322  | 1                | 1,376 l    | 2         | 92%                 | bow 18 s, stern 20 s | 85% (from 88%) |
+| `motor-yacht-45m` day out                         | 24    | 4,322  | 2                | 2,171 l    | 0         | 92%                 | bow 20 s, stern 22 s | 89% (from 91%) |
+| `sailing-yacht-15m` day out                       | 24    | 4,322  | 5                | 282 l      | 4         | 39%                 | bow 14 s             | 95% (from 97%) |
+| `sailing-yacht-9m` day out                        | 24    | 4,322  | none fitted      | none       | 1         | 54%                 | none fitted          | 94% (from 95%) |
+| `yacht-12m` day out                               | 24    | 4,322  | 5                | 209 l      | 3         | 85%                 | bow 6 s              | 78% (from 97%) |
+| `motor-yacht-20m` on the Miami route              | 24    | 4,322  | 0                | none       | 2         | 92%                 | bow 36 s, stern 26 s | 86% (from 88%) |
+| `sailing-yacht-15m` on the Saronic route          | 24    | 4,322  | 2                | 212 l      | 3         | 54%                 | bow 26 s             | 93% (from 97%) |
+| `motor-sailer-15m` on the Queensland passage      | 72    | 12,962 | 6                | 632 l      | 5         | 92%                 | bow 28 s             | 33% (from 97%) |
+| `hybrid-catamaran-60ft` on the Queensland passage | 72    | 12,962 | 0                | 1,286 l    | 6         | 92%                 | none fitted          | 54% (from 97%) |
 
 The 20 m yacht on the Miami route is alongside for all but four hours of the day, so shore
 power and the dock carry it and its generator and water maker have nothing to do; its
