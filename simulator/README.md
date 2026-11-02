@@ -8,11 +8,14 @@ prepare their data. The simulator itself is described in [SIMULATOR.md](../SIMUL
 ```
 simulator/
   README.md                 this file
-  tools/                    TypeScript tools for fetching and preparing sample data
+  tools/                    TypeScript tools: fetch and prepare data, routes, AIS coverage
+  ais/                      the AIS reception model (what a boat would actually hear)
+  routes/                   own-boat routes: format, timing and position along the way
   downloads/                (git-ignored) files the user downloads from licensed sources
   samples/<sample>/
     README.md               the sample: when, where, every dataset, its source and licence
-    sample.json             what the tools fetch and prepare for this sample
+    sample.json             what the tools fetch and prepare, and how its AIS columns map
+    route.json              the own boat's passage (see routes/README.md)
     open/                   openly licensed data, committed to the repository
     cache/                  (git-ignored) large open files, fetched by the tools
     restricted/             (git-ignored) data prepared from a licensed download
@@ -24,7 +27,7 @@ simulator/
 | ------------------------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Miami ICW](samples/miami-icw-2024-03-16/README.md)                            | Sat 16 March 2024, 10:00 to 14:00 EDT                 | AIS, weather and tides **included**. Depth **fetched** (4 m NOAA BlueTopo, 214 MB).                                                                       |
 | [Saronic Gulf](samples/saronic-gulf-2018-07-13/README.md)                      | Fri 13 July 2018 14:00 to Sat 10:00 EEST              | Depth and weather **included**. AIS and the dataset's own weather **downloaded by the user** (licence below).                                             |
-| [Manly to Hamilton Island](samples/manly-hamilton-island-2026-08-21/README.md) | Departs Fri 21 August 2026 06:00 AEST, about 64 hours | Weather, waves and wave buoys **included**. Depth **fetched** (Great Barrier Reef 30 m, 3.8 GB). AIS **downloaded by the user** (non-commercial licence). |
+| [Manly to Hamilton Island](samples/manly-hamilton-island-2026-08-21/README.md) | Departs Fri 21 August 2026 06:00 AEST, about 68 hours | Weather, waves and wave buoys **included**. Depth **fetched** (Great Barrier Reef 30 m, 3.8 GB). AIS **downloaded by the user** (non-commercial licence). |
 
 **Included** means the files are in `open/` and need nothing further. **Fetched** means the
 source is openly licensed but too large to commit; one command downloads it. **Downloaded by
