@@ -18,46 +18,69 @@ systems.
 
 ## The Profiles
 
-| Profile                 | Boat                                                                     | Engines                                                              | Generators | Banks                                      | Charging                                     | Tanks (fuel, fresh, grey, black) | Sounders | Radars | Inside zones | Used by                  |
-| ----------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------- | ------------------------------------------ | -------------------------------------------- | -------------------------------- | -------- | ------ | ------------ | ------------------------ |
-| `motor-yacht-45m`       | 45 m motor yacht, 2.6 m draft, 380 t                                     | 2 diesel, 1500 kW each                                               | 2 × 99 kW  | house 24 V 2000 Ah, start 24 V 400 Ah      | 2 solar arrays                               | 4 + 2 day tanks, 2, 2, 2         | 2        | 2      | 13           |                          |
-| `motor-yacht-34m`       | 34 m motor yacht, 2.1 m draft                                            | 2 diesel (from length)                                               | 2 × 65 kW  | house and start (from length)              |                                              | 4, 2, 2, 2                       | 2        | 2      | 5            |                          |
-| `motor-yacht-20m`       | 20 m motor yacht, 1.5 m draft, 60 Hz 120 V                               | 2 diesel, 735 kW each                                                | 1 × 22 kW  | house and start (from length)              |                                              | 4, 2, 1, 1                       | 1        | 1      | 5            | Miami ICW                |
-| `sailing-yacht-15m`     | 15 m sailing yacht, 2.2 m draft                                          | 1 diesel, 80 kW                                                      | 1 × 6 kW   | house 12 V 600 Ah, start 12 V 100 Ah       | 400 W wind turbine                           | 2, 2, 1, 1                       | 1        | 1      | 5            | Saronic Gulf             |
-| `motor-sailer-15m`      | 15 m motor-sailer, 1.8 m draft                                           | 1 diesel, 110 kW (150 HP)                                            | 1 × 8 kW   | house and start (from length)              | 800 W solar                                  | 2 × 900 l, 2, 1, 1               | 1        | 1      | 5            | Manly to Hamilton Island |
-| `yacht-12m`             | 12 m motor yacht, everything from length                                 | 2 diesel                                                             | 1          | house and start                            |                                              | 2, 1, 1, 1                       | 1        | 1      | 5            |                          |
-| `sailing-yacht-9m`      | 9 m sailing yacht, 1.6 m draft                                           | 1 diesel, 15 kW                                                      | none       | house and start (from length)              |                                              | 1, 1, 0, 1                       | 1        | 1      | 3            |                          |
-| `electric-launch-7m`    | 7 m electric launch                                                      | 1 electric motor, 10 kW                                              | none       | propulsion 48 V 400 Ah                     |                                              | none                             | 1        | 0      | 0            |                          |
-| `boat-4m`               | 4 m boat                                                                 | 1 petrol outboard, 15 kW                                             | none       | 12 V 50 Ah                                 |                                              | 1 × 25 l, no water tanks         | 1        | 0      | 0            |                          |
-| `hybrid-catamaran-60ft` | 60 ft hybrid solar catamaran, modelled on the Xquisite Sixty Solar Power | 2 hybrid: 261 kW (350 HP) diesel + 130 kW inline electric drive each | 1 × 180 kW | propulsion 400 V 350 Ah, house 24 V 800 Ah | 8 kW solar (2 × 4 kW) on the propulsion bank | 2 × 1700 l, 2 × 500 l, 1, 1      | 2        | 1      | 5            |                          |
+| Profile                 | Boat                                                                     | Engines                                                              | Generators | Banks                                      | Charging                                                                                                               | Tanks (fuel, fresh, grey, black) | Sounders | Radars | Inside zones | Used by                         |
+| ----------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------- | ------ | ------------ | ------------------------------- |
+| `motor-yacht-45m`       | 45 m motor yacht, 2.6 m draft, 380 t                                     | 2 diesel, 1500 kW each                                               | 2 × 99 kW  | house 24 V 2000 Ah, start 24 V 400 Ah      | 2 solar arrays                                                                                                         | 4 + 2 day tanks, 2, 2, 2         | 2        | 2      | 13           |                                 |
+| `motor-yacht-34m`       | 34 m motor yacht, 2.1 m draft                                            | 2 diesel (from length)                                               | 2 × 65 kW  | house and start (from length)              |                                                                                                                        | 4, 2, 2, 2                       | 2        | 2      | 5            |                                 |
+| `motor-yacht-20m`       | 20 m motor yacht, 1.5 m draft, 60 Hz 120 V                               | 2 diesel, 735 kW each                                                | 1 × 22 kW  | house and start (from length)              |                                                                                                                        | 4, 2, 1, 1                       | 1        | 1      | 5            | Miami ICW                       |
+| `sailing-yacht-15m`     | 15 m sailing yacht, 2.2 m draft                                          | 1 diesel, 80 kW                                                      | 1 × 6 kW   | house 12 V 600 Ah, start 12 V 100 Ah       | 400 W wind turbine                                                                                                     | 2, 2, 1, 1                       | 1        | 1      | 5            | Saronic Gulf                    |
+| `motor-sailer-15m`      | 15 m motor-sailer, 1.8 m draft                                           | 1 diesel, 110 kW (150 HP)                                            | 1 × 8 kW   | house and start (from length)              | 800 W solar                                                                                                            | 2 × 900 l, 2, 1, 1               | 1        | 1      | 5            | Manly to Hamilton Island        |
+| `yacht-12m`             | 12 m motor yacht, everything from length                                 | 2 diesel                                                             | 1          | house and start                            |                                                                                                                        | 2, 1, 1, 1                       | 1        | 1      | 5            |                                 |
+| `sailing-yacht-9m`      | 9 m sailing yacht, 1.6 m draft                                           | 1 diesel, 15 kW                                                      | none       | house and start (from length)              |                                                                                                                        | 1, 1, 0, 1                       | 1        | 1      | 3            |                                 |
+| `electric-launch-7m`    | 7 m electric launch                                                      | 1 electric motor, 10 kW                                              | none       | propulsion 48 V 400 Ah                     |                                                                                                                        | none                             | 1        | 0      | 0            |                                 |
+| `boat-4m`               | 4 m boat                                                                 | 1 petrol outboard, 15 kW                                             | none       | 12 V 50 Ah                                 |                                                                                                                        | 1 × 25 l, no water tanks         | 1        | 0      | 0            |                                 |
+| `hybrid-catamaran-60ft` | 60 ft hybrid solar catamaran, modelled on the Xquisite Sixty Solar Power | 2 hybrid: 261 kW (350 HP) diesel + 130 kW inline electric drive each | 1 × 180 kW | propulsion 400 V 350 Ah, house 24 V 800 Ah | 8 kW solar (2 × 4 kW) on the propulsion bank; hotel 2 kW; electric to 7 kn, diesels in below 30 %, electric above 80 % | 2 × 1700 l, 2 × 500 l, 1, 1      | 2        | 1      | 5            | Manly to Hamilton Island (soak) |
 
 The hybrid catamaran's length (18.5 m), beam (8.1 m), draft (1.2 m), light displacement
 (about 38 t), engines, generator, solar (8 kW), fuel (3,400 l) and fresh water (1,000 l)
 follow the Xquisite Sixty Solar Power. Its propulsion bank (400 V, 350 Ah, about 140 kWh)
-and house bank are **assumptions**: the builder's published figures do not give them.
+and house bank are **assumptions**: the builder's published figures do not give them, and
+so are its 2 kW hotel load and its passage rules, set to read the way the builder describes
+the boat running: on its motors in harbour, on its diesels at passage speed, and on its sun
+at anchor.
 
 ## Counts and Defaults
 
 A profile file needs only `id`, `name` and `lengthM`. Anything it leaves out is filled in
 from the length, and anything it gives is used as it is:
 
-| What                 | Default                                                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engines              | two diesels from 10 m (port and starboard), one below; total power about 0.9 × L² kW                                                                                                      |
-| Generators           | one from 10 m, none below                                                                                                                                                                 |
-| Banks                | house and start; 12 V under 12 m, 24 V from 12 m; house about 10 × L^1.5 Ah                                                                                                               |
-| Fuel tanks           | 1 under 10 m, 2 under 20 m, 4 from 20 m                                                                                                                                                   |
-| Fresh water tanks    | none under 6 m, 1 under 15 m, 2 from 15 m                                                                                                                                                 |
-| Grey and black tanks | grey from 10 m, black from 8 m; 1 each under 25 m, 2 each from 25 m                                                                                                                       |
-| Tank capacities      | totals by length: fuel about 0.019 × L^3.93 l, fresh water 0.28 × L^2.86 l, grey a quarter of the fresh water (at least 40 l), black 0.15 of it (at least 45 l), shared between the tanks |
-| Water maker          | from 12 m, 5 l an hour per metre of length (75 l/h at 15 m, 225 l/h at 45 m)                                                                                                              |
-| Sounders             | one, on the centreline, 80% of the draft below the waterline and at most 0.5 m                                                                                                            |
-| Radars               | none under 9 m, one under 25 m, an X-band and an S-band from 25 m                                                                                                                         |
-| Wind instrument      | from 7 m                                                                                                                                                                                  |
-| Inside zones         | saloon and fridge from 6 m; a cabin from 9 m; engine room and freezer from 12 m                                                                                                           |
+| What                   | Default                                                                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engines                | two diesels from 10 m (port and starboard), one below; total power about 0.9 × L² kW                                                                                                      |
+| Generators             | one from 10 m, none below                                                                                                                                                                 |
+| Banks                  | house and start; 12 V under 12 m, 24 V from 12 m; house about 10 × L^1.5 Ah                                                                                                               |
+| Fuel tanks             | 1 under 10 m, 2 under 20 m, 4 from 20 m                                                                                                                                                   |
+| Fresh water tanks      | none under 6 m, 1 under 15 m, 2 from 15 m                                                                                                                                                 |
+| Grey and black tanks   | grey from 10 m, black from 8 m; 1 each under 25 m, 2 each from 25 m                                                                                                                       |
+| Tank capacities        | totals by length: fuel about 0.019 × L^3.93 l, fresh water 0.28 × L^2.86 l, grey a quarter of the fresh water (at least 40 l), black 0.15 of it (at least 45 l), shared between the tanks |
+| Water maker            | from 12 m, 5 l an hour per metre of length (75 l/h at 15 m, 225 l/h at 45 m)                                                                                                              |
+| Hotel load (`hotelKw`) | 0.012 × L^2.2 kW through the waking day, fitted to 7 kW at 18 m and 50 kW at 45 m on motor yachts with air conditioning                                                                   |
+| Hybrid rules           | see [Hybrid Rules](#hybrid-rules), for a profile with a hybrid drive                                                                                                                      |
+| Sounders               | one, on the centreline, 80% of the draft below the waterline and at most 0.5 m                                                                                                            |
+| Radars                 | none under 9 m, one under 25 m, an X-band and an S-band from 25 m                                                                                                                         |
+| Wind instrument        | from 7 m                                                                                                                                                                                  |
+| Inside zones           | saloon and fridge from 6 m; a cabin from 9 m; engine room and freezer from 12 m                                                                                                           |
 
 **The most a profile can have** is 8 fuel tanks, 4 fresh water tanks, 2 grey and 2 black.
 These are limits, not defaults: a profile with more is refused when it loads.
+
+## Hybrid Rules
+
+A profile with a hybrid drive carries its passage rules in a `hybrid` block. Each figure
+can be left out, and gets the default shown:
+
+| Field                      | What it does                                                                                                                                                     | Default                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `electricBelowKn`          | at or below this speed over the ground the drives run on their electric motors alone, the diesels stopped                                                        | the speed at which the propeller takes a fifth of the motors' rating (the propeller law), to the nearest half knot |
+| `dieselBelowSoc`           | below this state of charge of the propulsion bank the diesels take over at any speed and charge the bank, and a generator charging that bank starts              | 0.4                                                                                                                |
+| `electricAboveSoc`         | the diesels hand back to the motors, and the generator stops, once the bank is above this                                                                        | 0.6                                                                                                                |
+| `chargeWhileDiesel`        | while the diesels run, each inline drive runs as a generator off its diesel, charging the bank with up to a quarter of its rating, as much as the bank will take | `true`                                                                                                             |
+| `generatorChargesAtAnchor` | the generator may charge the propulsion bank while the boat lies at anchor; with `false` it never starts there, and the bank carries the night alone             | `true`                                                                                                             |
+
+A hybrid's hotel load runs on its propulsion bank through the inverter, as an all-electric
+boat's does, so its generator starts only for the bank: never for meals or the water maker,
+which run from the bank too. The catamaran sets `hotelKw` to 2 kW; the length formula, fitted
+to motor yachts with air conditioning, would give it 7.4 kW.
 
 Main engines and generators are told apart by id. A generator's id is `generator1`,
 `generator2` and so on; a main engine may not use that form, and a profile that mixes them
@@ -209,27 +232,35 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
 
 - **Engines** follow the boat's speed through the water: revolutions between idle and
   maximum with the share of top speed, power with its cube (the propeller law), fuel at
-  about 0.25 l per kWh for diesel (0.35 for petrol) plus an idle allowance. Coolant, oil and
+  about 0.25 l per kWh for diesel (0.35 for petrol) plus an idle allowance; a generator
+  burns 0.3 l per kWh of electricity at full load, a third of the fuel's energy, and a
+  quarter of that at no load. Coolant, oil and
   exhaust warm towards running temperatures and cool when the engine stops. The engines are
   stopped alongside a berth, at anchor, and on a sailing yacht under sail (above 3.5 kn with
   at least 6 kn of wind), and idle at bridge holds. A route marks a waypoint `anchor` where
   the boat lies at anchor rather than holding under way.
-- **Hybrid drives** run on the electric motor alone at harbour speeds (up to 20% of its
-  rating, about 7 kn on the catamaran) while the propulsion bank is above 40%; the diesel is
-  then stopped and its revolutions read 0. Above that the diesel runs, its alternator charges
-  the low-voltage bank like any diesel's, and while the propulsion bank is below 90% the
-  inline drive charges it.
+- **Hybrid drives** follow the profile's [hybrid rules](#hybrid-rules): on the electric
+  motors alone up to `electricBelowKn`, the diesel stopped and its revolutions reading 0;
+  on the diesels above it, the alternator charging the low-voltage bank like any diesel's and
+  the inline drives charging the propulsion bank as far as it will take. Below
+  `dieselBelowSoc` the diesels take over at any speed until the bank is past
+  `electricAboveSoc`. On the Queensland passage the catamaran leaves Manly on its motors,
+  runs the passage on its diesels with the bank charged to full within the first hour, and
+  comes into Hamilton Island on its motors again.
 - **Electric drives** draw their bank for the power the speed needs.
 - **Generators** on boats from 24 m carry the hotel load whenever the boat is away from the
   berth, starting a second one when the first would be over 80% and stopping it when the
   rest would be under 60%. On smaller boats a generator runs when its bank runs low (until it
   is charged), at anchor at meal times for cooking and hot water, and while the water maker
-  needs it; the air conditioning runs while it does. Once started a generator runs at least
-  15 minutes. Alongside, shore power carries the load.
+  needs it; the air conditioning runs while it does. A hybrid's generator runs only to
+  charge its propulsion bank, below `dieselBelowSoc` until past `electricAboveSoc`, and at
+  anchor only if `generatorChargesAtAnchor`. Once started a generator runs at least 15
+  minutes. Alongside, shore power carries the load.
 - **The water maker** runs away from the berth when the fresh water falls below 85% and
   stops at 98%, on generator power (0.025 kWh a litre). Alongside, the tanks are filled from
   the dock instead.
-- **The hotel load** grows with the boat's size, follows the day (lower at night, higher at
+- **The hotel load** is the profile's `hotelKw` (from the boat's size unless it says),
+  follows the day (lower at night, higher at
   meal times) and adds air conditioning in proportion to the outside temperature, from nothing at 22 °C to
   its most at 36 °C.
 - **Batteries** discharge into the house loads, the fridges' compressors, an inverter and
@@ -237,8 +268,12 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
   drawing on them: solar and wind first, then the DC-DC converter from a propulsion bank
   (which carries the house on a hybrid or electric boat), then engine alternators and drive
   regeneration, then AC chargers, each giving only what the loads and the bank's charge
-  acceptance still want. Chargers are rated at the bank's full charge rate. Voltage follows
-  the state of charge and the current through the bank's resistance.
+  acceptance still want. Chargers are rated at the bank's full charge rate. Each step the
+  bank takes the current that delivers the net power at its terminals through its
+  resistance, from its open-circuit voltage, so what goes in is what is stored plus what the
+  resistance turns to heat; the voltage a monitor reads is that terminal voltage, held at
+  absorption by a charger and wandering a little. Every flow is kept in each bank's energy
+  books, which the [systems soak](../soak/README.md) balances.
 - **Solar** follows the sun's elevation at the boat's position and time, through slowly
   passing cloud; arrays on one bank share what it takes. With a full bank and little load
   the controller backs off, as a real one does. A **wind turbine** follows the apparent

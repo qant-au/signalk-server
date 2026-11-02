@@ -2,16 +2,16 @@
 
 There are two soaks here, and they answer different questions:
 
-|              | [Rig Soak](#rig-soak)                                                   | [Systems Soak](#systems-soak)                                                                                      |
-| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Question     | does **the server** keep up with a run?                                 | do **the simulated boats** stay believable over days?                                                              |
-| Clock        | real time: one scenario second per real second                          | the simulator's controllable clock, 60 scenario seconds per tick; a day of scenario time in about 25 seconds       |
-| Runs against | a running server (the [test rig](../rig/README.md)), over its WebSocket | nothing: the simulator's own code, in the test process                                                             |
-| Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's three-day passage           |
-| Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, and the systems behaving as they should together |
-| Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                      |
-| Takes        | as long as you ask it to run                                            | about seven minutes                                                                                                |
-| Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                            |
+|              | [Rig Soak](#rig-soak)                                                   | [Systems Soak](#systems-soak)                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Question     | does **the server** keep up with a run?                                 | do **the simulated boats** stay believable over days?                                                                                                   |
+| Clock        | real time: one scenario second per real second                          | the simulator's controllable clock, 60 scenario seconds per tick; a day of scenario time in about 25 seconds                                            |
+| Runs against | a running server (the [test rig](../rig/README.md)), over its WebSocket | nothing: the simulator's own code, in the test process                                                                                                  |
+| Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's and the hybrid catamaran's three-day passages                    |
+| Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, the systems behaving as they should together, and every bank's energy books balancing |
+| Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                                                           |
+| Takes        | as long as you ask it to run                                            | about seven minutes                                                                                                                                     |
+| Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 |
 
 Neither is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
 seconds) run there and check one of each shape; the systems soak runs the same model for
@@ -93,6 +93,7 @@ SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name
 | The Miami route, 24 hours        | `motor-yacht-20m`                                                                                           | the sample's real passage, from local midnight: alongside, the passage through the bridges, alongside again                                                                                                                                 |
 | The Saronic route, 24 hours      | `sailing-yacht-15m`                                                                                         | the sample's overnight passage under sail, from two hours before it leaves                                                                                                                                                                  |
 | The Queensland passage, 72 hours | `motor-sailer-15m`                                                                                          | Manly to Hamilton Island, from two hours before it leaves: three days under way                                                                                                                                                             |
+| The Queensland passage, 72 hours | `hybrid-catamaran-60ft`                                                                                     | the same passage, sailed by the hybrid catamaran on its passage rules: on its motors out of Manly and into Hamilton Island, on its diesels charging the bank between                                                                        |
 
 The sounders read a synthetic seabed that rises and falls, so the soak needs no depth
 download.
@@ -132,29 +133,48 @@ download.
 - **The navigational state** is `moored`, `anchored`, `sailing` or `motoring` at every
   tick and agrees with the engines: stopped and out of gear in the first three, something
   in gear under `motoring`. Every case motors at some point, and the sailing yachts sail.
+- **The energy books balance** for every bank of every case, to 1 %: everything delivered
+  in at its terminals (solar, wind, alternators, drive regeneration, the shore and generator
+  chargers, the DC-DC converter) equals everything drawn out (house loads, fridges, the
+  inverter, electric drives, the converter's draw on a propulsion bank, a start bank's
+  standby) plus the change in stored energy plus the loss in the bank's resistance. The
+  stored energy is worked out on its own, from the state of charge at the start and the end
+  and the open-circuit voltage integrated between them, not from the flows. Charge past full
+  or past empty is counted apart, and is zero.
+- **The fuel balances**: what left the tanks equals what the engines and generators burned
+  at their fuel rates, and the `fuel.rate` values sent, each held until the next tick and
+  integrated, come to the same within 1 % (checked where a case burns more than a litre).
+- **Generators** turn no more than 38 % of their fuel's energy (diesel at 9.94 kWh a litre)
+  into electricity, the best a marine diesel set manages.
+- **The hybrid runs as a hybrid**: on its motors alone below its electric speed while the
+  bank is above its ceiling, on both diesels above it, the bank charging from them on
+  passage, its generator starting only below its charge floor, and solar carrying its hotel
+  load whenever the sun is above 30°.
 - **The heading** stays on the course over the ground, off it only by what a knot of
   current across the track and a few degrees of yaw allow, and the speed through the
   water differs from the speed over the ground by at most a knot.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
-water made, pump-outs, the lowest house state of charge, and the fuel left.
+water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also
+prints its energy books, bank by bank, and its fuel and generator efficiency.
 
 ### What It Found
 
 Over its first runs the soak found these. Each was fixed at its cause; none by widening a
 band:
 
-| Found                                                                                       | Cause                                                                                                              | Fix                                                                                                                                                                      |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The 4 m boat's depth sounder was below its keel (transducer 0.5 m, draft 0.3 m)             | the default transducer depth was a fixed 0.5 m                                                                     | the default is now 80% of the draft, at most 0.5 m                                                                                                                       |
-| The motor-sailer's port tank ran dry 15 hours into its passage with the starboard tank full | an engine drew from its own tank until it was empty                                                                | below 15% a storage tank is changed for the fullest one, as a crew changes tanks                                                                                         |
-| Then both tanks ran dry 30 hours in, on a 68-hour passage                                   | the profile could not make the passage: a 150 kW engine at 8.5 kn burns about 23 l/h against 800 l of fuel         | the profile is now 110 kW (150 HP) with 2 × 900 l, as a passage-making motor-sailer carries; boats start with their storage tanks 85 to 98% full                         |
-| One of the 45 m yacht's two solar arrays gave nothing in daylight                           | the first array on a bank took all the bank wanted                                                                 | arrays on one bank share it in proportion to what each could give                                                                                                        |
-| Air conditioning load stopped following the temperature on a 33 °C Saronic afternoon        | the load reached its maximum at 30 °C                                                                              | it rises from 22 °C to its maximum at 36 °C                                                                                                                              |
-| The hybrid catamaran's charger carried 360 A (1 C) into its propulsion bank                 | it cruised at 9.6 kn on electric alone, emptied the bank in an hour, then ran on the generator through the charger | electric alone only up to 20% of the motor's rating (about 7 kn) and above 40% charge, so the diesel takes over first; chargers are rated at the bank's full charge rate |
-| The hybrid's diesels reported 450 V as their alternator voltage                             | the alternator voltage was read from the engine's own bank, the propulsion bank for a hybrid                       | a hybrid's diesel has a low-voltage alternator like any other, charging the start or house bank                                                                          |
-| The catamaran's solar gave nothing on a morning under diesel                                | the house bank's loads were carried by the alternator before the converter from the propulsion bank was offered    | the house hangs off the propulsion bus ahead of any alternator                                                                                                           |
-| Wind angles of −3.142, just outside −π                                                      | rounding to three decimals                                                                                         | angles are kept inside −π to π after rounding                                                                                                                            |
+| Found                                                                                                                                              | Cause                                                                                                                                           | Fix                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The 4 m boat's depth sounder was below its keel (transducer 0.5 m, draft 0.3 m)                                                                    | the default transducer depth was a fixed 0.5 m                                                                                                  | the default is now 80% of the draft, at most 0.5 m                                                                                                                       |
+| The motor-sailer's port tank ran dry 15 hours into its passage with the starboard tank full                                                        | an engine drew from its own tank until it was empty                                                                                             | below 15% a storage tank is changed for the fullest one, as a crew changes tanks                                                                                         |
+| Then both tanks ran dry 30 hours in, on a 68-hour passage                                                                                          | the profile could not make the passage: a 150 kW engine at 8.5 kn burns about 23 l/h against 800 l of fuel                                      | the profile is now 110 kW (150 HP) with 2 × 900 l, as a passage-making motor-sailer carries; boats start with their storage tanks 85 to 98% full                         |
+| One of the 45 m yacht's two solar arrays gave nothing in daylight                                                                                  | the first array on a bank took all the bank wanted                                                                                              | arrays on one bank share it in proportion to what each could give                                                                                                        |
+| Air conditioning load stopped following the temperature on a 33 °C Saronic afternoon                                                               | the load reached its maximum at 30 °C                                                                                                           | it rises from 22 °C to its maximum at 36 °C                                                                                                                              |
+| The hybrid catamaran's charger carried 360 A (1 C) into its propulsion bank                                                                        | it cruised at 9.6 kn on electric alone, emptied the bank in an hour, then ran on the generator through the charger                              | electric alone only up to 20% of the motor's rating (about 7 kn) and above 40% charge, so the diesel takes over first; chargers are rated at the bank's full charge rate |
+| The hybrid's diesels reported 450 V as their alternator voltage                                                                                    | the alternator voltage was read from the engine's own bank, the propulsion bank for a hybrid                                                    | a hybrid's diesel has a low-voltage alternator like any other, charging the start or house bank                                                                          |
+| The catamaran's solar gave nothing on a morning under diesel                                                                                       | the house bank's loads were carried by the alternator before the converter from the propulsion bank was offered                                 | the house hangs off the propulsion bus ahead of any alternator                                                                                                           |
+| Wind angles of −3.142, just outside −π                                                                                                             | rounding to three decimals                                                                                                                      | angles are kept inside −π to π after rounding                                                                                                                            |
+| A 6 kW generator turned 40 % of its fuel's energy into electricity (124.5 MJ out against 117.5 MJ allowed at 38 %), on the energy books' first run | generators burned fuel at the main engines' 0.25 l per kWh, which at full load is 40 % of diesel's energy: more than a small marine set manages | generators now burn 0.3 l per kWh of electricity at full load, a third of the fuel's energy; over the soak they run at 24 to 34 %                                        |
 
 Three failures were the soak's own: its gap check started from a slow delta, it expected
 the Miami passage (alongside most of the day, where the dock fills the tanks) to make water,
@@ -168,25 +188,29 @@ going overboard away from a berth.
 
 ### Runs So Far
 
-2 November 2026: 16 checks passing in 7 minutes, 60,504 deltas validated. Generator starts
-count each time one more generator is running.
+2 November 2026: 18 checks passing in 8 minutes, 73,466 deltas validated, every bank's books
+balancing to 0.000 %. Generator starts count each time one more generator is running.
 
-| Case                                         | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Fuel left      |
-| -------------------------------------------- | ----- | ------ | ---------------- | ---------- | --------- | ------------------- | -------------- |
-| `boat-4m` day out                            | 24    | 4,322  | none fitted      | none       | none      | no house bank       | 63% (from 95%) |
-| `electric-launch-7m` day out                 | 24    | 4,322  | none fitted      | none       | none      | propulsion only     | no fuel        |
-| `hybrid-catamaran-60ft` day out              | 24    | 4,322  | 3                | 389 l      | 3         | 92%                 | 89% (from 97%) |
-| `motor-yacht-20m` day out                    | 24    | 4,322  | 2                | 267 l      | 2         | 72%                 | 64% (from 88%) |
-| `motor-yacht-34m` day out                    | 24    | 4,322  | 1                | 1,376 l    | 2         | 92%                 | 85% (from 88%) |
-| `motor-yacht-45m` day out                    | 24    | 4,322  | 2                | 2,171 l    | 0         | 92%                 | 89% (from 91%) |
-| `sailing-yacht-15m` day out                  | 24    | 4,322  | 5                | 282 l      | 4         | 47%                 | 96% (from 97%) |
-| `sailing-yacht-9m` day out                   | 24    | 4,322  | none fitted      | none       | 1         | 58%                 | 94% (from 95%) |
-| `yacht-12m` day out                          | 24    | 4,322  | 5                | 209 l      | 3         | 85%                 | 79% (from 97%) |
-| `motor-yacht-20m` on the Miami route         | 24    | 4,322  | 0                | none       | 2         | 92%                 | 86% (from 88%) |
-| `sailing-yacht-15m` on the Saronic route     | 24    | 4,322  | 2                | 212 l      | 3         | 59%                 | 93% (from 97%) |
-| `motor-sailer-15m` on the Queensland passage | 72    | 12,962 | 6                | 632 l      | 5         | 92%                 | 33% (from 97%) |
+| Case                                              | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Fuel left      |
+| ------------------------------------------------- | ----- | ------ | ---------------- | ---------- | --------- | ------------------- | -------------- |
+| `boat-4m` day out                                 | 24    | 4,322  | none fitted      | none       | none      | no house bank       | 63% (from 95%) |
+| `electric-launch-7m` day out                      | 24    | 4,322  | none fitted      | none       | none      | propulsion only     | no fuel        |
+| `hybrid-catamaran-60ft` day out                   | 24    | 4,322  | 0                | 389 l      | 3         | 92%                 | 91% (from 97%) |
+| `motor-yacht-20m` day out                         | 24    | 4,322  | 2                | 267 l      | 2         | 72%                 | 64% (from 88%) |
+| `motor-yacht-34m` day out                         | 24    | 4,322  | 1                | 1,376 l    | 2         | 92%                 | 85% (from 88%) |
+| `motor-yacht-45m` day out                         | 24    | 4,322  | 2                | 2,171 l    | 0         | 92%                 | 89% (from 91%) |
+| `sailing-yacht-15m` day out                       | 24    | 4,322  | 5                | 282 l      | 4         | 48%                 | 95% (from 97%) |
+| `sailing-yacht-9m` day out                        | 24    | 4,322  | none fitted      | none       | 1         | 58%                 | 94% (from 95%) |
+| `yacht-12m` day out                               | 24    | 4,322  | 5                | 209 l      | 3         | 85%                 | 78% (from 97%) |
+| `motor-yacht-20m` on the Miami route              | 24    | 4,322  | 0                | none       | 2         | 92%                 | 86% (from 88%) |
+| `sailing-yacht-15m` on the Saronic route          | 24    | 4,322  | 2                | 212 l      | 3         | 59%                 | 93% (from 97%) |
+| `motor-sailer-15m` on the Queensland passage      | 72    | 12,962 | 6                | 632 l      | 5         | 92%                 | 33% (from 97%) |
+| `hybrid-catamaran-60ft` on the Queensland passage | 72    | 12,962 | 0                | 1,286 l    | 6         | 92%                 | 54% (from 97%) |
 
 The 20 m yacht on the Miami route is alongside for all but four hours of the day, so shore
 power and the dock carry it and its generator and water maker have nothing to do; its
 day-out case runs both. The 45 m yacht's holding tanks (2 × 2,000 l grey, 2 × 1,500 l black)
-do not fill far enough in a day to need emptying.
+do not fill far enough in a day to need emptying. The hybrid catamaran's generator never
+starts: by day its sun carries its hotel load, on passage its diesels keep the bank full,
+and its 140 kWh bank never falls to its 30 % floor (the fast tests start the generator on a
+smaller bank).
