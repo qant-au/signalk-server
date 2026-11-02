@@ -56,10 +56,25 @@ cannot resolve the harbour, so does anywhere it has no data. Charted dry land ne
 Details are in [the routes README](../routes/README.md#depth-and-route-adjustment).
 
 **Own boat.** Every second the plugin sends the boat's position, speed and course over
-ground, heading, the scenario time (`navigation.datetime`), and the depth under it from the
-grid: `environment.depth.belowSurface` and `environment.depth.belowKeel` (below surface less
-the draft). Depths are relative to the grid's datum (mean sea level, lowest astronomical tide
+ground and the scenario time (`navigation.datetime`). The boat swings through each waypoint
+it passes on an arc at a rate of turn that suits its length and speed, so position, course
+and speed agree through the turn. A route without a vessel profile also sends a heading
+equal to the course, and the depth under the boat from the grid:
+`environment.depth.belowSurface` and `environment.depth.belowKeel` (below surface less the
+draft). Depths are relative to the grid's datum (mean sea level, lowest astronomical tide
 or the survey datum); tides are not applied yet.
+
+**Navigation.** With a profile, the boat sends what a navigation suite sends around the
+position: its navigational state (moored, anchored, sailing or motoring, always in step with
+the engines), heading true and magnetic with the magnetic variation for the sample's area
+and date, course over ground magnetic, speed through the water against the speed over
+ground with a small current, rate of turn and rudder angle, roll and pitch from the boat's
+size and the sea, the total and trip logs counting through the water, and a GNSS fix with
+its satellites and dilution. Paths and reasoning are in
+[the vessels README](../vessels/README.md#navigation). Each send is the state at the
+systems model's latest two-second step, position and scenario time included, so the same
+scenario time carries the same values at any time multiplier; a faster clock only sends
+fewer of them.
 
 **Systems.** When the sample's route names a vessel profile, the boat also sends its
 engines, generators, batteries, chargers, solar and wind charging, tanks, wind and the

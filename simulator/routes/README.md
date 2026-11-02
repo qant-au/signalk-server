@@ -45,7 +45,12 @@ simulator runs them.
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
 speed and course at any moment (`positionAt`), holding at waypoints and stopping at the end.
-Positions are interpolated along each leg.
+Positions are interpolated along each leg, and at a waypoint the boat passes without
+stopping it swings onto the next leg on an arc tangent to both, at a rate of turn that
+suits its length and speed; the arc joins each leg where the boat on the straight legs
+would be, so the legs' timings stand ([details](../vessels/README.md#navigation)). Leg
+speeds are speeds over the ground; the boat's speed through the water differs from them by
+the current.
 
 ```shell
 npx ts-node simulator/tools/route.ts show <sample>     # legs, distances, speeds, arrival times

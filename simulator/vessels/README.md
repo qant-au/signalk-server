@@ -65,8 +65,8 @@ up is refused.
 
 ## What the Boat Sends
 
-Every value is on a path from the Signal K specification, in SI units. Engine and wind
-data go every second; electrical, tanks and the spaces inside every five seconds, as a
+Every value is on a path from the Signal K specification, in SI units. Engine, wind and
+navigation data go every second; electrical, tanks and the spaces inside every five seconds, as a
 real gateway sends slow-changing data less often.
 
 | System             | Paths                                                                                                                                                                                                                                                                                                              |
@@ -82,7 +82,12 @@ real gateway sends slow-changing data less often.
 | Depth sounders     | `environment.depth.belowSurface`, `belowTransducer`, `belowKeel`, `surfaceToTransducer`, `transducerToKeel`, one update per sounder with its own source; `sensors.<id>.fromCenter`                                                                                                                                 |
 | Wind               | `environment.wind.speedTrue`, `directionTrue`, `angleTrueWater`, `speedApparent`, `angleApparent`                                                                                                                                                                                                                  |
 | Inside and outside | `environment.inside.<zone>.temperature`, `relativeHumidity`; `environment.outside.temperature`, `pressure`; `environment.water.temperature`                                                                                                                                                                        |
-| Log                | `navigation.speedThroughWater`                                                                                                                                                                                                                                                                                     |
+| Navigation state   | `navigation.state`: `moored`, `anchored`, `sailing` or `motoring`                                                                                                                                                                                                                                                  |
+| Heading and course | `navigation.headingTrue`, `headingMagnetic`, `magneticVariation`, `courseOverGroundTrue`, `courseOverGroundMagnetic`                                                                                                                                                                                               |
+| Speed and logs     | `navigation.speedThroughWater`, `speedOverGround`, `log`, `trip.log`, `trip.lastReset`                                                                                                                                                                                                                             |
+| Turning            | `navigation.rateOfTurn` (positive to starboard), `steering.rudderAngle` (positive to starboard)                                                                                                                                                                                                                    |
+| Attitude           | `navigation.attitude` with `roll` (positive to starboard) and `pitch` (positive bow up)                                                                                                                                                                                                                            |
+| GNSS               | `navigation.position`, `datetime`, `gnss.type`, `gnss.methodQuality`, `gnss.satellites`, `gnss.horizontalDilution`, `gnss.positionDilution`                                                                                                                                                                        |
 
 **Names.** When a run starts the plugin sends metadata with a `displayName` (and the
 `description` the specification requires) for every engine, generator and its AC output,
@@ -125,10 +130,64 @@ count only while it runs. Main engines and generator engines never share an id, 
 anything reading `propulsion` can tell them apart by id or by the display name, and the
 tests check the counts of each separately.
 
+## Navigation
+
+The navigation values are worked out with the systems, in the same steps, so they agree
+with what the engines are doing and with each other.
+
+- **State** follows where the boat is and what drives it: `moored` alongside a berth,
+  before departure and after arrival; `anchored` at a waypoint marked `anchor`; `sailing`
+  when a sailing yacht is under sail; `motoring` otherwise, holds at a bridge included. The
+  engines are stopped and out of gear in the first three and running in gear in the last
+  (a hybrid in its electric mode is in gear with its diesel stopped), so a reader never
+  sees a moored boat in gear or a sailing boat under power.
+- **Current and heading.** The route is the track over the ground, and its leg speeds are
+  speeds over the ground. A small current runs under the boat, a tenth to four tenths of a
+  knot, setting in a direction and wandering slowly about both, seeded per run. The helm
+  holds the track against it, so `headingTrue` is the course over the ground turned by the
+  angle that cancels the current, `speedThroughWater` is the boat's speed through the
+  moving water, and the two speeds differ by the current. A sea puts a slow wander of a
+  degree or two on the heading, more on a small boat. Alongside, the lines hold the boat on
+  the berth's heading and nothing moves past the log. At anchor or holding, the boat lies
+  head to the current, which runs past the log; in the last five minutes before it leaves,
+  the crew swings it onto the course it leaves on. A heading never changes faster than the
+  boat can swing: its turning rate under way, or when stopped a pivot of three quarters
+  of a degree a second on the largest boats up to three on the smallest.
+- **Magnetic variation** comes from the International Geomagnetic Reference Field on the
+  sample's date, as a grid over its area in the sample's `magnetic-variation.json`
+  (`npx ts-node simulator/tools/magnetic-variation.ts <sample>` writes it, from NOAA's
+  calculator), read between the grid points. `headingMagnetic` and
+  `courseOverGroundMagnetic` are the true values less the variation, positive east as the
+  specification has it. A sample without the file sends no magnetic values.
+- **Turns.** A boat swings through a waypoint it passes without stopping, on an arc tangent
+  to both legs. It turns at the rate its length and speed allow, about five lengths of
+  turning radius and never faster than five degrees a second, or faster where a short leg
+  leaves no room. The arc joins each leg where the boat on the straight legs would be at
+  that moment, so the legs keep their timings, and the boat slows a little round it. The
+  position, `courseOverGroundTrue`, `speedOverGround` and `rateOfTurn` all come from the
+  same arc. The rudder does the work: `steering.rudderAngle` is in proportion to the rate of
+  turn times the boat's length over its speed through the water, up to 35 degrees, so a
+  steady turn holds a steady angle, and the helm's small corrections show in it as the
+  heading wanders. It is central alongside and when there is no way on.
+- **Attitude.** The sea is worked out from the wind, fetch-limited as a coastal sea is,
+  and sheltered alongside and at anchor. Roll grows with the sea and falls with the beam;
+  pitch grows with the sea and falls with the length; both wander irregularly with the
+  boat's own periods. A sailing yacht heels to leeward under sail, up to 20 degrees with a
+  fresh breeze across it, and a motor boat trims bow up a little with speed.
+- **Logs.** `navigation.log` counts the distance through the water from a seeded total
+  of a few thousand miles. `navigation.trip.log` counts it from `trip.lastReset`, which is
+  the run's start or the last time the boat left a berth.
+- **GNSS.** The fix is a combined GPS and GLONASS fix. The satellites in use wander slowly
+  between 5 and 16, one at a time, and the horizontal dilution follows them: lower with
+  more satellites, with a little jitter of its own. The position dilution is about 1.7
+  times the horizontal.
+
 ## How the Systems Relate
 
 The model moves in fixed two-second steps of scenario time, whatever the time multiplier,
-so a run at x300 is the same run as at x1.
+so a run at x300 is the same run as at x1. Everything the boat sends, its position and
+scenario time included, is the state at the model's latest step, so the same scenario time
+carries the same values at any multiplier; a faster clock only skips steps between sends.
 
 - **Engines** follow the boat's speed through the water: revolutions between idle and
   maximum with the share of top speed, power with its cube (the propeller law), fuel at
@@ -193,7 +252,8 @@ health, voltage, current and temperature; each engine's and generator's run hour
 whether it is running, its temperatures and, for a generator, how long it has been
 running and whether it was started to charge its bank; each solar array's yield today;
 the inside spaces and their compressors; the weather; the fuel transfer pump and the
-water maker; the holding tanks being pumped out; and every drift with the state of its
+water maker; the holding tanks being pumped out; the heading, logs, trip, attitude and
+GNSS; and every drift with the state of its
 seeded stream. A resumed run is the same run: two hours, a restart and two more hours give
 exactly the values an unbroken four-hour run gives at the same seed, for every profile.
 The saved systems name their profile and seed, and are used only when both still match.
