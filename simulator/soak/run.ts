@@ -10,7 +10,11 @@ import {
 } from '../routes/route'
 import { publishRoute } from '../routes/resource'
 import { ScenarioClock } from './clock'
-import { ownBoatDelta, vesselDelta } from './deltas'
+import path from 'path'
+
+const VESSELS = path.join(__dirname, '..', 'vessels')
+import { identityDelta, ownBoatDelta, vesselIdentity } from './deltas'
+import { loadProfile } from '../vessels/profile'
 
 /**
  * A real-time soak run: the own boat sails its route on the rig, one scenario second per
@@ -190,8 +194,12 @@ export async function soak(
       `publishing the route failed: ${(error as Error).message}`
     )
   }
+  // the same name, MMSI and dimensions the plugin sends, so the boat is one vessel
+  const profile = route.vessel.profile
+    ? loadProfile(route.vessel.profile, VESSELS)
+    : undefined
   await feed.send(
-    vesselDelta(route.vessel, route.vessel.description, startedAt)
+    identityDelta(vesselIdentity(route.vessel, profile), startedAt).delta
   )
   // the read-back can trail the latest send by a delta or two
   const recent: RoutePosition[] = []

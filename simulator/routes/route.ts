@@ -27,6 +27,10 @@ export interface Waypoint {
 
 export interface RouteVessel {
   description: string
+  /** the boat's name, sent as the own vessel's name */
+  name?: string
+  /** its MMSI, nine digits beginning with its flag's MID */
+  mmsi?: string
   lengthM: number
   draftM: number
   /** AIS ship type code the own boat would broadcast */
@@ -421,6 +425,8 @@ export async function loadRoute(sampleDir: string): Promise<Route> {
     const profile = loadProfile(id, vesselsDirFor(sampleDir))
     route.vessel = {
       description: route.vessel.description ?? profile.name,
+      name: route.vessel.name,
+      mmsi: route.vessel.mmsi,
       lengthM: profile.lengthM,
       draftM: profile.draftM,
       typeCode: profile.typeCode,

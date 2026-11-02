@@ -107,7 +107,14 @@ export interface VesselProfile {
   name: string
   lengthM: number
   beamM: number
+  /** draft as the boat floats on passage */
   draftM: number
+  /** the deepest draft, for a boat whose keel or boards go deeper than her passage draft */
+  maxDraftM?: number
+  /** waterline to the highest point: the masthead, or the top of a motor boat's arch or mast */
+  airHeightM: number
+  /** where the AIS antenna is: metres aft of the bow and to starboard of the centreline */
+  aisAntenna: { fromBowM: number; fromCenterM: number }
   displacementT: number
   typeCode: number
   rig: 'motor' | 'sail'
@@ -164,6 +171,11 @@ const HOTEL_KW_FACTOR = 0.012
 const HOTEL_KW_EXPONENT = 2.2
 /** a hybrid with no figure of its own runs electric up to the speed its motors give at this share of their rating */
 const HYBRID_ELECTRIC_SHARE = 0.2
+/** air height from length: a sailing yacht's masthead, a motor boat's arch or radar mast */
+const AIR_HEIGHT_SAIL = { perM: 1.45, plusM: 1 }
+const AIR_HEIGHT_MOTOR = { perM: 0.22, plusM: 1.5 }
+/** the AIS antenna sits on the arch or mast, a little aft of amidships */
+const AIS_ANTENNA_FROM_BOW_SHARE = 0.55
 const HYBRID_DIESEL_BELOW_SOC = 0.4
 const HYBRID_ELECTRIC_ABOVE_SOC = 0.6
 const SOUNDER_DEPTH_M = 0.5
@@ -390,6 +402,12 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
   } as VesselProfile
   if (engines.some((e) => e.type === 'hybrid')) {
     profile.hybrid = { ...defaultHybrid(profile), ...p.hybrid }
+  }
+  const air = profile.rig === 'sail' ? AIR_HEIGHT_SAIL : AIR_HEIGHT_MOTOR
+  profile.airHeightM = p.airHeightM ?? round(air.perM * L + air.plusM, 0.1)
+  profile.aisAntenna = p.aisAntenna ?? {
+    fromBowM: round(AIS_ANTENNA_FROM_BOW_SHARE * L, 0.1),
+    fromCenterM: 0
   }
 
   // tie engines and generators to tanks and banks when the file does not say

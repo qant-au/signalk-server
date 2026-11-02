@@ -10,7 +10,15 @@ import {
   loadScenario
 } from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
-import { Delta } from '../soak/deltas'
+import {
+  Delta,
+  IDENTITY_FIELDS,
+  IdentityField,
+  SERVER_KEPT_FIELDS,
+  identityPathValue,
+  identityValues,
+  vesselIdentity
+} from '../soak/deltas'
 import { StaleStateError, SystemsState } from '../systems/model'
 
 /**
@@ -57,6 +65,33 @@ interface App {
   }
   activateRoute(route: { href: string; pointIndex: number }): Promise<void>
   clearDestination(): Promise<void>
+  /**
+   * The server's configuration. The plugin API has no reader for the owner's vessel
+   * settings, so they are read where the server keeps them: the base deltas the Admin
+   * UI's vessel page writes, and a `vessel` block in settings.json.
+   */
+  config?: {
+    baseDeltaEditor?: {
+      getSelfValue(path: string): unknown
+      setSelfValue(path: string, value: unknown): void
+      removeSelfValue(path: string): void
+    }
+    settings?: { vessel?: Record<string, unknown> }
+  }
+}
+
+/** a short name for each identity field, for the status line */
+const FIELD_LABELS: Record<IdentityField, string> = {
+  name: 'name',
+  mmsi: 'MMSI',
+  'design.length': 'length',
+  'design.beam': 'beam',
+  'design.draft': 'draft',
+  'design.airHeight': 'air height',
+  'design.displacement': 'displacement',
+  'design.aisShipType': 'ship type',
+  'sensors.ais.fromBow': 'AIS antenna from bow',
+  'sensors.ais.fromCenter': 'AIS antenna from centre'
 }
 
 const PLUGIN_ID = 'signalk-simulator'
@@ -139,6 +174,86 @@ export = function simulatorPlugin(app: App) {
     return systems
   }
 
+  /**
+   * The identity fields the owner's own vessel settings already give, which the plugin
+   * leaves alone: whatever the server's base deltas hold (the Admin UI's vessel page), and
+   * a name or MMSI in settings.json's `vessel` block, which this server no longer reads
+   * itself but which still says what the owner calls the boat.
+   */
+  function ownerFields(): IdentityField[] {
+    const base = app.config?.baseDeltaEditor
+    const legacy = app.config?.settings?.vessel ?? {}
+    const given = (v: unknown) => v !== undefined && v !== null && v !== ''
+    return IDENTITY_FIELDS.filter(
+      (field) =>
+        given(base?.getSelfValue(field)) ||
+        ((field === 'name' || field === 'mmsi') && given(legacy[field]))
+    )
+  }
+
+  /** the fields this plugin put into the server's vessel settings, in memory, with their values */
+  const lent = new Map<IdentityField, unknown>()
+
+  /**
+   * Puts the sample's name, MMSI and the dimensions the server keeps for itself into the
+   * server's vessel settings, in memory only (never saved), for each field the owner has
+   * not set, and sends them as the server sends its own settings, sourced `defaults`. The
+   * server drops these fields from any other source. Gives the fields it set.
+   */
+  function lendIdentity(scenario: Scenario, owned: IdentityField[]) {
+    const base = app.config?.baseDeltaEditor
+    if (!base) return []
+    const values = identityValues(
+      vesselIdentity(scenario.route.vessel, scenario.profile)
+    )
+    const fields = SERVER_KEPT_FIELDS.filter(
+      (f) => !owned.includes(f) && values.has(f)
+    )
+    for (const field of fields) {
+      base.setSelfValue(field, values.get(field))
+      lent.set(field, values.get(field))
+    }
+    if (fields.length) {
+      app.handleMessage(PLUGIN_ID, {
+        context: 'vessels.self',
+        updates: [
+          {
+            $source: 'defaults',
+            values: fields.map((f) => identityPathValue(f, values.get(f)))
+          }
+        ]
+      } as unknown as Partial<Delta>)
+    }
+    return fields
+  }
+
+  /** takes back what lendIdentity put in, where it is still what was put there */
+  function returnIdentity() {
+    const base = app.config?.baseDeltaEditor
+    const taken: IdentityField[] = []
+    for (const [field, value] of lent) {
+      if (
+        base &&
+        JSON.stringify(base.getSelfValue(field)) === JSON.stringify(value)
+      ) {
+        base.removeSelfValue(field)
+        taken.push(field)
+      }
+    }
+    lent.clear()
+    if (taken.length) {
+      app.handleMessage(PLUGIN_ID, {
+        context: 'vessels.self',
+        updates: [
+          {
+            $source: 'defaults',
+            values: taken.map((f) => identityPathValue(f, null))
+          }
+        ]
+      } as unknown as Partial<Delta>)
+    }
+  }
+
   async function publishRoute(scenario: Scenario) {
     const route = scenario.route
     await app.resourcesApi.setResource(
@@ -207,12 +322,15 @@ export = function simulatorPlugin(app: App) {
           showTraffic: options.showTraffic,
           scenarioStartMs,
           seed: options.seed,
-          systemsState
+          systemsState,
+          identityWithheld: [...owned, ...SERVER_KEPT_FIELDS]
         },
         (delta) => app.handleMessage(PLUGIN_ID, delta),
         Date.now()
       )
     const systemsState = savedSystems(options, scenario, saved)
+    const owned = ownerFields()
+    const lentFields = lendIdentity(scenario, owned)
     try {
       simulation = start(systemsState)
     } catch (error) {
@@ -226,7 +344,27 @@ export = function simulatorPlugin(app: App) {
     const tightened = (scenario.turns ?? []).filter(
       (t) => t.clear && t.plannedRadiusM !== undefined
     ).length
+    const labels = (fields: IdentityField[]) =>
+      fields.map((f) => FIELD_LABELS[f]).join(', ')
+    const unset = SERVER_KEPT_FIELDS.filter(
+      (f) => !owned.includes(f) && !lentFields.includes(f)
+    )
+    const identity = [
+      lentFields.length
+        ? `set ${labels(lentFields)} in the server's vessel settings, until stopped`
+        : '',
+      simulation.identitySent.length
+        ? `sent ${labels(simulation.identitySent)}`
+        : '',
+      owned.length ? `left the owner's ${labels(owned)}` : '',
+      unset.length
+        ? `could not set ${labels(unset)}: no access to the server's vessel settings`
+        : ''
+    ]
+      .filter(Boolean)
+      .join('; ')
     const notes = [
+      identity,
       adjusted ? `${adjusted} legs moved for depth` : '',
       tightened ? `${tightened} turns tightened for depth` : '',
       ...scenario.notes
@@ -361,6 +499,7 @@ export = function simulatorPlugin(app: App) {
 
     stop() {
       stopped = true
+      returnIdentity()
       if (timer) clearInterval(timer)
       timer = undefined
       simulation = undefined

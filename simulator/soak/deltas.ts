@@ -1,4 +1,5 @@
 import { RoutePosition, RouteVessel } from '../routes/route'
+import { VesselProfile } from '../vessels/profile'
 
 /**
  * Signal K deltas for the own boat. Signal K carries SI units: speeds in metres per
@@ -81,30 +82,171 @@ export function ownBoatDelta(
   }
 }
 
-/** Static details of the own boat, sent once at the start. */
-export function vesselDelta(
+/**
+ * Who the own boat is and its dimensions, from its route and its profile, for the paths
+ * a chart plotter or an AIS plugin sizes and names a boat by.
+ */
+export interface VesselIdentity {
+  name: string
+  mmsi?: string
+  lengthM: number
+  beamM?: number
+  draftM: number
+  maxDraftM?: number
+  airHeightM?: number
+  displacementT?: number
+  typeCode: number
+  aisAntenna?: { fromBowM: number; fromCenterM: number }
+}
+
+/** what the identity delta can carry, each a field an owner's own settings may already give */
+export const IDENTITY_FIELDS = [
+  'name',
+  'mmsi',
+  'design.length',
+  'design.beam',
+  'design.draft',
+  'design.airHeight',
+  'design.displacement',
+  'design.aisShipType',
+  'sensors.ais.fromBow',
+  'sensors.ais.fromCenter'
+] as const
+export type IdentityField = (typeof IDENTITY_FIELDS)[number]
+
+/**
+ * The fields the server keeps for its own vessel settings: it drops them from any delta
+ * not sourced `defaults` (src/staticDataFilter.ts), so a plugin cannot send them as itself.
+ */
+export const SERVER_KEPT_FIELDS: readonly IdentityField[] = [
+  'name',
+  'mmsi',
+  'design.length',
+  'design.beam',
+  'design.draft',
+  'design.aisShipType'
+]
+
+/** each identity field's value, as a delta carries it; a field with no value is absent */
+export function identityValues(
+  identity: VesselIdentity
+): Map<IdentityField, unknown> {
+  const id = identity
+  const all: [IdentityField, unknown][] = [
+    ['name', id.name],
+    ['mmsi', id.mmsi],
+    ['design.length', { overall: id.lengthM }],
+    ['design.beam', id.beamM],
+    [
+      'design.draft',
+      id.maxDraftM !== undefined
+        ? { current: id.draftM, maximum: id.maxDraftM }
+        : { current: id.draftM }
+    ],
+    ['design.airHeight', id.airHeightM],
+    [
+      'design.displacement',
+      id.displacementT !== undefined
+        ? id.displacementT * KG_PER_TONNE
+        : undefined
+    ],
+    [
+      'design.aisShipType',
+      { id: id.typeCode, name: AIS_TYPE_NAMES[id.typeCode] }
+    ],
+    ['sensors.ais.fromBow', id.aisAntenna?.fromBowM],
+    ['sensors.ais.fromCenter', id.aisAntenna?.fromCenterM]
+  ]
+  return new Map(all.filter(([, v]) => v !== undefined))
+}
+
+/** a field and its value as a delta's path and value: name and MMSI sit at the vessel's root */
+export function identityPathValue(
+  field: IdentityField,
+  value: unknown
+): { path: string; value: unknown } {
+  return field === 'name' || field === 'mmsi'
+    ? { path: '', value: { [field]: value } }
+    : { path: field, value }
+}
+
+const IDENTITY_META: Partial<Record<IdentityField, [string, string]>> = {
+  'design.length': ['Length', 'length overall, m'],
+  'design.beam': ['Beam', 'beam, m'],
+  'design.draft': [
+    'Draft',
+    'draft as she floats, and the deepest where the profile gives it, m'
+  ],
+  'design.airHeight': ['Air height', 'waterline to the highest point, m'],
+  'design.displacement': ['Displacement', 'light displacement, kg'],
+  'design.aisShipType': [
+    'AIS ship type',
+    'the ship type the own AIS transmits'
+  ],
+  'sensors.ais.fromBow': [
+    'AIS antenna from bow',
+    'AIS antenna aft of the bow, m'
+  ],
+  'sensors.ais.fromCenter': [
+    'AIS antenna from centreline',
+    'AIS antenna to starboard of the centreline, m'
+  ]
+}
+
+const KG_PER_TONNE = 1000
+
+export function vesselIdentity(
   vessel: RouteVessel,
-  name: string,
-  sentAtMs: number
-): Delta {
+  profile?: VesselProfile
+): VesselIdentity {
   return {
+    name: vessel.name ?? vessel.description,
+    mmsi: vessel.mmsi,
+    lengthM: vessel.lengthM,
+    draftM: vessel.draftM,
+    typeCode: vessel.typeCode,
+    beamM: profile?.beamM,
+    maxDraftM: profile?.maxDraftM,
+    airHeightM: profile?.airHeightM,
+    displacementT: profile?.displacementT,
+    aisAntenna: profile?.aisAntenna
+  }
+}
+
+/**
+ * The own boat's identity and dimensions as one delta, leaving out the fields in
+ * `withheld` (the ones the server's own vessel settings already give), with metadata
+ * saying what each is. Gives the fields it carries.
+ */
+export function identityDelta(
+  identity: VesselIdentity,
+  sentAtMs: number,
+  withheld: ReadonlySet<string> = new Set()
+): { delta: Delta; sent: IdentityField[] } {
+  const values: { path: string; value: unknown }[] = []
+  const meta: NonNullable<Delta['updates'][number]['meta']> = []
+  const sent: IdentityField[] = []
+  for (const [field, value] of identityValues(identity)) {
+    if (withheld.has(field)) continue
+    sent.push(field)
+    values.push(identityPathValue(field, value))
+    const named = IDENTITY_META[field]
+    if (named)
+      meta.push({
+        path: field,
+        value: { displayName: named[0], description: named[1] }
+      })
+  }
+  const delta: Delta = {
     context: 'vessels.self',
     updates: [
       {
         source: SOURCE,
         timestamp: new Date(sentAtMs).toISOString(),
-        values: [
-          { path: '', value: { name } },
-          { path: 'design.length', value: { overall: vessel.lengthM } },
-          {
-            path: 'design.aisShipType',
-            value: {
-              id: vessel.typeCode,
-              name: AIS_TYPE_NAMES[vessel.typeCode]
-            }
-          }
-        ]
+        values,
+        ...(meta.length ? { meta } : {})
       }
     ]
   }
+  return { delta, sent }
 }

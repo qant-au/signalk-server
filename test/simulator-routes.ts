@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { readdirSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync } from 'fs'
 import path from 'path'
 import { AisReport } from '../simulator/ais/targets'
 import {
@@ -173,7 +173,25 @@ describe('simulator routes', () => {
         expect(r.vessel.profile).to.be.a('string')
         expect(r.vessel.lengthM).to.be.within(10, 30)
         expect(r.vessel.draftM).to.be.within(1, 3)
-        expect(text).to.not.match(/mmsi|vessel_id|craft_id|imo|call_?sign/i)
+        // the own boat has a name and an MMSI of its own, in its flag's MID range; nothing
+        // else in the route may carry an identity from the source data
+        const flagMid: Record<string, RegExp> = {
+          'miami-icw-2024-03-16': /^36[67]\d{6}$/,
+          'saronic-gulf-2018-07-13': /^2(3[7-9]|4[01])\d{6}$/,
+          'manly-hamilton-island-2026-08-21': /^503\d{6}$/
+        }
+        expect(r.vessel.name).to.be.a('string')
+        expect(r.vessel.mmsi).to.match(flagMid[sample])
+        const own = JSON.parse(text)
+        delete own.vessel.mmsi
+        expect(JSON.stringify(own)).to.not.match(
+          /mmsi|vessel_id|craft_id|imo|call_?sign/i
+        )
+        // and no vessel in the sample's own AIS has that MMSI
+        const ais = path.join(samples, sample, 'open', 'ais.csv')
+        if (existsSync(ais)) {
+          expect(readFileSync(ais, 'utf8')).to.not.include(`${r.vessel.mmsi},`)
+        }
         for (const leg of legs) {
           expect(leg.speedKn).to.be.within(2, 16)
         }

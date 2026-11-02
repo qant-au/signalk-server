@@ -33,7 +33,8 @@ const DAY_MS = 24 * HOUR_MS
 const TIME_MULTIPLIER = 60
 const TICK_MS = 1000
 const SEED = 1
-const MMSI_CONTEXT = 'vessels.urn:mrn:imo:mmsi:230099999'
+/** the context a delta is validated under: the boat's own MMSI, as the server would hold it */
+const FALLBACK_MMSI = '230099999'
 const KELVIN = 273.15
 const KNOT_MS = 1852 / 3600
 const RAD = Math.PI / 180
@@ -175,6 +176,8 @@ function dayOut(profile: VesselProfile, sampleRoute: Route): SoakCase['route'] {
     departure: new Date(midnight).toISOString(),
     vessel: {
       description: profile.name,
+      name: sampleRoute.vessel.name,
+      mmsi: sampleRoute.vessel.mmsi,
       lengthM: profile.lengthM,
       draftM: profile.draftM,
       typeCode: profile.typeCode,
@@ -229,6 +232,8 @@ async function cases(): Promise<SoakCase[]> {
       ...sampleRoute,
       vessel: {
         description: profile.name,
+        name: sampleRoute.vessel.name,
+        mmsi: sampleRoute.vessel.mmsi,
         lengthM: profile.lengthM,
         draftM: profile.draftM,
         typeCode: profile.typeCode,
@@ -247,8 +252,8 @@ async function cases(): Promise<SoakCase[]> {
   return out
 }
 
-function validationProblems(delta: Delta): string[] {
-  const d = { ...delta, context: MMSI_CONTEXT }
+function validationProblems(delta: Delta, mmsi: string): string[] {
+  const d = { ...delta, context: `vessels.urn:mrn:imo:mmsi:${mmsi}` }
   const problems: string[] = []
   if (!schema.validateDelta(d).valid) problems.push('delta envelope')
   const full = schema.validateFull(schema.deltaToFull(d))
@@ -298,7 +303,10 @@ function run(soak: SoakCase): CaseResult {
   const check = (batch: Delta[]) => {
     for (const d of batch) {
       deltas++
-      for (const problem of validationProblems(d)) {
+      for (const problem of validationProblems(
+        d,
+        soak.route.vessel.mmsi ?? FALLBACK_MMSI
+      )) {
         if (invalid.length < 10) invalid.push(problem)
       }
     }
@@ -515,6 +523,8 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     if (r[1] === 'transducerToKeel') return [-p.draftM, p.draftM]
     return undefined
   }
+  if (pathOnly === 'sensors.ais.fromBow') return [0, p.lengthM]
+  if (pathOnly === 'sensors.ais.fromCenter') return [-p.beamM / 2, p.beamM / 2]
   if ((r = m(/^sensors\.(\w+)\.fromCenter$/))) {
     const s = p.sounders.find((x) => x.id === r![1])
     return s ? [s.offsetM, s.offsetM] : undefined

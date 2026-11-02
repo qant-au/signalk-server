@@ -125,7 +125,11 @@ export async function loadScenario(
   let traffic: Traffic | undefined
   if (sample.ais && existsSync(path.join(dir, sample.ais.file))) {
     const reports: AisReport[] = []
-    for await (const r of readAisReports(dir, sample.ais)) reports.push(r)
+    // the own boat is one vessel: a report under its own MMSI is not traffic
+    const own = planned.vessel.mmsi
+    for await (const r of readAisReports(dir, sample.ais)) {
+      if (r.id !== own) reports.push(r)
+    }
     const maxGapS = Math.max(
       TRAFFIC_MAX_GAP_S,
       (sample.ais.thinnedToSeconds ?? 0) * THINNED_GAP_FACTOR

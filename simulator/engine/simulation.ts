@@ -1,6 +1,12 @@
 import { RoutePosition, offTrack, positionAt } from '../routes/route'
 import { ScenarioClock } from '../soak/clock'
-import { Delta, ownBoatDelta, vesselDelta } from '../soak/deltas'
+import {
+  Delta,
+  IdentityField,
+  identityDelta,
+  ownBoatDelta,
+  vesselIdentity
+} from '../soak/deltas'
 import { depthDelta, targetDelta } from './deltas'
 import { Scenario } from './scenario'
 import { SystemsModel, SystemsState } from '../systems/model'
@@ -24,6 +30,8 @@ export interface SimulationOptions {
   seed: number
   /** the boat's systems as a previous run saved them; throws StaleStateError if they do not fit */
   systemsState?: SystemsState
+  /** identity fields not to send, because the server's own vessel settings give them */
+  identityWithheld?: readonly string[]
 }
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
@@ -46,6 +54,8 @@ export class Simulation {
   private pendingMs: number
   private readonly heardContexts = new Set<string>()
   readonly systems?: SystemsModel
+  /** the identity fields this run sent, all but those withheld */
+  readonly identitySent: IdentityField[]
   private ticks = 0
 
   constructor(
@@ -73,8 +83,13 @@ export class Simulation {
         state: options.systemsState
       })
     }
-    const vessel = scenario.route.vessel
-    this.emit(vesselDelta(vessel, vessel.description, wallStartMs))
+    const identity = identityDelta(
+      vesselIdentity(scenario.route.vessel, scenario.profile),
+      wallStartMs,
+      new Set(options.identityWithheld ?? [])
+    )
+    this.identitySent = identity.sent
+    this.emit(identity.delta)
     if (this.systems) this.emit(this.systems.metaDelta(wallStartMs))
   }
 
