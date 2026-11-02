@@ -1,0 +1,13 @@
+{
+  "source": "NOAA NCEI magnetic field calculator (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic Reference Field (IAGA), free to use",
+  "model": "DGRF2020",
+  "date": "2024-03-16",
+  "latitudes": [25, 25.5, 26, 26.5],
+  "longitudes": [-80.5, -80, -79.5],
+  "degrees": [
+    [-6.90502, -7.20407, -7.50036],
+    [-6.96676, -7.26577, -7.56189],
+    [-7.02821, -7.32721, -7.62322],
+    [-7.0894, -7.38844, -7.68438]
+  ]
+}
