@@ -10,5 +10,21 @@
     "staticEntry": "ais_static/unipi_ais_static.csv",
     "weatherArchive": "noaa_weather.zip",
     "weatherEntry": "noaa_weather/2018/jul/noaa_weather_jul2018_v2.dbf"
+  },
+  "ais": {
+    "file": "restricted/ais.csv",
+    "idColumn": "vessel_id",
+    "timeColumn": "timestamp",
+    "timeFormat": "epoch-ms",
+    "latColumn": "lat",
+    "lonColumn": "lon",
+    "sogColumn": "speed",
+    "cogColumn": "course",
+    "headingColumn": "heading",
+    "vessels": {
+      "file": "restricted/vessels.csv",
+      "idColumn": "vessel_id",
+      "typeCodeColumn": "shiptype"
+    }
   }
 }

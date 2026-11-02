@@ -18,5 +18,18 @@
     "start": "2026-08-20T18:00:00Z",
     "end": "2026-08-24T00:00:00Z",
     "bbox": [148.4, -28.0, 154.0, -19.8]
+  },
+  "ais": {
+    "file": "restricted/ais.csv",
+    "idColumn": "craft_id",
+    "timeColumn": "utc",
+    "timeFormat": "iso-utc",
+    "latColumn": "lat",
+    "lonColumn": "lon",
+    "sogColumn": "sog_kn",
+    "cogColumn": "cog_deg",
+    "typeTextColumn": "type",
+    "lengthColumn": "length_m",
+    "thinnedToSeconds": 3600
   }
 }

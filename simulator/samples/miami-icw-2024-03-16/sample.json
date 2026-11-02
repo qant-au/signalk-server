@@ -244,5 +244,19 @@
       "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4TF56D/BlueTopo_BH4TF56D_20260825.tiff.aux.xml",
       "file": "BlueTopo_BH4TF56D_20260825.tiff.aux.xml"
     }
-  ]
+  ],
+  "ais": {
+    "file": "open/ais.csv",
+    "idColumn": "mmsi",
+    "timeColumn": "base_date_time",
+    "timeFormat": "iso-utc",
+    "latColumn": "lat",
+    "lonColumn": "lon",
+    "sogColumn": "sog",
+    "cogColumn": "cog",
+    "headingColumn": "heading",
+    "typeCodeColumn": "vessel_type",
+    "lengthColumn": "length",
+    "transceiverColumn": "transceiver"
+  }
 }
