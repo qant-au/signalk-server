@@ -304,10 +304,10 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
   pulls up to about 16 kW, some 600 A from a 24 V bank in a full burst, which the energy books
   carry as `thrusters`. A hydraulic thruster draws no bank: its pump is driven off a main
   engine, through 70 % hydraulics, so it runs only while that engine runs, which carries its
-  load and burns its fuel. Each running engine has one alternator, shared through a charge splitter between the
-  house and start banks, giving at most 150 A at their voltage, half of it at idle and all of
-  it flat out, as a real one does; so a burst at manoeuvring revolutions shows on the bank
-  rather than vanishing into the alternators.
+  load and burns its fuel. Each running engine has one alternator, shared through a charge
+  splitter between the house and start banks, giving at most 150 A at their voltage, half
+  of it at idle and all of it flat out, as a real one does; so a burst at manoeuvring
+  revolutions shows on the bank rather than vanishing into the alternators.
 - **Generators** on boats from 24 m carry the hotel load whenever the boat is away from the
   berth, starting a second one when the first would be over 80% and stopping it when the
   rest would be under 60%. On smaller boats a generator runs when its bank runs low (until it
@@ -366,9 +366,10 @@ whether it is running, its temperatures and, for a generator, how long it has be
 running and whether it was started to charge its bank; each solar array's yield today;
 the inside spaces and their compressors; the weather; the fuel transfer pump and the
 water maker; the holding tanks being pumped out; the heading, logs, trip, attitude and
-GNSS; each thruster's burst, pause and run hours and where its stream has reached; and every drift with the state of its
-seeded stream. A resumed run is the same run: two hours, a restart and two more hours give
-exactly the values an unbroken four-hour run gives at the same seed, for every profile.
+GNSS; each thruster's burst, pause and run hours and where its stream has reached; and
+every drift with the state of its seeded stream. A resumed run is the same run: two hours,
+a restart and two more hours give exactly the values an unbroken four-hour run gives at
+the same seed, for every profile.
 The saved systems name their profile and seed, and are used only when both still match.
 
 ## What Has No Standard Path
