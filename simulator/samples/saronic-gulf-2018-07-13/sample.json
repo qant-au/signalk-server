@@ -1,0 +1,14 @@
+{
+  "id": "saronic-gulf-2018-07-13",
+  "restricted": {
+    "source": "piraeus-ais",
+    "start": "2018-07-13T11:00:00Z",
+    "end": "2018-07-14T07:00:00Z",
+    "dynamicArchive": "unipi_ais_dynamic_2018.zip",
+    "dynamicEntry": "unipi_ais_dynamic_jul2018.csv",
+    "staticArchive": "ais_static.zip",
+    "staticEntry": "ais_static/unipi_ais_static.csv",
+    "weatherArchive": "noaa_weather.zip",
+    "weatherEntry": "noaa_weather/2018/jul/noaa_weather_jul2018_v2.dbf"
+  }
+}
