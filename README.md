@@ -11,9 +11,13 @@
 > **Status: early stage (design and test data; no simulator code yet).** Three samples are
 > planned: two that ship their data, and one long passage whose data the user downloads from
 > a source that cannot be redistributed. The simulator work is Copyright © 2026 Adam Burgess,
-> under the Apache License 2.0. **Read [SIMULATOR.md](SIMULATOR.md)** for the plan, the
-> samples, plugin testing and licensing. Everything below this box is the upstream README,
-> unchanged.
+> under the Apache License 2.0.
+>
+> ### 👉 [Read SIMULATOR.md](SIMULATOR.md)
+>
+> The simulator plan, current status, the three samples, plugin testing and licensing.
+>
+> Everything below this box is the upstream README, unchanged.
 
 ![Signal K logo](https://user-images.githubusercontent.com/5200296/226164888-d33b2349-e608-4bed-965f-ebe4339b4376.png)
 
