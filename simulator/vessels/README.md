@@ -184,6 +184,20 @@ Every drift comes from the run's **seed** (a plugin setting), one stream per sys
 the same seed, sample and start time give exactly the same data, and another seed gives a
 different but equally plausible run.
 
+## What Persists
+
+The plugin saves the systems with the scenario time, and restores them when it resumes
+(see [the plugin README](../plugin/README.md#settings)). Everything the model carries
+from one step to the next is saved: each tank's volume; each bank's state of charge,
+health, voltage, current and temperature; each engine's and generator's run hours,
+whether it is running, its temperatures and, for a generator, how long it has been
+running and whether it was started to charge its bank; each solar array's yield today;
+the inside spaces and their compressors; the weather; the fuel transfer pump and the
+water maker; the holding tanks being pumped out; and every drift with the state of its
+seeded stream. A resumed run is the same run: two hours, a restart and two more hours give
+exactly the values an unbroken four-hour run gives at the same seed, for every profile.
+The saved systems name their profile and seed, and are used only when both still match.
+
 ## What Has No Standard Path
 
 Some systems on board have no path in the specification. The model keeps their effect on

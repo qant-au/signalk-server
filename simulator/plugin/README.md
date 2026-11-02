@@ -16,13 +16,24 @@ in: the own boat on its route, the depth under it, and the AIS traffic it would 
 | Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly       |
 | Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears               |
 | Start this many minutes into the route | 0         | where a new run starts                                                          |
-| Resume where the last run reached      | on        | carry on from the saved scenario time                                           |
+| Resume where the last run reached      | on        | carry on from the saved scenario time and the boat's systems                    |
 
-Saving the settings restarts the plugin, as with any plugin. With **resume** on, the run
-carries on from the scenario time it had reached, so changing the time multiplier mid-run
-speeds up or slows down the same passage rather than starting again. The scenario time is
-saved every ten seconds in the plugin's data directory. Change the sample, or turn resume
-off, to start from the beginning (or from **Start this many minutes into the route**).
+Saving the settings restarts the plugin, as with any plugin, and so does restarting the
+server. With **resume** on, the run carries on where it had reached: the scenario time,
+and the boat's systems with it (tank levels, every bank's state of charge, engine and
+generator run hours, solar yield today, which generators are running, the fuel transfer
+and the water maker, and the seeded streams behind every drift), so a boat two days into
+a passage comes back two days into it, and the run carries on exactly as if it had never
+stopped. Changing the time multiplier mid-run therefore speeds up or slows down the same
+passage rather than starting again, and engine hours keep counting in scenario time. Both
+are saved every ten seconds in the plugin's data directory, in `state.json`, which records
+the sample, vessel profile and seed the systems belong to. Change the sample to start the
+route from the beginning (or from **Start this many minutes into the route**) with fresh
+systems; turn resume off to do the same on the current sample. A different seed, or a
+route that now names a different profile, keeps the scenario time and starts the systems
+fresh. A saved file that cannot be read, or whose systems no longer fit the profile (a
+unit added or removed, an older format), is ignored with a message in the server log,
+and the run starts fresh rather than failing.
 
 The status line on the plugin page shows the scenario time, the multiplier, the boat's
 speed, the depth under it, how many AIS targets it currently hears, and anything that
