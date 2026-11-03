@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'fs'
 import path from 'path'
+import { DEFAULT_SHALLOW_M, alarmBands } from '../alarms/zones'
 
 /**
  * A vessel profile: what is on board, from which the systems model produces data. Counts
@@ -120,6 +121,28 @@ export interface HybridRules {
   generatorChargesAtAnchor: boolean
 }
 
+/** the states a zone may have, from the Signal K specification */
+export const ZONE_STATES = [
+  'nominal',
+  'normal',
+  'alert',
+  'warn',
+  'alarm',
+  'emergency'
+] as const
+export type ZoneState = (typeof ZONE_STATES)[number]
+
+/**
+ * A band of a value and the state it puts the value in, as the specification's metadata
+ * gives it: a bound left out is open, and the value is in SI units, as sent.
+ */
+export interface AlarmZone {
+  lower?: number
+  upper?: number
+  state: ZoneState
+  message: string
+}
+
 export interface VesselProfile {
   id: string
   name: string
@@ -162,6 +185,11 @@ export interface VesselProfile {
   radars: { id: string; displayName: string }[]
   wind: boolean
   zones: ZoneProfile[]
+  /**
+   * The boat's own alarm bands, by path, where they differ from the defaults for her kind
+   * and size (see simulator/alarms/zones.ts and README.md)
+   */
+  alarmZones: Record<string, AlarmZone[]>
 }
 
 /** What a profile file may say; anything left out comes from the length. */
@@ -451,6 +479,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
             ],
     wind: L >= 7,
     zones: defaultZones(L),
+    alarmZones: {},
     ...p,
     engines,
     generators,
@@ -493,6 +522,8 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
     chargesBank: g.chargesBank ?? house
   }))
   validateProfile(profile)
+  // throws on a band for a path the boat has no alarm on, or a malformed one
+  alarmBands(profile, DEFAULT_SHALLOW_M)
   return profile
 }
 

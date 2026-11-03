@@ -26,7 +26,16 @@ export interface Delta {
     values: { path: string; value: unknown }[]
     meta?: {
       path: string
-      value: { displayName: string; description: string }
+      value: {
+        displayName?: string
+        description?: string
+        zones?: {
+          lower?: number
+          upper?: number
+          state: string
+          message: string
+        }[]
+      }
     }[]
   }[]
 }
