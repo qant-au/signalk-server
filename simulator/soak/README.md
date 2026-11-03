@@ -92,7 +92,7 @@ SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A day out, 24 hours              | all but the motor-sailer, each at a sample's berth: Miami, the Saronic Gulf or Manly, on that sample's date | by local solar time: the night at anchor, out at 07:30, cruising at 60% of top speed, a lunch stop at anchor from 11:30 to 14:30, cruising back, alongside from 18:00. It covers anchor, harbour speed, cruising and shore power in one day |
 | The Miami route, 24 hours        | `motor-yacht-20m`                                                                                           | the sample's real passage, from local midnight: alongside, the passage through the bridges, alongside again                                                                                                                                 |
-| The Saronic route, 24 hours      | `sailing-yacht-15m`                                                                                         | the sample's overnight passage under sail, from two hours before it leaves                                                                                                                                                                  |
+| The Saronic route, 24 hours      | `sailing-yacht-15m`                                                                                         | the sample's overnight passage under sail, with its evening at anchor in Skala bay on Angistri, from two hours before it leaves                                                                                                             |
 | The Queensland passage, 72 hours | `motor-sailer-15m`                                                                                          | Manly to Hamilton Island, from two hours before it leaves: three days under way                                                                                                                                                             |
 | The Queensland passage, 72 hours | `hybrid-catamaran-60ft`                                                                                     | the same passage, sailed by the hybrid catamaran on its passage rules: on its motors out of Manly and into Hamilton Island, on its diesels charging the bank between                                                                        |
 
@@ -103,7 +103,7 @@ checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 
-- **Every delta** the run produces (60,504 in all) validates
+- **Every delta** the run produces (73,527 in all) validates
   against `@signalk/signalk-schema` 1.8.2, envelope and full model.
 - **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0
   to 100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
@@ -133,6 +133,13 @@ checks. The faults have their own tests, which run every one through its course.
   black water only goes out well offshore (at 5 kn or more) or at a berth's pump-out station.
 - **The wind turbine** charges in proportion to the apparent wind (rank correlation above
   0.9) and is still below 3 m/s.
+- **Every anchorage** is lain at: in each case whose route anchors (every day out, at
+  night and at lunch, and the Saronic route in Skala bay), the boat is `anchored` there,
+  sends `navigation.anchor.position`, `maxRadius` and `currentRadius` at every tick, stays
+  inside the radius, makes under a knot over the ground on her chain, and clears the anchor's
+  values once for each anchor weighed. The anchor alarm counts among what a day raises only
+  when a dragging anchor is on board, which happens only when the seed throws
+  `anchorDragging`; the soak throws no faults, so none is raised.
 - **The navigational state** is `moored`, `anchored`, `sailing` or `motoring` at every
   tick and agrees with the engines: stopped and out of gear in the first three, something
   in gear under `motoring`. Every case motors at some point, and the sailing yachts sail.
@@ -193,6 +200,9 @@ band:
 | The catamaran's solar gave nothing on a morning under diesel                                                                                       | the house bank's loads were carried by the alternator before the converter from the propulsion bank was offered                                 | the house hangs off the propulsion bus ahead of any alternator                                                                                                           |
 | Wind angles of −3.142, just outside −π                                                                                                             | rounding to three decimals                                                                                                                      | angles are kept inside −π to π after rounding                                                                                                                            |
 | A 6 kW generator turned 40 % of its fuel's energy into electricity (124.5 MJ out against 117.5 MJ allowed at 38 %), on the energy books' first run | generators burned fuel at the main engines' 0.25 l per kWh, which at full load is 40 % of diesel's energy: more than a small marine set manages | generators now burn 0.3 l per kWh of electricity at full load, a third of the fuel's energy; over the soak they run at 24 to 34 %                                        |
+| The 4 m boat made 1.2 kn over the ground at anchor, on the day out's 20 m seabed                                                                   | with 100 m of chain out, a sheer of 15° either way carried her 26 m from side to side every two and a half minutes                              | however much chain is out, her sheer carries her across the wind at no more than half a knot                                                                             |
+| The 20 m yacht made 3.8 kn over the ground in the last seconds before leaving the lunch anchorage                                                  | heaved in on a straight chain in 20 m, the last few metres in swept her across most of the chain's reach                                        | a windlass brings her up to the anchor at its own pace, 0.3 m a second along the bottom                                                                                  |
+| The 45 m yacht's heading was 169° off her course over the ground at 2.7 kn as she began to heave in                                                | she followed her sheer with a lag, and caught up all at once when the heave began                                                               | on her chain, heaved in or dragging, she moves at no more than 0.45 m a second                                                                                           |
 
 Three failures were the soak's own: its gap check started from a slow delta, it expected
 the Miami passage (alongside most of the day, where the dock fills the tanks) to make water,

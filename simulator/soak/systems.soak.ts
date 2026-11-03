@@ -83,6 +83,8 @@ interface CaseResult {
   /** every notification sent, with the value of its path as last sent before it */
   notes: Note[]
   bands: Map<string, AlarmBand>
+  /** the anchor dragged at some point in the run, the only cause of an anchor alarm */
+  dragged: boolean
 }
 
 interface Note {
@@ -103,6 +105,8 @@ const DAY_ALARMS = [
   /^environment\.depth\.belowKeel$/
 ]
 const SEVERE = new Set(['warn', 'alarm', 'alert', 'emergency'])
+/** the anchor watch's notification, raised by the watch rather than from a zone */
+const ANCHOR_ALARM = 'navigation.anchor'
 
 /** where each profile not named by a sample spends its day */
 const DAY_AT: Record<string, string> = {
@@ -332,6 +336,7 @@ function run(soak: SoakCase): CaseResult {
   )
   const tickCount = (soak.hours * HOUR_MS) / (TICK_MS * TIME_MULTIPLIER)
   const notes: Note[] = []
+  let dragged = false
   const latest = new Map<string, unknown>()
   const check = (batch: Delta[]) => {
     for (const d of batch) {
@@ -374,6 +379,8 @@ function run(soak: SoakCase): CaseResult {
       }
     }
     pending = []
+    if (sim.faults!.active().some((f) => f.kind === 'anchorDragging'))
+      dragged = true
     const p = result.position
     ticks.push({
       ms: result.scenarioMs,
@@ -407,7 +414,8 @@ function run(soak: SoakCase): CaseResult {
     books: sim.systems!.books(),
     sentFuelL,
     notes,
-    bands: sim.alarms!.bands
+    bands: sim.alarms!.bands,
+    dragged
   }
 }
 
@@ -611,7 +619,9 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     'navigation.state': 'string',
     'navigation.gnss.type': 'string',
     'navigation.gnss.methodQuality': 'string',
-    'navigation.datetime': 'string'
+    'navigation.datetime': 'string',
+    'navigation.anchor.maxRadius': [1, 200],
+    'navigation.anchor.currentRadius': [0, 200]
   }
   return fixed[pathOnly]
 }
@@ -619,6 +629,7 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
 /** paths that are sent only some of the time */
 const CONDITIONAL = [
   /\.capacity\.timeRemaining$/,
+  /^navigation\.anchor\./,
   /^electrical\.chargers\./,
   /^electrical\.ac\.shore\./,
   /\.chargingMode$/
@@ -779,7 +790,12 @@ describe('Simulator systems soak', function () {
             }
             continue
           }
-          if (key === 'navigation.position') {
+          // the anchor's values, cleared once it is weighed
+          if (value === null && key.startsWith('navigation.anchor.')) continue
+          if (
+            key === 'navigation.position' ||
+            key === 'navigation.anchor.position'
+          ) {
             const pos = value as { latitude: number; longitude: number }
             if (
               !Number.isFinite(pos.latitude) ||
@@ -1360,6 +1376,7 @@ describe('Simulator systems soak', function () {
     each((r) => {
       const problems: string[] = []
       for (const n of r.notes) {
+        if (n.path === ANCHOR_ALARM) continue
         const band = r.bands.get(n.path)
         const at = `${n.path} ${n.value.state} at ${new Date(n.ms).toISOString()}`
         if (!band) {
@@ -1408,9 +1425,48 @@ describe('Simulator systems soak', function () {
         r.notes.filter((n) => SEVERE.has(n.value.state)).map((n) => n.path)
       )
       const unexpected = [...raised].filter(
-        (p) => !DAY_ALARMS.some((re) => re.test(p))
+        (p) =>
+          !DAY_ALARMS.some((re) => re.test(p)) &&
+          !(p === ANCHOR_ALARM && r.dragged)
       )
       expect(unexpected, r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it(
+    'lies to her anchor at every anchorage, inside its radius, and weighs it',
+    each((r) => {
+      const legs = routeLegs(r.soak.route)
+      const anchorages = r.soak.route.waypoints.filter((w) => w.anchor).length
+      if (!anchorages) return
+      const anchored = r.ticks.filter(
+        (t) => t.values.get('navigation.state') === 'anchored'
+      )
+      expect(anchored.length, r.soak.name).to.be.above(0)
+      for (const t of anchored) {
+        const at = `${r.soak.name} ${new Date(t.ms).toISOString()}`
+        const anchor = t.values.get('navigation.anchor.position')
+        expect(anchor, at).to.be.an('object')
+        expect(t.sogKn, at).to.be.below(1)
+        expect(num(t, 'navigation.anchor.currentRadius'), at).to.be.at.most(
+          num(t, 'navigation.anchor.maxRadius')!
+        )
+      }
+      // each one weighed on leaving clears the anchor's values once
+      const weighed = legs.filter(
+        (l) => l.from.anchor && l.departMs < r.ticks.at(-1)!.ms
+      ).length
+      const cleared = r.ticks.filter(
+        (t) => t.values.get('navigation.anchor.position') === null
+      ).length
+      expect(cleared, r.soak.name).to.equal(weighed)
+      const alarms = r.notes.filter((n) => n.path === ANCHOR_ALARM)
+      for (const n of alarms) {
+        expect(n.value.method, r.soak.name).to.deep.equal(
+          n.value.state === 'normal' ? [] : ['visual', 'sound']
+        )
+      }
+      if (!r.dragged) expect(alarms, r.soak.name).to.deep.equal([])
     })
   )
 
