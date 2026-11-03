@@ -10,6 +10,7 @@ import {
   loadScenario
 } from '../engine/scenario'
 import { DroppedTargets } from '../engine/dropped'
+import { ClaimsDelta, withoutArrivalClaims } from '../engine/claims'
 import { Simulation } from '../engine/simulation'
 import { FaultsState } from '../faults/faults'
 import { AlarmsState } from '../alarms/panel'
@@ -45,6 +46,7 @@ interface Options {
   shallowAlarmM: number
   collisionDistanceM: number
   collisionTimeMin: number
+  anchorWatchRadiusM: number
   showTraffic: boolean
   receiverAntennaHeightM: number
   seed: number
@@ -63,9 +65,7 @@ interface SavedState {
 }
 
 /** a delta as the server hands it to an input handler, as far as this plugin reads it */
-interface InputDelta {
-  context?: string
-}
+type InputDelta = ClaimsDelta
 
 /** the router the server gives a plugin's REST routes, as far as this plugin uses it */
 type PluginRouter = Parameters<typeof controlRoutes>[0]
@@ -141,6 +141,7 @@ const DEFAULTS: Options = {
   shallowAlarmM: DEFAULT_SHALLOW_M,
   collisionDistanceM: DEFAULT_COLLISION_LIMITS.distanceM,
   collisionTimeMin: DEFAULT_COLLISION_LIMITS.timeS / 60,
+  anchorWatchRadiusM: 0,
   showTraffic: true,
   receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
   seed: 1,
@@ -236,7 +237,11 @@ export = function simulatorPlugin(app: App) {
     delta: InputDelta,
     next: (delta: InputDelta) => void
   ) {
-    if (!dropped.holdsBack(delta.context)) next(delta)
+    if (dropped.holdsBack(delta.context)) return
+    // lying at anchor she is not making for the next point (see claims.ts)
+    next(
+      simulation?.last?.position.anchored ? withoutArrivalClaims(delta) : delta
+    )
   }
 
   function send(delta: Delta) {
@@ -414,6 +419,7 @@ export = function simulatorPlugin(app: App) {
             distanceM: options.collisionDistanceM,
             timeS: options.collisionTimeMin * 60
           },
+          anchorWatchRadiusM: options.anchorWatchRadiusM,
           identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
           forget: forgetTarget
         },
@@ -530,6 +536,10 @@ export = function simulatorPlugin(app: App) {
         ...(simulation.alarms?.active() ?? []),
         ...simulation.collisions.active().map((c) => c.value)
       ]
+      const anchor = simulation.systems?.anchor
+      const anchored = anchor
+        ? `, at anchor ${anchor.currentRadiusM.toFixed(0)} m from it, swinging in ${anchor.maxRadiusM.toFixed(0)} m, watch ${anchor.watchRadiusM.toFixed(0)} m`
+        : ''
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -540,7 +550,7 @@ export = function simulatorPlugin(app: App) {
           : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${anchored}${depth}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -646,6 +656,14 @@ export = function simulatorPlugin(app: App) {
             title: 'Collision alarm: time to closest approach (min)',
             minimum: 0,
             default: DEFAULTS.collisionTimeMin
+          },
+          anchorWatchRadiusM: {
+            type: 'number',
+            title: 'Anchor watch radius (m)',
+            description:
+              'The anchor alarm is raised once the boat is further than this from her anchor, and cleared 5 m inside it; 0 for the radius her scope gives plus 10 m',
+            minimum: 0,
+            default: DEFAULTS.anchorWatchRadiusM
           },
           showTraffic: {
             type: 'boolean',
