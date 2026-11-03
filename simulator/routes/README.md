@@ -63,7 +63,7 @@ npx ts-node simulator/tools/route.ts turns <sample>    # the arcs at waypoints a
 | Sample                   | Route                                                                                                                                                                                                                                                                                 | Distance         | Time                                                     | Speeds                                                                                                                                     | Source                                                                       |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | Miami ICW                | Rickenbacker Marina berth, west along the causeway, up Biscayne Bay and the Intracoastal Waterway to a berth in Pier 66 Marina, Fort Lauderdale; 20 m motor yacht, 1.5 m draft; departs 10:00 EDT                                                                                     | 22.5 nm planned  | 3 h 48 min planned, including four bridge holds (34 min) | 3 kn in the marinas, 5.5 to 7.5 kn in the no-wake stretches, up to 15.5 kn across open Biscayne Bay                                        | **A real passage**, from the sample's own CC0 AIS; only the berths are added |
-| Saronic Gulf             | A berth in Zea Marina, west of Aegina and Angistri, past Methana and Poros, round Cape Skyli to Hydra, and back east of Aegina to the same berth; 15 m sailing yacht, 2.2 m draft; departs 14:00 EEST                                                                                 | 97.7 nm planned  | 19 h 57 min planned                                      | 3 kn in the marina, 5 kn under sail by day, 4.5 kn at night, 5.5 to 6 kn in the morning breeze                                             | **Hand-written**, because the AIS licence does not allow derived works       |
+| Saronic Gulf             | A berth in Zea Marina, west of Aegina to an anchorage in Skala bay on Angistri for the evening, then west of Angistri, past Methana and Poros, round Cape Skyli to Hydra, and back east of Aegina to the same berth; 15 m sailing yacht, 2.2 m draft; departs 14:00 EEST              | 98.8 nm planned  | 19 h 48 min planned, including 2 h 30 min at anchor      | 3 kn in the marina and in and out of the anchorage, 6 kn under sail                                                                        | **Hand-written**, because the AIS licence does not allow derived works       |
 | Manly to Hamilton Island | A berth in Manly Boat Harbour, Moreton Bay and the North West Channel, outside Fraser Island and round Breaksea Spit, then coastal past Bustard Head, the Keppels and the Percy Isles to a berth in Hamilton Island marina; 15 m motor-sailer, 1.8 m draft; departs Friday 06:00 AEST | 566.1 nm planned | 68 h 04 min planned, arriving about 02:00 AEST on Monday | 3 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands, 2 to 4 kn into Hamilton Island marina | **Hand-written**, because the AIS licence does not allow derived works       |
 
 ## How They Were Made
@@ -100,7 +100,67 @@ only, and a test checks every route file for identifiers.
 **Saronic Gulf and Queensland: hand-written.** Their AIS licences (CC BY-NC-SA and CC BY-NC)
 do not allow derived works to be shared, so their routes are not traced from those tracks.
 They are written from charted headlands, channels, islands and harbours, with leg speeds
-chosen for the waters each leg crosses and, for the Saronic Gulf, for that night's light wind.
+chosen for the waters each leg crosses and, for the Saronic Gulf, the time the anchorage
+leaves inside the sample's AIS.
+
+## Anchorage
+
+A waypoint marked `anchor` with a `holdS` is an anchorage: the boat comes in on the leg
+before it, stops at the waypoint, and lets go her anchor there, lies to it for the hold,
+then weighs and carries on. The Saronic route has one.
+
+**Skala bay, Angistri.** The bay off Skala, the harbour village on the north-east coast of
+Angistri, across the channel from Aegina: a sandy bay that cruising yachts anchor in, open
+to the north, 1.2 nm off the passage west of Aegina. The anchor goes down at 37.7200 N,
+23.3560 E, in 6.8 m on the EMODnet grid, and the water all round, out past where she
+swings, is 5 to 7 m. The boat leaves the passage at West of Aegina, slows to 3 kn into the
+bay and anchors at **14:58 UTC (17:58 EEST)**. She lies there two and a half hours, through
+the evening meal, and weighs at **17:28 UTC (20:28 EEST)**, before sunset, motoring out at 3
+kn round the north of Angistri onto the passage. The rest of the route was retimed to fit
+the stay inside the sample's AIS, which runs from 11:00 to 07:00 UTC and was left as it is:
+the legs under sail go at 6 kn rather than 4.5 to 6, and she is alongside again at 06:54 UTC.
+
+**Anchoring.** She lets go at the waypoint and falls back as the chain pays out, at half a
+metre a second, to a scope of five times the depth plus the height of her bow roller (8 %
+of her length): 40 m of chain in Skala bay's 6.8 m. She lies downwind of the anchor, her bow
+to it, nearer it in a light air, with the chain's weight on the bottom, and out to its full
+reach in 20 kn or more. On that line she sheers from side to side, 15° either way over four
+to five minutes for a 15 m boat, as yachts do on a chain, and the line wanders with the
+wind. So her position, heading and the wind over the deck move as a boat at anchor moves:
+her speed over the ground is what the swing gives, a few tenths of a knot, and her speed
+through the water as little. Five minutes before she leaves, the crew swings her onto her
+course, and then heaves in at the windlass's 0.3 m a second, timed so the anchor breaks out
+as she gets under way (the last two minutes in Skala bay), bringing her up to it; she then
+makes back to the track from where the anchor lay over the next minute or two.
+
+**What is sent**, as the anchor alarm plugin sends it, so Freeboard's anchor display needs
+nothing new:
+
+| Path                              | Value                                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `navigation.state`                | `anchored` from letting go to weighing, which is also the own boat's AIS navigational status, at anchor                                                                                                |
+| `navigation.anchor.position`      | where the anchor went down, with `altitude` the depth there, negative (as the plugin gives it)                                                                                                         |
+| `navigation.anchor.maxRadius`     | the radius she swings in on the scope paid out: the chain's reach along the bottom, √(chain² − (depth + bow)²), plus her GNSS antenna's distance aft of the bow (half her length): 46.7 m in Skala bay |
+| `navigation.anchor.currentRadius` | her antenna's distance from the anchor, every second                                                                                                                                                   |
+| all three                         | `null` once, when the anchor is weighed, as the plugin clears them                                                                                                                                     |
+
+The engines stop when she anchors and start as she weighs; the house loads run on the bank,
+solar charges by day on a boat that has it, the wind turbine with the wind, and the
+generator runs when the profile's rules call for it (at the evening meal in Skala bay). The
+tanks and banks go on as a day at anchor does. Nothing of coming alongside fires: no bow
+thruster, no shore power. The anchor watch and a dragging anchor are in
+[the vessels README](../vessels/README.md#alarms) and
+[the faults README](../faults/README.md#anchor-dragging).
+
+**The Course API.** The active route holds through the stay. The anchorage is reached as
+she anchors, so the next point is the one after it, and stays that point, unchanged, until
+she weighs and makes for it; her swing never carries her across the point she is making
+for. While she lies at anchor the course provider's speed made good to it and the time to
+go and arrival it gives (`navigation.course.calcValues.velocityMadeGood`, `timeToGo`,
+`estimatedTimeOfArrival`, `route.timeToGo`, `route.estimatedTimeOfArrival`, `targetSpeed`
+and `performance.velocityMadeGoodToWaypoint`) go out as `null`, as for a boat not making for
+it: worked from her swing they would have her arriving some hours on. Distance and bearing
+to the next point, true wherever she lies, go out as they are.
 
 ## Depth and Route Adjustment
 
@@ -128,11 +188,11 @@ cannot see a marina basin or a dredged channel at all. Within `harbourRadiusM` o
 any surveyed water counts as safe, and, where the grid cannot resolve the harbour
 (`harbourNoDataIsWater`), so does anywhere it has no data. Charted dry land never does.
 
-| Sample                   | Grid                                                                                                                                                                                                  | Cell            | Harbour radius      | No data in harbour                                                                             | Adjusted Route                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Miami ICW                | NOAA BlueTopo, 4 m                                                                                                                                                                                    | 10 m            | 250 m               | land (the 4 m survey resolves the marinas)                                                     | 22.7 nm, 3 h 52 min; 10 legs moved                                     |
-| Saronic Gulf             | A berth in Zea Marina, west of Aegina and Angistri, past Methana and Poros, round Cape Skyli to Hydra, and back east of Aegina to the same berth; 15 m sailing yacht, 2.2 m draft; departs 14:00 EEST | 97.7 nm planned | 19 h 57 min planned | 3 kn in the marina, 5 kn under sail by day, 4.5 kn at night, 5.5 to 6 kn in the morning breeze | **Hand-written**, because the AIS licence does not allow derived works |
-| Manly to Hamilton Island | Great Barrier Reef, 30 m                                                                                                                                                                              | 33 m            | 3,500 m             | water (covers Manly's dredged channel)                                                         | 566.4 nm, 68 h 09 min; 4 legs moved                                    |
+| Sample                   | Grid                          | Cell  | Harbour radius | No data in harbour                         | Adjusted Route                      |
+| ------------------------ | ----------------------------- | ----- | -------------- | ------------------------------------------ | ----------------------------------- |
+| Miami ICW                | NOAA BlueTopo, 4 m            | 10 m  | 250 m          | land (the 4 m survey resolves the marinas) | 22.7 nm, 3 h 52 min; 10 legs moved  |
+| Saronic Gulf             | EMODnet DTM 2024, about 115 m | 116 m | 1,000 m        | water (the grid cannot resolve Zea Marina) | 99.2 nm, 19 h 54 min; 2 legs moved  |
+| Manly to Hamilton Island | Great Barrier Reef, 30 m      | 33 m  | 3,500 m        | water (covers Manly's dredged channel)     | 566.4 nm, 68 h 09 min; 4 legs moved |
 
 Figures are for a minimum depth under the keel of 1 m; a larger setting moves more legs.
 

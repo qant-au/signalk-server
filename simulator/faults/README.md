@@ -22,19 +22,20 @@ The target is what a fault happens to. Unless given one, a fault is raised on th
 target the boat has. Durations are scenario time; where a fault clears on its own, the seed
 picks its length within the range when it is raised.
 
-| Fault                                             | Target                                   | Clears on Its Own                                       | Notifications                                                                                |
-| ------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`engineOverheat`](#engine-overheating)           | a main engine with a combustion engine   | after 20 to 40 minutes, then cools                      | `propulsion.<id>.coolantTemperature` warn, then alarm; `propulsion.<id>.oilPressure` alarm   |
-| [`generatorNoStart`](#generator-fails-to-start)   | a generator                              | after 30 to 60 minutes                                  | `propulsion.<id>.state` alarm, once a start has failed                                       |
-| [`batteryCellFailure`](#battery-cell-failing)     | a battery bank                           | no                                                      | `electrical.batteries.<id>.voltage` warn, then alarm                                         |
-| [`chargerFailure`](#charger-drops-out)            | a house or propulsion bank's charger     | after 20 to 45 minutes                                  | `electrical.chargers.<bank>.chargingMode` warn, while it should be charging                  |
-| [`alternatorFailure`](#alternator-drops-out)      | a main engine's alternator               | no                                                      | `propulsion.<id>.alternatorVoltage` warn, while the engine runs                              |
-| [`bilgeFlooding`](#bilge-flooding)                | `bilge`                                  | the leak is stopped after 15 to 30 minutes, then pumped | `electrical.switches.bilgeHighWater.state` alarm; `electrical.switches.bilgePump.state` warn |
-| [`fuelGaugeStuck`](#fuel-gauge-stuck)             | a fuel tank                              | no                                                      | none                                                                                         |
-| [`depthSounderSilent`](#depth-sounder-silent)     | a depth sounder                          | after 5 to 15 minutes                                   | `environment.depth.belowTransducer` warn, when no sounder is sending                         |
-| [`gnssLost`](#gnss-fix-lost)                      | `gnss`                                   | after 2 to 8 minutes, then reacquires                   | `navigation.position` alarm, until the fix is back                                           |
-| [`windInstrumentFrozen`](#wind-instrument-frozen) | `wind`, on a boat with a wind instrument | no                                                      | none                                                                                         |
-| [`staleSensor`](#stale-sensor-value)              | a path (see below)                       | after 10 to 20 minutes                                  | none                                                                                         |
+| Fault                                             | Target                                       | Clears on Its Own                                       | Notifications                                                                                |
+| ------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [`engineOverheat`](#engine-overheating)           | a main engine with a combustion engine       | after 20 to 40 minutes, then cools                      | `propulsion.<id>.coolantTemperature` warn, then alarm; `propulsion.<id>.oilPressure` alarm   |
+| [`generatorNoStart`](#generator-fails-to-start)   | a generator                                  | after 30 to 60 minutes                                  | `propulsion.<id>.state` alarm, once a start has failed                                       |
+| [`batteryCellFailure`](#battery-cell-failing)     | a battery bank                               | no                                                      | `electrical.batteries.<id>.voltage` warn, then alarm                                         |
+| [`chargerFailure`](#charger-drops-out)            | a house or propulsion bank's charger         | after 20 to 45 minutes                                  | `electrical.chargers.<bank>.chargingMode` warn, while it should be charging                  |
+| [`alternatorFailure`](#alternator-drops-out)      | a main engine's alternator                   | no                                                      | `propulsion.<id>.alternatorVoltage` warn, while the engine runs                              |
+| [`bilgeFlooding`](#bilge-flooding)                | `bilge`                                      | the leak is stopped after 15 to 30 minutes, then pumped | `electrical.switches.bilgeHighWater.state` alarm; `electrical.switches.bilgePump.state` warn |
+| [`fuelGaugeStuck`](#fuel-gauge-stuck)             | a fuel tank                                  | no                                                      | none                                                                                         |
+| [`depthSounderSilent`](#depth-sounder-silent)     | a depth sounder                              | after 5 to 15 minutes                                   | `environment.depth.belowTransducer` warn, when no sounder is sending                         |
+| [`gnssLost`](#gnss-fix-lost)                      | `gnss`                                       | after 2 to 8 minutes, then reacquires                   | `navigation.position` alarm, until the fix is back                                           |
+| [`windInstrumentFrozen`](#wind-instrument-frozen) | `wind`, on a boat with a wind instrument     | no                                                      | none                                                                                         |
+| [`staleSensor`](#stale-sensor-value)              | a path (see below)                           | after 10 to 20 minutes                                  | none                                                                                         |
+| [`anchorDragging`](#anchor-dragging)              | `anchor`, only while the boat lies at anchor | the crew re-anchors after 10 to 20 minutes              | `navigation.anchor` emergency, from the anchor watch, once she is past its radius            |
 
 A **warn** goes out with method `["visual"]`, an **alarm** with `["visual", "sound"]`, and
 a cleared notification as `normal` with no method, keeping its message. Faults with no
@@ -53,7 +54,7 @@ defaults.
 
 The rest a fault raises itself, since no zone can know them: a generator that would not
 start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
-lost fix. A silent sounder never raises the shallow water alarm: no depth is not shallow
+lost fix; and the anchor watch raises the anchor alarm. A silent sounder never raises the shallow water alarm: no depth is not shallow
 depth, and a shallow alarm already raised clears once the sounder has been quiet for a few
 seconds.
 
@@ -196,6 +197,30 @@ plausible one. The targets are `environment.outside.temperature`,
 `electrical.batteries.<id>.voltage` and each combustion engine's
 `propulsion.<id>.coolantTemperature`. No notification.
 
+### Anchor Dragging
+
+The anchor loses its hold. It can happen only while the boat lies at anchor: the seed throws
+it only then, a hand raise under way is refused (`anchorDragging happens only while the
+boat lies at anchor`), and the page and `GET /faults` offer it only then. The anchor moves
+downwind at half a knot, a dragging boat's pace, with the boat on the end of her chain
+pulled out to its full reach; the anchor position she reports
+(`navigation.anchor.position`) stays where it went down, so `navigation.anchor.currentRadius`
+grows. Past the anchor watch's radius (her scope's radius plus 10 m unless the plugin sets
+another, a minute or two in on the Saronic anchorage) the watch raises
+`notifications.navigation.anchor`, emergency, `["visual", "sound"]`, `Anchor Alarm -
+Emergency`, as the anchor alarm plugin does.
+
+When it clears, by hand or at the end of its course, the crew has re-anchored: the anchor is
+set again where it now lies, with `navigation.anchor.position` there and
+`navigation.anchor.maxRadius` for the depth there. She is then well inside the radius, so
+the alarm clears in the same tick, as `normal` with no method. Weighing anchor ends it
+too, and clears the alarm.
+
+- **Paths:** `navigation.anchor.currentRadius` grows, `navigation.position` moves
+  downwind; `navigation.anchor.position` and `maxRadius` change once, at the re-anchoring.
+- **Notification:** `notifications.navigation.anchor`, from the
+  [anchor watch](../vessels/README.md#alarms).
+
 ## Raising and Clearing
 
 By REST (full reference in the [plugin README](../plugin/README.md#controlling-the-run)):
@@ -206,6 +231,9 @@ curl $SIM/faults                                   # what this boat can have, an
 curl -X POST $SIM/faults -H 'Content-Type: application/json' \
   -d '{"kind":"engineOverheat","target":"port"}'   # raise one
 curl -X DELETE $SIM/faults/engineOverheat/port     # clear it by hand
+curl -X POST $SIM/faults -H 'Content-Type: application/json' \
+  -d '{"kind":"anchorDragging"}'                   # at anchor: drag the anchor
+curl -X DELETE $SIM/faults/anchorDragging/anchor   # re-anchor where it now lies
 ```
 
 Or on the plugin's page in the Admin UI (Webapps, Signal K Simulator), which lists the
@@ -217,7 +245,8 @@ by hand winds down as it would (an engine still has to cool); while it does, it 
 
 The plugin setting **Faults a day** (`faultsPerDay`, default 0) has the seed throw faults
 on its own: on average that many per day of scenario time, at random intervals, each a
-random fault on a random target not already faulty. The same seed, start and setting throw
+random fault on a random target not already faulty, from those the boat can have at that
+moment (a dragging anchor only at anchor). The same seed, start and setting throw
 the same faults at the same scenario times, at any time multiplier. Faults raised by hand
 come on top.
 
@@ -237,4 +266,6 @@ systems afresh at the earlier time, and the faults with them.
 `test/simulator-faults.ts`, in `npm test`, raises every fault on a boat that has its target
 and checks its course, its paths and its notifications, the run resuming mid-fault, the
 seed's faults and that everything sent validates against the Signal K schema (the bilge
-switches aside). `test/simulator-control.ts` checks the REST surface.
+switches aside). `test/simulator-anchor.ts` runs the dragging anchor: only at anchor, by
+hand or the seed, the drag's pace and direction, the alarm, and the re-anchoring when it
+clears by hand, at the end of its course, or as she weighs. `test/simulator-control.ts` checks the REST surface.

@@ -9,20 +9,21 @@ surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 
-| Setting                                   | Default   | What It Does                                                                                                                         |
-| ----------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Sample                                    | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                                                      |
-| Time multiplier                           | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                                                            |
-| Minimum depth under keel                  | 1 m       | the route is moved out of water shallower than the boat's draft plus this                                                            |
-| Shallow water alarm                       | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper                                      |
-| Collision alarm: closest approach         | 15 m      | a moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half the time |
-| Collision alarm: time to closest approach | 1 min     | the time limit for the collision alarm                                                                                               |
-| Show traffic                              | on        | send the AIS targets the boat would hear                                                                                             |
-| Seed                                      | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                                                            |
-| Faults a day                              | 0         | faults the seed throws on its own, on average, per day of scenario time                                                              |
-| Own AIS antenna height                    | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                                                                    |
-| Start this many minutes into the route    | 0         | where a new run starts                                                                                                               |
-| Resume where the last run reached         | on        | carry on from the saved scenario time and the boat's systems                                                                         |
+| Setting                                   | Default   | What It Does                                                                                                                                                   |
+| ----------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sample                                    | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                                                                                |
+| Time multiplier                           | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                                                                                      |
+| Minimum depth under keel                  | 1 m       | the route is moved out of water shallower than the boat's draft plus this                                                                                      |
+| Shallow water alarm                       | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper                                                                |
+| Collision alarm: closest approach         | 15 m      | a moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half the time                           |
+| Collision alarm: time to closest approach | 1 min     | the time limit for the collision alarm                                                                                                                         |
+| Anchor watch radius                       | 0         | at anchor, the anchor alarm is raised once the boat is further than this from her anchor and cleared 5 m inside it; 0 for the radius her scope gives plus 10 m |
+| Show traffic                              | on        | send the AIS targets the boat would hear                                                                                                                       |
+| Seed                                      | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                                                                                      |
+| Faults a day                              | 0         | faults the seed throws on its own, on average, per day of scenario time                                                                                        |
+| Own AIS antenna height                    | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                                                                                              |
+| Start this many minutes into the route    | 0         | where a new run starts                                                                                                                                         |
+| Resume where the last run reached         | on        | carry on from the saved scenario time and the boat's systems                                                                                                   |
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
@@ -42,11 +43,13 @@ fit the profile (a unit added or removed, an older format), is ignored with a me
 the server log, and the run starts fresh rather than failing.
 
 The status line on the plugin page shows whether the run is under way, paused or arrived,
-the scenario time, the multiplier, the boat's speed, the depth under it, how many AIS
-targets it currently hears, the faults on board, the alarms on board with their state,
-the collision alarms among them ("alarms: Shallow water (alarm), LUCY GOOSE: closest
-approach alarm (alarm)"), and anything that limits the run (a leg that could not be
-cleared of shallow water, or AIS not available on this machine).
+the scenario time, the multiplier, the boat's speed, at anchor her distance from the anchor
+with the radius she swings in and the watch's ("at anchor 38 m from it, swinging in 47 m,
+watch 57 m"), the depth under her, how many AIS targets she currently hears, the faults on
+board, the alarms on board with their state, the collision and anchor alarms among them
+("alarms: Shallow water (alarm), LUCY GOOSE: closest approach alarm (alarm), Anchor Alarm -
+Emergency (emergency)"), and anything that limits the run (a leg that could not be cleared
+of shallow water, or AIS not available on this machine).
 
 **Shallow water alarm** is the depth sounder's own alarm, raised as
 `notifications.environment.depth.belowKeel` when the depth under the keel is below it and
@@ -55,6 +58,13 @@ keel**, which only moves the route, so a passage kept a metre off the bottom can
 sound it, as a real one does. The default, 1.5 m, throws it a few times on the Miami
 sample's passage; where is in [the vessels README](../vessels/README.md#alarms), with the
 zones every other alarm comes from.
+
+**Anchor watch radius** is the anchor alarm's radius: at anchor, once the boat is further
+than this from her anchor, `notifications.navigation.anchor` is raised as the anchor alarm
+plugin raises it, emergency with visual and sound, and it clears once she is 5 m back
+inside, or the anchor is weighed. At 0 it is the radius her scope gives,
+`navigation.anchor.maxRadius`, plus 10 m, so only a dragging anchor reaches it. How she
+anchors is in [the routes README](../routes/README.md#anchorage).
 
 **Faults a day** has the seed throw faults on its own at that average rate, each a random
 fault on a random target, the same ones at the same times for the same seed and start.
@@ -67,13 +77,13 @@ A tester can script a scenario without the plugin's settings: the plugin serves 
 surface under its own path, `/plugins/signalk-simulator`, and a page in the Admin UI that
 uses it.
 
-| Method and Path                  | What It Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /run`                       | the run: sample and route, the boat, the clock (scenario time, multiplier, paused, departure and arrival, minutes into the route), position and state, next route point, depth, the systems' headline state, the targets in range (100 of them, in the order of a plotter's danger list: those inside the collision alarm's limits soonest first, then the other closing ones by closest approach, then the rest by range), each with its closest approach and the time to it while it is closing, the faults on board, and the alarms on board |
-| `PUT /run`                       | changes the run and answers with it: any of `paused` (true or false), `timeMultiplier` (above 0, up to 3600), and one of `time` (ISO 8601) or `minutesIntoRoute`, to jump along the route                                                                                                                                                                                                                                                                                                                                                       |
-| `GET /faults`                    | `available`: each fault this boat can have, with its title, description, targets and how long it lasts; `active`: the faults on board                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `POST /faults`                   | raises a fault, `{"kind": ..., "target": ...}`; the target defaults to the first the boat has. Answers 201 with the fault                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `DELETE /faults/<kind>/<target>` | clears a fault by hand; it winds down as it would                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Method and Path                  | What It Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /run`                       | the run: sample and route, the boat, the clock (scenario time, multiplier, paused, departure and arrival, minutes into the route), position and state, next route point, the anchor while it is down (its position and depth, her distance from it, the radius she swings in and the watch's), depth, the systems' headline state, the targets in range (100 of them, in the order of a plotter's danger list: those inside the collision alarm's limits soonest first, then the other closing ones by closest approach, then the rest by range), each with its closest approach and the time to it while it is closing, the faults on board, and the alarms on board |
+| `PUT /run`                       | changes the run and answers with it: any of `paused` (true or false), `timeMultiplier` (above 0, up to 3600), and one of `time` (ISO 8601) or `minutesIntoRoute`, to jump along the route                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /faults`                    | `available`: each fault this boat can have now, with its title, description, targets and how long it lasts (a dragging anchor only while she lies at anchor); `active`: the faults on board                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `POST /faults`                   | raises a fault, `{"kind": ..., "target": ...}`; the target defaults to the first the boat has. Answers 201 with the fault, or 400 for one the boat cannot have now (`anchorDragging` under way)                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `DELETE /faults/<kind>/<target>` | clears a fault by hand; it winds down as it would                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 A fault on board carries its `id` (`kind:target`), `title`, whether it was raised `by`
 hand or the seed, when it was raised (`raisedMs`), when it clears on its own (`clearsMs`)
@@ -104,6 +114,8 @@ curl -X PUT $SIM/run -H "$JSON" -d '{"time":"2024-03-16T17:00:00Z"}'
 curl $SIM/faults                                               # available and active
 curl -X POST $SIM/faults -H "$JSON" -d '{"kind":"gnssLost"}'   # lose the fix
 curl -X DELETE $SIM/faults/gnssLost/gnss                       # and regain it
+curl -X POST $SIM/faults -H "$JSON" -d '{"kind":"anchorDragging"}'  # at anchor: drag
+curl -X DELETE $SIM/faults/anchorDragging/anchor               # re-anchor where it lies
 ```
 
 A scenario script is then a sequence of these: jump to the stretch of interest, raise a
@@ -116,8 +128,11 @@ security is on; with security off, as on the rig, anyone who can reach the serve
 **The page.** The plugin is also an embedded webapp: **Webapps, Signal K Simulator** in the
 Admin UI opens it inside the Admin UI's own frame (at `/admin/#/e/signalk-simulator`). It
 shows the run (the boat, the scenario time and how far along the route, the multiplier and
-whether it is paused), where the boat is, the systems' headline state, the faults on board
-with their course, and the targets in range, refreshed every two seconds: Targets in Range
+whether it is paused), where the boat is (her state, and at anchor the anchor's position
+and depth, her distance from it, the radius she swings in and the watch's), the systems'
+headline state, the faults on board with their course, and the targets in range, refreshed
+every two seconds; the faults it offers to raise are read again with each refresh, so a
+dragging anchor is offered only while she lies at anchor. Targets in Range
 lists them as a plotter's danger list does: first the targets whose closest approach (CPA)
 is inside the collision alarm's limits, soonest first; then the other closing targets, by
 how close they come, nearest first; then those not closing, by range. Each closing target
@@ -149,7 +164,10 @@ next and previous point, the active route's `href` and `pointIndex`, and, from t
 provider plugin the server ships with, bearing and distance to the next point, cross track
 error, time to go and arrival time. The next point moves on in the tick the boat passes
 it: halfway round the arc at a waypoint it turns through, as it comes abeam of it, or as it
-leaves a hold or an anchor stop, which stays the next point while the boat lies there. The
+leaves a hold, which stays the next point while the boat lies there. An anchorage is reached
+as she anchors, and the point after it holds through the stay until she weighs; while she
+lies at anchor the course provider's time to go and arrival go out as null (see
+[Anchorage](../routes/README.md#anchorage)). The
 point index is always the route model's own leg. Changing the sample, or starting with
 resume off, sets the new route's course before the new position goes out, so no display
 sees the old destination with the new position. At the end of the route the course is

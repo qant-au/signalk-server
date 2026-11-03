@@ -256,7 +256,18 @@ the first four and nothing else; it sails without traffic. What no zone can know
 raises itself: a generator that will not start, a charger tripped, an alternator not
 charging, the bilge filling, a silent sounder, a lost fix (see
 [the faults](../faults/README.md#alarms)).
-An anchor dragging waits for the anchorage round.
+
+**Anchor watch.** While the anchor is down the boat watches her distance from it, as the
+anchor alarm plugin does. Past the watch radius it raises `notifications.navigation.anchor`
+as that plugin raises it: `state: emergency`, method `["visual", "sound"]`, message
+`Anchor Alarm - Emergency`. It holds until she is back inside the radius by 5 m, or the
+anchor is weighed, and then goes as `normal`, method `[]`, as every other alarm clears
+here. The radius is the plugin's `Anchor watch radius` setting; at 0, its default, it is
+the radius her scope gives (`navigation.anchor.maxRadius`) plus 10 m, so her swing never
+reaches it. Only a dragging anchor takes her past it: the `anchorDragging`
+[fault](../faults/README.md#the-faults), which the seed throws only at anchor and which can
+be raised by hand at anchor and nowhere else. How she anchors and swings is in
+[the routes README](../routes/README.md#anchorage).
 
 **One notification per path.** The server raises a notification itself from any zones in
 a path's metadata (`src/zones.ts`), at a zone's edge, with no margin, and for an engine's
@@ -319,9 +330,12 @@ with what the engines are doing and with each other.
   angle that cancels the current, `speedThroughWater` is the boat's speed through the
   moving water, and the two speeds differ by the current. A sea puts a slow wander of a
   degree or two on the heading, more on a small boat. Alongside, the lines hold the boat on
-  the berth's heading and nothing moves past the log. At anchor or holding, the boat lies
-  head to the current, which runs past the log; in the last five minutes before it leaves,
-  the crew swings it onto the course it leaves on. A heading never changes faster than the
+  the berth's heading and nothing moves past the log. At anchor she lies to her chain, bow
+  to the anchor, swinging to the wind; through the water and over the ground she moves
+  only as her swing moves her, a few tenths of a knot (see
+  [Anchorage](../routes/README.md#anchorage)). Holding under way at a bridge, she lies head
+  to the current, which runs past the log. In the last five minutes before she leaves, the
+  crew swings her onto the course she leaves on. A heading never changes faster than the
   boat can swing: its turning rate under way, or when stopped a pivot of three quarters
   of a degree a second on the largest boats up to three on the smallest.
 - **Magnetic variation** comes from the International Geomagnetic Reference Field on the
