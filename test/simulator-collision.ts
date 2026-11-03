@@ -11,6 +11,7 @@ import { Simulation } from '../simulator/engine/simulation'
 import { HeardTarget } from '../simulator/engine/traffic'
 import { Route, routeLegs } from '../simulator/routes/route'
 import { Delta, forSchema } from '../simulator/soak/deltas'
+import { dangerOrder } from '../simulator/plugin/control'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const schema = require(
@@ -145,6 +146,37 @@ describe('Simulator collision avoidance', () => {
       ])
       expect(w.update([past], new Set()).approaches).to.deep.equal([])
     })
+  })
+
+  it('lists targets as a danger list: inside the limits soonest first, then by closest approach, then by range', () => {
+    const t = (
+      name: string,
+      distanceNm: number,
+      approach?: [number, number]
+    ) => ({
+      name,
+      distanceNm,
+      closestApproach: approach && {
+        distanceM: approach[0],
+        timeToS: approach[1]
+      }
+    })
+    const listed = [
+      t('far, not closing', 3, undefined),
+      t('moored abeam, 3.9 km at 58 s', 2.1, [3900, 58]),
+      t('339 m off at 1:41', 1, [339, 101]),
+      t('inside, 40 s', 0.2, [10, 40]),
+      t('near, not closing', 0.5, undefined),
+      t('inside, 20 s', 0.1, [12, 20])
+    ].sort(dangerOrder({ distanceM: 15, timeS: 60 }))
+    expect(listed.map((x) => x.name)).to.deep.equal([
+      'inside, 20 s',
+      'inside, 40 s',
+      '339 m off at 1:41',
+      'moored abeam, 3.9 km at 58 s',
+      'near, not closing',
+      'far, not closing'
+    ])
   })
 
   describe('in a run', () => {

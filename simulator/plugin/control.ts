@@ -1,5 +1,6 @@
 import type { IRouter, Request, RequestHandler, Response } from 'express'
 import { distanceNm } from '../ais/reception'
+import { CollisionLimits } from '../ais/collision'
 import { Scenario } from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
 import { FaultError, Faults } from '../faults/faults'
@@ -194,16 +195,7 @@ export function runView(control: Control) {
             timeToS: Math.round(t.approach.timeToS)
           }
         }))
-        // the closing targets first, soonest first, then the rest by distance
-        .sort((a, b) =>
-          a.closestApproach && b.closestApproach
-            ? a.closestApproach.timeToS - b.closestApproach.timeToS
-            : a.closestApproach
-              ? -1
-              : b.closestApproach
-                ? 1
-                : a.distanceNm - b.distanceNm
-        )
+        .sort(dangerOrder(simulation.collisions.limits))
         .slice(0, MAX_TARGETS)
     : []
   return {
@@ -275,6 +267,35 @@ export function runView(control: Control) {
         message: c.value.message
       }))
     ]
+  }
+}
+
+interface ListedTarget {
+  distanceNm: number
+  closestApproach?: { distanceM: number; timeToS: number }
+}
+
+/**
+ * The order a plotter's danger list puts targets in: those whose closest approach is
+ * inside the collision alarm's limits, soonest first; then the rest that are closing, by
+ * how close they come, nearest first; then those not closing, by range.
+ */
+export function dangerOrder(limits: CollisionLimits) {
+  const rank = (t: ListedTarget) =>
+    !t.closestApproach
+      ? 2
+      : t.closestApproach.distanceM < limits.distanceM &&
+          t.closestApproach.timeToS < limits.timeS
+        ? 0
+        : 1
+  return (a: ListedTarget, b: ListedTarget) => {
+    const ra = rank(a)
+    const rb = rank(b)
+    if (ra !== rb) return ra - rb
+    if (ra === 0) return a.closestApproach!.timeToS - b.closestApproach!.timeToS
+    if (ra === 1)
+      return a.closestApproach!.distanceM - b.closestApproach!.distanceM
+    return a.distanceNm - b.distanceNm
   }
 }
 
