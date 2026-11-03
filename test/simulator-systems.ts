@@ -3,7 +3,7 @@ import path from 'path'
 import { Simulation } from '../simulator/engine/simulation'
 import { Scenario } from '../simulator/engine/scenario'
 import { Route, routeLegs } from '../simulator/routes/route'
-import { Delta } from '../simulator/soak/deltas'
+import { Delta, forSchema } from '../simulator/soak/deltas'
 import { Motion, STEP_S, SystemsModel } from '../simulator/systems/model'
 import { Drift, Rng } from '../simulator/systems/random'
 import {
@@ -36,7 +36,7 @@ interface Validation {
 }
 
 function check(delta: Delta): string[] {
-  const d = { ...delta, context: MMSI_CONTEXT }
+  const d = { ...forSchema(delta), context: MMSI_CONTEXT }
   const problems: string[] = []
   const envelope: Validation = schema.validateDelta(d)
   if (!envelope.valid)

@@ -20,7 +20,7 @@ import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
-import { Delta } from './deltas'
+import { Delta, forSchema } from './deltas'
 import { NotificationValue } from '../alarms/panel'
 import { AlarmBand } from '../alarms/zones'
 
@@ -284,7 +284,7 @@ async function cases(): Promise<SoakCase[]> {
 }
 
 function validationProblems(delta: Delta, mmsi: string): string[] {
-  const d = { ...delta, context: `vessels.urn:mrn:imo:mmsi:${mmsi}` }
+  const d = { ...forSchema(delta), context: `vessels.urn:mrn:imo:mmsi:${mmsi}` }
   const problems: string[] = []
   if (!schema.validateDelta(d).valid) problems.push('delta envelope')
   const full = schema.validateFull(schema.deltaToFull(d))

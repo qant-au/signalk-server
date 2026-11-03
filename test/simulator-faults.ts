@@ -4,7 +4,7 @@ import { FaultError } from '../simulator/faults/faults'
 import { Scenario } from '../simulator/engine/scenario'
 import { Simulation, SimulationOptions } from '../simulator/engine/simulation'
 import { Route, routeLegs } from '../simulator/routes/route'
-import { Delta } from '../simulator/soak/deltas'
+import { Delta, forSchema } from '../simulator/soak/deltas'
 import { loadProfile } from '../simulator/vessels/profile'
 import { Motion, SystemFaults, SystemsModel } from '../simulator/systems/model'
 
@@ -136,8 +136,11 @@ const notes = (deltas: Delta[], p: string) =>
 const BILGE = /^(notifications\.)?electrical\.switches\./
 
 function schemaProblems(delta: Delta): string[] {
-  const updates = delta.updates
-    .map((u) => ({ ...u, values: u.values.filter((v) => !BILGE.test(v.path)) }))
+  const updates = forSchema(delta)
+    .updates.map((u) => ({
+      ...u,
+      values: u.values.filter((v) => !BILGE.test(v.path))
+    }))
     .filter((u) => u.values.length)
   if (!updates.length) return []
   const d = { ...delta, updates, context: 'vessels.urn:mrn:imo:mmsi:230099999' }

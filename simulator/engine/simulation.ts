@@ -154,7 +154,7 @@ export class Simulation {
             source: SOURCE,
             timestamp: new Date(wallStartMs).toISOString(),
             values: [],
-            meta: this.alarms.meta()
+            meta: this.alarms.meta(SOURCE.label)
           }
         ]
       })

@@ -31,6 +31,8 @@ export interface ZoneMeta {
   warnMethod: NotificationValue['method']
   alarmMethod: NotificationValue['method']
   emergencyMethod: NotificationValue['method']
+  /** the source that raises the notifications for these zones, so the server raises none */
+  zonesNotifiedBy: string
 }
 
 const SEVERITY: Record<ZoneState, number> = {
@@ -89,26 +91,23 @@ export class AlarmPanel {
 
   /**
    * Each watched path's zones, as the metadata a display colours its gauges by, with the
-   * method for each state. The server raises its own notification from these zones too
-   * (src/zones.ts, sourced `self.notificationhandler`), at a zone's edge and with no
-   * margin; the methods here make it use the panel's. A band watched only while an engine
-   * runs is left out: a stopped engine reads no oil pressure, and the server, which cannot
-   * tell, would raise its low pressure alarm for as long as the engine is stopped.
+   * method for each state. `zonesNotifiedBy` names the panel's source: the server would
+   * otherwise raise a second notification of its own from these zones (src/zones.ts), at a
+   * zone's edge, with no margin, and for an engine's oil pressure whether or not it runs.
    */
-  meta(): { path: string; value: ZoneMeta }[] {
-    return [...this.bands]
-      .filter(([, band]) => !band.whileStarted)
-      .map(([path, band]) => ({
-        path,
-        value: {
-          description: band.description,
-          zones: band.zones,
-          alertMethod: methodFor('alert'),
-          warnMethod: methodFor('warn'),
-          alarmMethod: methodFor('alarm'),
-          emergencyMethod: methodFor('emergency')
-        }
-      }))
+  meta(notifiedBy: string): { path: string; value: ZoneMeta }[] {
+    return [...this.bands].map(([path, band]) => ({
+      path,
+      value: {
+        description: band.description,
+        zones: band.zones,
+        alertMethod: methodFor('alert'),
+        warnMethod: methodFor('warn'),
+        alarmMethod: methodFor('alarm'),
+        emergencyMethod: methodFor('emergency'),
+        zonesNotifiedBy: notifiedBy
+      }
+    }))
   }
 
   /** the values as they went out, which is what the panel reads */

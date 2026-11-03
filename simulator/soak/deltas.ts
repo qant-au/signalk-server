@@ -39,9 +39,32 @@ export interface Delta {
         warnMethod?: string[]
         alarmMethod?: string[]
         emergencyMethod?: string[]
+        zonesNotifiedBy?: string
       }
     }[]
   }[]
+}
+
+/**
+ * The delta as the Signal K schema can check it: without `zonesNotifiedBy` in the
+ * metadata, which this server reads (src/zones.ts) and the specification does not have.
+ */
+export function forSchema(delta: Delta): Delta {
+  return {
+    ...delta,
+    updates: delta.updates.map((u) =>
+      u.meta
+        ? {
+            ...u,
+            meta: u.meta.map((m) => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { zonesNotifiedBy, ...value } = m.value
+              return { ...m, value }
+            })
+          }
+        : u
+    )
+  }
 }
 
 export function knotsToMetresPerSecond(knots: number): number {
