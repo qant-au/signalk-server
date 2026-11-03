@@ -23,20 +23,20 @@ surface ([Controlling the Run](#controlling-the-run)).
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
-and the boat's systems with it, faults included (tank levels, every bank's state of charge, engine and
-generator run hours, solar yield today, which generators are running, the fuel transfer
-and the water maker, and the seeded streams behind every drift), so a boat two days into
-a passage comes back two days into it, and the run carries on exactly as if it had never
-stopped. Changing the time multiplier mid-run therefore speeds up or slows down the same
-passage rather than starting again, and engine hours keep counting in scenario time. Both
-are saved every ten seconds in the plugin's data directory, in `state.json`, which records
-the sample, vessel profile and seed the systems belong to. Change the sample to start the
-route from the beginning (or from **Start this many minutes into the route**) with fresh
-systems; turn resume off to do the same on the current sample. A different seed, or a
-route that now names a different profile, keeps the scenario time and starts the systems
-fresh. A saved file that cannot be read, or whose systems no longer fit the profile (a
-unit added or removed, an older format), is ignored with a message in the server log,
-and the run starts fresh rather than failing.
+and the boat's systems with it, faults included (tank levels, every bank's state of
+charge, engine and generator run hours, solar yield today, which generators are running,
+the fuel transfer and the water maker, and the seeded streams behind every drift), so a
+boat two days into a passage comes back two days into it, and the run carries on exactly
+as if it had never stopped. Changing the time multiplier mid-run therefore speeds up or
+slows down the same passage rather than starting again, and engine hours keep counting in
+scenario time. Both are saved every ten seconds in the plugin's data directory, in
+`state.json`, which records the sample, vessel profile and seed the systems belong to.
+Change the sample to start the route from the beginning (or from **Start this many minutes
+into the route**) with fresh systems; turn resume off to do the same on the current sample.
+A different seed, or a route that now names a different profile, keeps the scenario time
+and starts the systems fresh. A saved file that cannot be read, or whose systems no longer
+fit the profile (a unit added or removed, an older format), is ignored with a message in
+the server log, and the run starts fresh rather than failing.
 
 The status line on the plugin page shows whether the run is under way, paused or arrived,
 the scenario time, the multiplier, the boat's speed, the depth under it, how many AIS

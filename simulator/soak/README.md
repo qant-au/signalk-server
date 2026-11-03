@@ -97,7 +97,9 @@ SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name
 | The Queensland passage, 72 hours | `hybrid-catamaran-60ft`                                                                                     | the same passage, sailed by the hybrid catamaran on its passage rules: on its motors out of Manly and into Hamilton Island, on its diesels charging the bank between                                                                        |
 
 The sounders read a synthetic seabed that rises and falls, so the soak needs no depth
-download.
+download. No [faults](../faults/README.md) are thrown: the soak checks the systems as
+they should be, and a failing cell, for one, is meant to unbalance the energy books it
+checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 

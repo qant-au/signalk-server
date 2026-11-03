@@ -13,6 +13,7 @@ simulator/
   depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
   engine/                   the simulation: scenario loading, traffic, own boat, depth
   systems/                  the boat's systems model (engines, generators, electrics, tanks, inside) and its navigation suite
+  faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container

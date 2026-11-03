@@ -137,9 +137,9 @@ up is refused.
 ## What the Boat Sends
 
 Every value is on a path from the Signal K specification, in SI units, except the bilge
-switches a flooding fault sends, for which the specification has no path. Engine, wind and
-navigation data go every second; electrical, tanks and the spaces inside every five seconds, as a
-real gateway sends slow-changing data less often.
+switches a flooding fault sends, for which the specification has no path. Engine, wind
+and navigation data go every second; electrical, tanks and the spaces inside every five
+seconds, as a real gateway sends slow-changing data less often.
 
 | System             | Paths                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -325,9 +325,8 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
   stops at 98%, on generator power (0.025 kWh a litre). Alongside, the tanks are filled from
   the dock instead.
 - **The hotel load** is the profile's `hotelKw` (from the boat's size unless it says),
-  follows the day (lower at night, higher at
-  meal times) and adds air conditioning in proportion to the outside temperature, from nothing at 22 °C to
-  its most at 36 °C.
+  follows the day (lower at night, higher at meal times) and adds air conditioning in
+  proportion to the outside temperature, from nothing at 22 °C to its most at 36 °C.
 - **Batteries** discharge into the house loads, the fridges' compressors, an inverter and
   any electric drive, and charge from their sources in the order a real system ends up
   drawing on them: solar and wind first, then the DC-DC converter from a propulsion bank
