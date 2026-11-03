@@ -42,14 +42,14 @@ and starts the systems fresh. A saved file that cannot be read, or whose systems
 fit the profile (a unit added or removed, an older format), is ignored with a message in
 the server log, and the run starts fresh rather than failing.
 
-The status line on the plugin page shows whether the run is under way, at anchor, paused or arrived,
-the scenario time, the multiplier, the boat's speed, at anchor her distance from the anchor
-with the radius she swings in and the watch's ("at anchor 38 m from it, swinging in 47 m,
-watch 57 m"), the depth under her, how many AIS targets she currently hears, the faults on
-board, the alarms on board with their state, the collision and anchor alarms among them
-("alarms: Shallow water (alarm), LUCY GOOSE: closest approach alarm (alarm), Anchor Alarm -
-Emergency (emergency)"), and anything that limits the run (a leg that could not be cleared
-of shallow water, or AIS not available on this machine).
+The status line on the plugin page shows whether the run is under way, at anchor, paused
+or arrived, the scenario time, the multiplier, the boat's speed, at anchor her distance
+from the anchor with the radius she swings in and the watch's ("at anchor 38 m from it,
+swinging in 47 m, watch 57 m"), the depth under her, how many AIS targets she currently
+hears, the faults on board, the alarms on board with their state, the collision and anchor
+alarms among them ("alarms: Shallow water (alarm), LUCY GOOSE: closest approach alarm
+(alarm), Anchor Alarm - Emergency (emergency)"), and anything that limits the run (a leg
+that could not be cleared of shallow water, or AIS not available on this machine).
 
 **Shallow water alarm** is the depth sounder's own alarm, raised as
 `notifications.environment.depth.belowKeel` when the depth under the keel is below it and

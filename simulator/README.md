@@ -12,7 +12,7 @@ simulator/
   ais/                      the AIS reception model (what a boat would actually hear) and collision avoidance
   depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
   engine/                   the simulation: scenario loading, traffic, own boat, depth
-  systems/                  the boat's systems model (engines, generators, electrics, tanks, inside) and its navigation suite
+  systems/                  the boat's systems model (engines, generators, electrics, tanks, inside), its navigation suite, and the boat at anchor
   faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
   alarms/                   the alarm zones every watched value carries, and the panel that raises notifications from them (see vessels/README.md#alarms)
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)

@@ -10,7 +10,7 @@ There are two soaks and a busy run here, and they answer different questions:
 | Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's and the hybrid catamaran's three-day passages                    | the plugin on one sample with its AIS traffic, 10 WebSocket subscribers to the full stream and 3 REST readers of the vessels tree                       |
 | Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, the systems behaving as they should together, and every bank's energy books balancing | the scenario clock against wall time, every delta reaching every subscriber, event loop lag, memory levelling off, and Admin UI and REST response times |
 | Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                                                           | `bin/simulator-busy <sample>`                                                                                                                           |
-| Takes        | as long as you ask it to run                                            | about eight minutes                                                                                                                                     | an hour for a day, and up to 12 minutes more to settle                                                                                                  |
+| Takes        | as long as you ask it to run                                            | about ten minutes                                                                                                                                       | an hour for a day, and up to 12 minutes more to settle                                                                                                  |
 | Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 | after a change to the plugin's traffic, its send path or the server's delta fanout                                                                      |
 
 None is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
@@ -82,7 +82,7 @@ controllable clock at 60 scenario seconds per tick, so 24 hours takes about 25 s
 most of it schema validation, rather than a day. It uses seed 1, so a failure repeats exactly.
 
 ```shell
-npm run test:simulator-soak                          # every case, about eight minutes
+npm run test:simulator-soak                          # every case, about ten minutes
 SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name contains this
 ```
 

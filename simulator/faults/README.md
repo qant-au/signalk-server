@@ -54,7 +54,8 @@ defaults.
 
 The rest a fault raises itself, since no zone can know them: a generator that would not
 start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
-lost fix; and the anchor watch raises the anchor alarm. A silent sounder never raises the shallow water alarm: no depth is not shallow
+lost fix; and the anchor watch raises the anchor alarm. A silent sounder never raises
+the shallow water alarm: no depth is not shallow
 depth, and a shallow alarm already raised clears once the sounder has been quiet for a few
 seconds.
 
@@ -268,4 +269,5 @@ and checks its course, its paths and its notifications, the run resuming mid-fau
 seed's faults and that everything sent validates against the Signal K schema (the bilge
 switches aside). `test/simulator-anchor.ts` runs the dragging anchor: only at anchor, by
 hand or the seed, the drag's pace and direction, the alarm, and the re-anchoring when it
-clears by hand, at the end of its course, or as she weighs. `test/simulator-control.ts` checks the REST surface.
+clears by hand, at the end of its course, or as she weighs. `test/simulator-control.ts`
+checks the REST surface.

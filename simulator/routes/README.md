@@ -120,16 +120,18 @@ kn round the north of Angistri onto the passage. The rest of the route was retim
 the stay inside the sample's AIS, which runs from 11:00 to 07:00 UTC and was left as it is:
 the legs under sail go at 6 kn rather than 4.5 to 6, and she is alongside again at 06:54 UTC.
 
-**Anchoring.** She lets go at the waypoint and falls back as the chain pays out, at three tenths of a
-metre a second, to a scope of five times the depth plus the height of her bow roller (8 %
-of her length): 40 m of chain in Skala bay's 6.8 m. She lies downwind of the anchor, her bow
-to it, nearer it in a light air, with the chain's weight on the bottom, and out to its full
-reach in 20 kn or more. On that line she sheers from side to side, 15° either way over four
-to five minutes for a 15 m boat, as yachts do on a chain, though on a long scope never
-across the wind at more than half a knot, and the line wanders with the wind. Whatever
-the chain, the windlass or a drag does, she moves at no more than 0.45 m a second. So her position, heading and the wind over the deck move as a boat at anchor moves:
-her speed over the ground is what the swing gives, a few tenths of a knot, and her speed
-through the water as little. Five minutes before she leaves, the crew swings her onto her
+**Anchoring.** She lets go at the waypoint and falls back as the chain pays out, at three
+tenths of a metre a second, to a scope of five times the depth plus the height of her bow
+roller (8 % of her length): 40 m of chain in Skala bay's 6.8 m. She lies downwind of the
+anchor, her bow to it, nearer it in a light air, with the chain's weight on the bottom,
+and out to its full reach in 20 kn or more. On that line she sheers from side to side,
+15° either way over four to five minutes for a 15 m boat, as yachts do on a chain, though
+on a long scope never across the wind at more than half a knot, and the line wanders with
+the wind. Whatever the chain, the windlass or a drag does, she moves at no more than
+0.45 m a second. So her position, heading and the wind over the deck move as a boat at
+anchor moves: her speed over the ground is what the swing gives, a few tenths of a knot,
+and her speed through the water as little. Five minutes before she leaves, the crew
+swings her onto her
 course, and then heaves in at the windlass's 0.3 m a second, timed so the anchor breaks out
 as she gets under way (the last two minutes in Skala bay), bringing her up to it; she then
 makes back to the track from where the anchor lay over the next minute or two.
