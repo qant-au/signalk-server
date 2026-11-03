@@ -56,16 +56,17 @@ published to the Resources API, so Freeboard shows the passage the boat actually
 API, before the boat's first position goes out, at the point the boat is heading for: the
 end of its first leg at the start of a run, or wherever a resumed run has reached. So
 `navigation.course.*` comes from the server (in the version 1 stream and tree, under
-`navigation.courseGreatCircle` and `navigation.courseRhumbline`) and follows the passage: next and previous
-point, the active route's `href` and `pointIndex`, and, from the course provider plugin
-the server ships with, bearing and distance to the next point, cross track error, time to
-go and arrival time. The next point moves on in the tick the boat passes it: halfway round
-the arc at a waypoint it turns through, as it comes abeam of it, or as it leaves a hold or
-an anchor stop, which stays the next point while the boat lies there. The point index is
-always the route model's own leg. Changing the sample, or starting with resume off, sets
-the new route's course before the new position goes out, so no display sees the old
-destination with the new position. At the end of the route the course is cleared, as an
-arrival clears it. Freeboard and any course plugin see the same passage the boat sails.
+`navigation.courseGreatCircle` and `navigation.courseRhumbline`) and follows the passage:
+next and previous point, the active route's `href` and `pointIndex`, and, from the course
+provider plugin the server ships with, bearing and distance to the next point, cross track
+error, time to go and arrival time. The next point moves on in the tick the boat passes
+it: halfway round the arc at a waypoint it turns through, as it comes abeam of it, or as it
+leaves a hold or an anchor stop, which stays the next point while the boat lies there. The
+point index is always the route model's own leg. Changing the sample, or starting with
+resume off, sets the new route's course before the new position goes out, so no display
+sees the old destination with the new position. At the end of the route the course is
+cleared, as an arrival clears it. Freeboard and any course plugin see the same passage the
+boat sails.
 
 Marinas are the exception. Berths sit in water shallower than a passage needs, and the
 coarser grids cannot see a marina basin or a dredged channel at all, so each sample sets a

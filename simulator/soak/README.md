@@ -325,7 +325,9 @@ grow.
 
 **The server did not give out.** At its busiest, Miami's afternoon with 508 targets in range,
 it handled 122 deltas a second for 10 subscribers on 10 % of one core, with the event loop's
-99th percentile at 21 ms and the slowest answer 103 ms. So there is no limit to report from this machine: no sample at x24 comes near one, and the busy run would need more subscribers, more readers or a faster clock to find it. A Raspberry Pi, the server's usual
+99th percentile at 21 ms and the slowest answer 103 ms. So there is no limit to report from
+this machine: no sample at x24 comes near one, and the busy run would need more
+subscribers, more readers or a faster clock to find it. A Raspberry Pi, the server's usual
 hardware, has not been tried.
 
 **The one slow moment is the plugin's, at start.** Loading a sample's scenario (its route, the
