@@ -21,6 +21,8 @@ import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
 import { Delta } from './deltas'
+import { NotificationValue } from '../alarms/panel'
+import { AlarmBand } from '../alarms/zones'
 
 // The server pins signalk-schema 1.0; free names under environment.inside need 1.1 or
 // later, so the deltas are validated against the newer copy the streams package uses.
@@ -78,7 +80,29 @@ interface CaseResult {
   books: EnergyBooks
   /** the fuel rates sent, integrated over the run, litres */
   sentFuelL: number
+  /** every notification sent, with the value of its path as last sent before it */
+  notes: Note[]
+  bands: Map<string, AlarmBand>
 }
+
+interface Note {
+  ms: number
+  path: string
+  value: NotificationValue
+  watched: unknown
+}
+
+/**
+ * The alarms a day on board may raise on its own, with no fault: a tank running low or a
+ * holding tank filling, a bank run down, shallow water. An engine overheating, a voltage
+ * out of its band, a gale or a warm fridge would each be the model going wrong.
+ */
+const DAY_ALARMS = [
+  /^tanks\.\w+\.\w+\.currentLevel$/,
+  /^electrical\.batteries\.\w+\.capacity\.stateOfCharge$/,
+  /^environment\.depth\.belowKeel$/
+]
+const SEVERE = new Set(['warn', 'alarm', 'alert', 'emergency'])
 
 /** where each profile not named by a sample spends its day */
 const DAY_AT: Record<string, string> = {
@@ -307,6 +331,8 @@ function run(soak: SoakCase): CaseResult {
     0
   )
   const tickCount = (soak.hours * HOUR_MS) / (TICK_MS * TIME_MULTIPLIER)
+  const notes: Note[] = []
+  const latest = new Map<string, unknown>()
   const check = (batch: Delta[]) => {
     for (const d of batch) {
       deltas++
@@ -328,6 +354,17 @@ function run(soak: SoakCase): CaseResult {
     for (const d of pending) {
       for (const u of d.updates) {
         for (const v of u.values) {
+          if (v.path.startsWith('notifications.')) {
+            const path = v.path.slice('notifications.'.length)
+            notes.push({
+              ms: result.scenarioMs,
+              path,
+              value: v.value as NotificationValue,
+              watched: latest.get(path)
+            })
+            continue
+          }
+          latest.set(v.path, v.value)
           const key = u.source.src ? `${u.source.src}:${v.path}` : v.path
           values.set(key, v.value)
         }
@@ -368,7 +405,9 @@ function run(soak: SoakCase): CaseResult {
     deltas,
     invalid,
     books: sim.systems!.books(),
-    sentFuelL
+    sentFuelL,
+    notes,
+    bands: sim.alarms!.bands
   }
 }
 
@@ -678,6 +717,23 @@ describe('Simulator systems soak', function () {
       }
     })
     console.table(rows)
+    const raised = [...results.values()].flatMap((r) => {
+      const byPath = new Map<string, Note[]>()
+      for (const n of r.notes) {
+        if (!SEVERE.has(n.value.state)) continue
+        byPath.set(n.path, [...(byPath.get(n.path) ?? []), n])
+      }
+      return [...byPath].map(([path, ns]) => ({
+        case: r.soak.name,
+        notification: path,
+        raised: ns.length,
+        states: [...new Set(ns.map((n) => n.value.state))].join(', '),
+        message: ns[0].value.message,
+        first: new Date(ns[0].ms).toISOString().slice(0, 16)
+      }))
+    })
+    if (raised.length) console.table(raised)
+    else console.log('no notifications raised')
   })
 
   const each = (fn: (r: CaseResult) => void) => () => {
@@ -701,7 +757,13 @@ describe('Simulator systems soak', function () {
       }
       for (const t of r.ticks) {
         for (const [key, value] of t.values) {
-          if (key === '' || key.startsWith('design.')) continue
+          // notifications are checked against their zones below
+          if (
+            key === '' ||
+            key.startsWith('design.') ||
+            key.startsWith('notifications.')
+          )
+            continue
           if (key === 'navigation.attitude') {
             for (const [axis, angle] of Object.entries(
               value as Record<string, number>
@@ -1291,6 +1353,74 @@ describe('Simulator systems soak', function () {
     }
     expect(greyPumpOuts, 'grey water pump-outs').to.be.at.least(1)
     expect(blackPumpOuts, 'black water pump-outs').to.be.at.least(1)
+  })
+
+  it(
+    'raises each notification from its zone and clears it out of it',
+    each((r) => {
+      const problems: string[] = []
+      for (const n of r.notes) {
+        const band = r.bands.get(n.path)
+        const at = `${n.path} ${n.value.state} at ${new Date(n.ms).toISOString()}`
+        if (!band) {
+          problems.push(`${at}: no zone on this path`)
+          continue
+        }
+        if (n.value.state === 'normal') {
+          // cleared: out of every zone, or no longer read
+          const w = n.watched
+          if (
+            typeof w === 'number' &&
+            band.zones.some(
+              (z) =>
+                SEVERE.has(z.state) &&
+                (z.lower === undefined || w >= z.lower) &&
+                (z.upper === undefined || w < z.upper)
+            )
+          )
+            problems.push(`${at}: cleared at ${n.watched}, still in a zone`)
+          continue
+        }
+        const v = n.watched
+        const matches =
+          typeof v === 'number' &&
+          band.zones.some(
+            (z) =>
+              z.state === n.value.state &&
+              z.message === n.value.message &&
+              (z.lower === undefined || v >= z.lower - band.margin) &&
+              (z.upper === undefined || v < z.upper + band.margin)
+          )
+        if (!matches) problems.push(`${at}: ${v} is not in its zone`)
+        const method =
+          n.value.state === 'warn' ? ['visual'] : ['visual', 'sound']
+        if (JSON.stringify(n.value.method) !== JSON.stringify(method))
+          problems.push(`${at}: method ${n.value.method}`)
+      }
+      expect(problems.slice(0, 10), r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it(
+    'raises only the alarms a day on board should, and clears each',
+    each((r) => {
+      const raised = new Set(
+        r.notes.filter((n) => SEVERE.has(n.value.state)).map((n) => n.path)
+      )
+      const unexpected = [...raised].filter(
+        (p) => !DAY_ALARMS.some((re) => re.test(p))
+      )
+      expect(unexpected, r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it('runs a tank low or fills one on a day out, and says so', () => {
+    const tanks = [...results.values()].flatMap((r) =>
+      r.notes
+        .filter((n) => SEVERE.has(n.value.state) && n.path.startsWith('tanks.'))
+        .map((n) => `${r.soak.name}: ${n.value.message}`)
+    )
+    expect(tanks).to.not.deep.equal([])
   })
 
   it(
