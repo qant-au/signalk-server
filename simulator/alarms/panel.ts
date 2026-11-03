@@ -23,6 +23,16 @@ export interface AlarmsState {
 
 export const ALARMS_STATE_VERSION = 1
 
+/** a watched path's metadata: its zones, and the method each state of them calls for */
+export interface ZoneMeta {
+  description: string
+  zones: AlarmZone[]
+  alertMethod: NotificationValue['method']
+  warnMethod: NotificationValue['method']
+  alarmMethod: NotificationValue['method']
+  emergencyMethod: NotificationValue['method']
+}
+
 const SEVERITY: Record<ZoneState, number> = {
   nominal: 0,
   normal: 0,
@@ -77,15 +87,28 @@ export class AlarmPanel {
     }
   }
 
-  /** each watched path's zones, as the metadata a display colours its gauges by */
-  meta(): {
-    path: string
-    value: { description: string; zones: AlarmZone[] }
-  }[] {
-    return [...this.bands].map(([path, band]) => ({
-      path,
-      value: { description: band.description, zones: band.zones }
-    }))
+  /**
+   * Each watched path's zones, as the metadata a display colours its gauges by, with the
+   * method for each state. The server raises its own notification from these zones too
+   * (src/zones.ts, sourced `self.notificationhandler`), at a zone's edge and with no
+   * margin; the methods here make it use the panel's. A band watched only while an engine
+   * runs is left out: a stopped engine reads no oil pressure, and the server, which cannot
+   * tell, would raise its low pressure alarm for as long as the engine is stopped.
+   */
+  meta(): { path: string; value: ZoneMeta }[] {
+    return [...this.bands]
+      .filter(([, band]) => !band.whileStarted)
+      .map(([path, band]) => ({
+        path,
+        value: {
+          description: band.description,
+          zones: band.zones,
+          alertMethod: methodFor('alert'),
+          warnMethod: methodFor('warn'),
+          alarmMethod: methodFor('alarm'),
+          emergencyMethod: methodFor('emergency')
+        }
+      }))
   }
 
   /** the values as they went out, which is what the panel reads */

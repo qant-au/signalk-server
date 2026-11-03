@@ -35,6 +35,10 @@ export interface Delta {
           state: string
           message: string
         }[]
+        alertMethod?: string[]
+        warnMethod?: string[]
+        alarmMethod?: string[]
+        emergencyMethod?: string[]
       }
     }[]
   }[]

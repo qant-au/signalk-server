@@ -250,6 +250,14 @@ describe('Simulator alarms', () => {
       { upper: 2, state: 'alarm', message: 'Shallow water' }
     ])
     expect(keel.value.description).to.be.a('string')
+    // the server raises from these zones too, with the panel's methods
+    expect(keel.value.alarmMethod).to.deep.equal(['visual', 'sound'])
+    expect(keel.value.warnMethod).to.deep.equal(['visual'])
+    // a stopped engine reads no oil pressure, so its zones are the panel's alone
+    expect(meta.some((m) => m.path.endsWith('.oilPressure'))).to.equal(false)
+    expect(meta.some((m) => m.path.endsWith('.coolantTemperature'))).to.equal(
+      true
+    )
     let wall = 0
     const run = (seconds: number) => {
       const from = sent.length
