@@ -19,6 +19,17 @@ import { SystemsModel, SystemsState } from '../systems/model'
 import { Faults, FaultsState } from '../faults/faults'
 import { AlarmPanel, AlarmsState } from '../alarms/panel'
 import { DEFAULT_SHALLOW_M, alarmBands } from '../alarms/zones'
+import {
+  Approach,
+  COLLISION_NOTIFICATION,
+  COLLISION_PATH,
+  CollisionLimits,
+  CollisionNote,
+  CollisionWatch,
+  DEFAULT_COLLISION_LIMITS,
+  closestApproach,
+  deadReckon
+} from '../ais/collision'
 
 /**
  * Runs a scenario: each tick works out the scenario time from the clock, moves the own
@@ -55,6 +66,8 @@ export interface SimulationOptions {
   shallowM?: number
   /** the alarms as a previous run saved them, carried on with the systems */
   alarmsState?: AlarmsState
+  /** the collision alarm's limits */
+  collision?: CollisionLimits
 }
 
 /** an AIS target as last heard, for the plugin's page */
@@ -66,6 +79,10 @@ export interface TargetSeen {
   lon: number
   sogKn: number
   cogDeg?: number
+  /** scenario time of its latest report */
+  atMs: number
+  /** its closest approach, while it is closing */
+  approach?: Approach
 }
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
@@ -92,6 +109,7 @@ export class Simulation {
   readonly systems?: SystemsModel
   readonly faults?: Faults
   readonly alarms?: AlarmPanel
+  readonly collisions: CollisionWatch
   /** the targets heard, as last heard */
   readonly targets = new Map<string, TargetSeen>()
   /** what the latest send sent */
@@ -101,6 +119,8 @@ export class Simulation {
   /** the identity fields this run sent, all but those withheld */
   readonly identitySent: IdentityField[]
   private ticks = 0
+  /** the wall time of the latest send, which a target lost between sends is cleared at */
+  private lastWallMs: number
 
   constructor(
     readonly scenario: Scenario,
@@ -115,6 +135,10 @@ export class Simulation {
     )
     this.lastScenarioMs = options.scenarioStartMs
     this.pendingMs = options.scenarioStartMs
+    this.lastWallMs = wallStartMs
+    this.collisions = new CollisionWatch(
+      options.collision ?? DEFAULT_COLLISION_LIMITS
+    )
     if (scenario.profile) {
       const depth = scenario.depth
       this.faults = new Faults(scenario.profile, {
@@ -163,7 +187,7 @@ export class Simulation {
 
   /** forgets every target still heard, as a receiver switched off does */
   forgetAll(): void {
-    for (const context of this.heardContexts) this.options.forget?.(context)
+    for (const context of this.heardContexts) this.lose(context)
     this.heardContexts.clear()
     this.targets.clear()
   }
@@ -207,6 +231,19 @@ export class Simulation {
     this.forgetAll()
     this.scenario.traffic?.restart()
     this.lastScenarioMs = scenarioMs
+  }
+
+  /** a target the receiver has lost: its collision alarm cleared, then the target dropped */
+  private lose(context: string): void {
+    const note = this.collisions.lost(context)
+    if (note) this.emitCollision(note, this.lastWallMs)
+    this.options.forget?.(context)
+  }
+
+  private emitCollision(note: CollisionNote, wallMs: number): void {
+    this.emit(
+      contextDelta(note.context, wallMs, COLLISION_NOTIFICATION, note.value)
+    )
   }
 
   /** targets currently heard (not yet lost) */
@@ -255,6 +292,7 @@ export class Simulation {
 
   /** The second half of a tick: sends the boat as it was at the time `advance` gave. */
   send(wallMs: number): TickResult {
+    this.lastWallMs = wallMs
     const scenarioMs = this.pendingMs
     const legs = this.scenario.legs
     const sentMs = this.systems ? this.systems.scenarioMs : scenarioMs
@@ -302,7 +340,14 @@ export class Simulation {
         position.lat,
         position.lon
       )
+      for (const context of result.lost) {
+        this.heardContexts.delete(context)
+        this.targets.delete(context)
+        this.lose(context)
+      }
+      const heardNow = new Set<string>()
       for (const target of result.heard) {
+        heardNow.add(target.context)
         this.heardContexts.add(target.context)
         this.targets.set(target.context, {
           context: target.context,
@@ -311,15 +356,44 @@ export class Simulation {
           lat: target.lat,
           lon: target.lon,
           sogKn: target.sogKn,
-          cogDeg: target.cogDeg
+          cogDeg: target.cogDeg,
+          atMs: target.atMs
         })
-        this.emit(targetDelta(target, wallMs))
       }
-      for (const context of result.lost) {
-        this.heardContexts.delete(context)
-        this.targets.delete(context)
-        this.options.forget?.(context)
+      // every target's closest approach, from where it has got to on its last report
+      for (const t of this.targets.values()) {
+        t.approach = closestApproach(
+          position,
+          deadReckon(t, (sentMs - t.atMs) / 1000)
+        )
       }
+      const { approaches, notes } = this.collisions.update(
+        [...this.targets.values()].map((t) => ({
+          context: t.context,
+          label: t.name ?? `MMSI ${t.mmsi ?? t.context}`,
+          sogKn: t.sogKn,
+          approach: t.approach
+        })),
+        heardNow
+      )
+      const approachOf = new Map(approaches.map((a) => [a.context, a.value]))
+      for (const target of result.heard) {
+        const delta = targetDelta(target, wallMs)
+        if (approachOf.has(target.context)) {
+          delta.updates[0].values.push({
+            path: COLLISION_PATH,
+            value: approachValue(approachOf.get(target.context)!)
+          })
+          approachOf.delete(target.context)
+        }
+        this.emit(delta)
+      }
+      for (const [context, value] of approachOf) {
+        this.emit(
+          contextDelta(context, wallMs, COLLISION_PATH, approachValue(value))
+        )
+      }
+      for (const note of notes) this.emitCollision(note, wallMs)
       heard = result.heard.length
     }
 
@@ -332,5 +406,30 @@ export class Simulation {
       finished: position.finished
     }
     return this.last
+  }
+}
+
+/** a closest approach as the specification gives it, or null for none */
+function approachValue(a: Approach | null) {
+  return (
+    a && { distance: Math.round(a.distanceM), timeTo: Math.round(a.timeToS) }
+  )
+}
+
+function contextDelta(
+  context: string,
+  wallMs: number,
+  path: string,
+  value: unknown
+): Delta {
+  return {
+    context,
+    updates: [
+      {
+        source: SOURCE,
+        timestamp: new Date(wallMs).toISOString(),
+        values: [{ path, value }]
+      }
+    ]
   }
 }

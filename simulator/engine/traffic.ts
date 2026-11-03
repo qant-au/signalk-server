@@ -57,6 +57,8 @@ export interface TargetState {
 export interface HeardTarget extends TargetState {
   /** true when static data is due with this report */
   withStatic: boolean
+  /** scenario time of the report */
+  atMs: number
 }
 
 const MMSI_PATTERN = /^\d{9}$/
@@ -251,6 +253,7 @@ export class Traffic {
         track.nextTransmitMs = Math.max(fromMs, track.firstMs)
       }
       let latest: TargetState | undefined
+      let latestMs = 0
       while (track.nextTransmitMs <= toMs) {
         const t = track.nextTransmitMs
         const state = track.at(t, maxGapMs)
@@ -268,6 +271,7 @@ export class Traffic {
           track.lastHeardMs = t
           track.lastIntervalS = interval
           latest = state
+          latestMs = t
         }
       }
       if (latest) {
@@ -275,7 +279,7 @@ export class Traffic {
           toMs - track.lastStaticMs >=
           staticIntervalSeconds(track.station.aisClass) * 1000
         if (withStatic) track.lastStaticMs = toMs
-        heard.push({ ...latest, withStatic })
+        heard.push({ ...latest, withStatic, atMs: latestMs })
       } else if (
         track.lastHeardMs > -Infinity &&
         toMs - track.lastHeardMs > lostAfterSeconds(track.lastIntervalS) * 1000
