@@ -289,12 +289,15 @@ describe('Simulator faults', () => {
     expect(notes(fixed, 'navigation.position').at(-1)).to.include({
       state: 'normal'
     })
-    run.minutes(1)
-    expect(
-      Math.abs(
-        (last(run.sent, 'navigation.gnss.satellites') as number) - satellites
-      )
-    ).to.be.at.most(2)
+    // more satellites come in one by one as it settles
+    const settling = values(
+      run.minutes(2 / 3),
+      'navigation.gnss.satellites'
+    ) as number[]
+    for (let i = 1; i < settling.length; i++) {
+      expect(settling[i] - settling[i - 1]).to.be.at.most(1)
+    }
+    expect(Math.abs(settling.at(-1)! - satellites)).to.be.at.most(2)
     expect(run.faults.active()).to.deep.equal([])
   })
 

@@ -549,7 +549,7 @@ export class Faults implements SystemFaults {
       for (const v of update.values) this.lastSent.set(v.path, v.value)
     }
     const s = this.lastSent.get('navigation.gnss.satellites')
-    if (typeof s === 'number' && !this.gnssDown()) {
+    if (typeof s === 'number' && this.gnssPhase() === undefined) {
       this.receiver.satellites = s
       const h = this.lastSent.get('navigation.gnss.horizontalDilution')
       if (typeof h === 'number') this.receiver.hdop = h
