@@ -172,7 +172,7 @@ export function runView(control: Control) {
   const legs = scenario.legs
   const departMs = legs[0].departMs
   const arriveMs = legs[legs.length - 1].arriveMs
-  const scenarioMs = simulation.systems?.scenarioMs ?? result?.scenarioMs
+  const scenarioMs = simulation.scenarioMs
   const position = result?.position
   const vessel = scenario.route.vessel
   const summary = simulation.systems?.summary()

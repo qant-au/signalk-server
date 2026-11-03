@@ -143,6 +143,11 @@ export class Simulation {
     this.targets.clear()
   }
 
+  /** the scenario time the clock has reached, or a jump has set */
+  get scenarioMs(): number {
+    return this.pendingMs
+  }
+
   get timeMultiplier(): number {
     return this.clock.rate
   }

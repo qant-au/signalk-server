@@ -123,6 +123,8 @@ describe('Simulator REST surface', () => {
     expect(r.status).to.equal(200)
     expect(r.body.clock).to.include({ paused: true, timeMultiplier: 30 })
     r = await call('PUT', '/run', { minutesIntoRoute: 90 })
+    // the answer gives the time jumped to, before the next tick has sent it
+    expect(r.body.clock.minutesIntoRoute).to.equal(90)
     wallMs += 1000
     simulation.tick(wallMs)
     expect((await call('GET', '/run')).body.clock.minutesIntoRoute).to.equal(90)
