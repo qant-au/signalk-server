@@ -1,9 +1,11 @@
 # Signal K Simulator Plugin
 
 The simulator as a Signal K Server plugin. It sails a sample scenario on the server it runs
-in: the own boat on its route, the depth under it, and the AIS traffic it would hear. The
-[test rig](../rig/README.md) builds and enables it; its settings are in the Admin UI under
-**Server, Plugin Config, Signal K Simulator**.
+in: the own boat on its route with its systems and their [faults](../faults/README.md), the
+depth under it, and the AIS traffic it would hear. The [test rig](../rig/README.md) builds
+and enables it; its settings are in the Admin UI under **Server, Plugin Config, Signal K
+Simulator**, and the run itself can be watched and steered on its page or through its REST
+surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 
@@ -14,13 +16,14 @@ in: the own boat on its route, the depth under it, and the AIS traffic it would 
 | Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this       |
 | Show traffic                           | on        | send the AIS targets the boat would hear                                        |
 | Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly       |
+| Faults a day                           | 0         | faults the seed throws on its own, on average, per day of scenario time         |
 | Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears               |
 | Start this many minutes into the route | 0         | where a new run starts                                                          |
 | Resume where the last run reached      | on        | carry on from the saved scenario time and the boat's systems                    |
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
-and the boat's systems with it (tank levels, every bank's state of charge, engine and
+and the boat's systems with it, faults included (tank levels, every bank's state of charge, engine and
 generator run hours, solar yield today, which generators are running, the fuel transfer
 and the water maker, and the seeded streams behind every drift), so a boat two days into
 a passage comes back two days into it, and the run carries on exactly as if it had never
@@ -35,10 +38,76 @@ fresh. A saved file that cannot be read, or whose systems no longer fit the prof
 unit added or removed, an older format), is ignored with a message in the server log,
 and the run starts fresh rather than failing.
 
-The status line on the plugin page shows the scenario time, the multiplier, the boat's
-speed, the depth under it, how many AIS targets it currently hears, and anything that
-limits the run (a leg that could not be cleared of shallow water, or AIS not available on
-this machine).
+The status line on the plugin page shows whether the run is under way, paused or arrived,
+the scenario time, the multiplier, the boat's speed, the depth under it, how many AIS
+targets it currently hears, the faults on board, and anything that limits the run (a leg
+that could not be cleared of shallow water, or AIS not available on this machine).
+
+**Faults a day** has the seed throw faults on its own at that average rate, each a random
+fault on a random target, the same ones at the same times for the same seed and start.
+At 0 (the default) there are none but those raised by hand. What each fault does is in
+[the faults README](../faults/README.md).
+
+## Controlling the Run
+
+A tester can script a scenario without the plugin's settings: the plugin serves a REST
+surface under its own path, `/plugins/signalk-simulator`, and a page in the Admin UI that
+uses it.
+
+| Method and Path                  | What It Does                                                                                                                                                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /run`                       | the run: sample and route, the boat, the clock (scenario time, multiplier, paused, departure and arrival, minutes into the route), position and state, next route point, depth, the systems' headline state, the targets in range (nearest 100), and the faults on board |
+| `PUT /run`                       | changes the run and answers with it: any of `paused` (true or false), `timeMultiplier` (above 0, up to 3600), and one of `time` (ISO 8601) or `minutesIntoRoute`, to jump along the route                                                                                |
+| `GET /faults`                    | `available`: each fault this boat can have, with its title, description, targets and how long it lasts; `active`: the faults on board                                                                                                                                    |
+| `POST /faults`                   | raises a fault, `{"kind": ..., "target": ...}`; the target defaults to the first the boat has. Answers 201 with the fault                                                                                                                                                |
+| `DELETE /faults/<kind>/<target>` | clears a fault by hand; it winds down as it would                                                                                                                                                                                                                        |
+
+A fault on board carries its `id` (`kind:target`), `title`, whether it was raised `by`
+hand or the seed, when it was raised (`raisedMs`), when it clears on its own (`clearsMs`)
+or was cleared (`clearedMs`, `clearedBy`), its `phase` (`developing`, or `clearing` while
+its effects wind down) and its `course` in a few words ("coolant 110 °C, oil 1.5 bar").
+A request the run cannot meet answers 400 with `{"error": ...}` (an unknown fault or
+target, one already on, a time outside the route), and 503 while the plugin is loading.
+
+**Pausing** holds the scenario clock where it is: the boat keeps sending the same moment,
+as if time had stopped. **The multiplier** changes from the scenario time reached,
+so the passage speeds up or slows down without starting again. Both last until the plugin
+restarts; set the multiplier in the settings to keep it. **Jumping** forward runs the
+systems and faults through every step to the new time, as if the boat had sailed it, and
+the receiver hears the traffic afresh from there; jumping back starts the run again at the
+earlier time with fresh systems and faults, keeping the clock's multiplier and pause. A
+jump must land between departure and arrival.
+
+```shell
+SIM=http://localhost:3000/plugins/signalk-simulator
+JSON='Content-Type: application/json'
+
+curl $SIM/run                                                  # where the run is
+curl -X PUT $SIM/run -H "$JSON" -d '{"paused":true}'           # pause
+curl -X PUT $SIM/run -H "$JSON" -d '{"paused":false,"timeMultiplier":60}'
+curl -X PUT $SIM/run -H "$JSON" -d '{"minutesIntoRoute":90}'   # jump along the route
+curl -X PUT $SIM/run -H "$JSON" -d '{"time":"2024-03-16T17:00:00Z"}'
+
+curl $SIM/faults                                               # available and active
+curl -X POST $SIM/faults -H "$JSON" -d '{"kind":"gnssLost"}'   # lose the fix
+curl -X DELETE $SIM/faults/gnssLost/gnss                       # and regain it
+```
+
+A scenario script is then a sequence of these: jump to the stretch of interest, raise a
+fault, let it run at a known multiplier, read what an alarm plugin made of it from the
+server's own notifications API (`GET /signalk/v2/api/notifications`), clear it.
+
+Reading is open to read-only users and the controls to read/write users, where the server's
+security is on; with security off, as on the rig, anyone who can reach the server can.
+
+**The page.** The plugin is also an embedded webapp: **Webapps, Signal K Simulator** in the
+Admin UI opens it inside the Admin UI's own frame (at `/admin/#/e/signalk-simulator`). It
+shows the run (the boat, the scenario time and how far along the route, the multiplier and
+whether it is paused), where the boat is, the systems' headline state, the faults on board
+with their course, and the targets in range, nearest first, refreshed every two seconds. Its
+buttons are the same controls as the REST surface: pause and resume, the multiplier, a jump
+to a number of minutes into the route, and raising and clearing faults. It is built on the
+Admin UI's own React and styles, so it needs nothing beyond the plugin's own build.
 
 ## What It Does
 
@@ -161,11 +230,13 @@ The rig image builds it, and `bin/simulator` builds it and starts this server wi
 enabled on the Miami sample. That script runs the server from its own configuration
 directory, `.simulator/` in the checkout (ignored by git), with a fresh copy of
 `settings/simulator.json` on every start, because the server writes its defaults back into
-the settings file it runs with. The plugin's settings and saved run (scenario time and systems)
-persist there between runs; delete `.simulator/` to start over. To build the plugin by hand:
+the settings file it runs with. The plugin's settings and saved run (scenario time, systems
+and faults) persist there between runs; delete `.simulator/` to start over. To build the
+plugin by hand:
 
 ```shell
-npx tsc -p simulator/plugin      # writes simulator/plugin/dist
+npx tsc -p simulator/plugin          # writes simulator/plugin/dist
+npx tsc -p simulator/plugin/webapp   # writes simulator/plugin/public, the page
 ```
 
 To see whether the server keeps up with the plugin at x24 with its traffic and a crowd of
