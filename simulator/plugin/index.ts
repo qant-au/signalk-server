@@ -12,6 +12,8 @@ import {
 import { DroppedTargets } from '../engine/dropped'
 import { Simulation } from '../engine/simulation'
 import { FaultsState } from '../faults/faults'
+import { AlarmsState } from '../alarms/panel'
+import { DEFAULT_SHALLOW_M } from '../alarms/zones'
 import { Control, ControlError, controlRoutes } from './control'
 import {
   Delta,
@@ -39,6 +41,7 @@ interface Options {
   resume: boolean
   timeMultiplier: number
   minDepthUnderKeelM: number
+  shallowAlarmM: number
   showTraffic: boolean
   receiverAntennaHeightM: number
   seed: number
@@ -52,6 +55,8 @@ interface SavedState {
   systems?: SystemsState
   /** the faults on board, which belong to the systems saved with them */
   faults?: FaultsState
+  /** the alarms raised, which belong to the systems saved with them */
+  alarms?: AlarmsState
 }
 
 /** a delta as the server hands it to an input handler, as far as this plugin reads it */
@@ -130,6 +135,7 @@ const DEFAULTS: Options = {
   resume: true,
   timeMultiplier: 1,
   minDepthUnderKeelM: DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
+  shallowAlarmM: DEFAULT_SHALLOW_M,
   showTraffic: true,
   receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
   seed: 1,
@@ -397,6 +403,8 @@ export = function simulatorPlugin(app: App) {
           systemsState,
           faultsPerDay: options.faultsPerDay,
           faultsState: systemsState ? saved?.faults : undefined,
+          shallowM: options.shallowAlarmM,
+          alarmsState: systemsState ? saved?.alarms : undefined,
           identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
           forget: forgetTarget
         },
@@ -460,7 +468,8 @@ export = function simulatorPlugin(app: App) {
         sample: options.sample,
         scenarioMs,
         systems: simulation?.systems?.save(),
-        faults: simulation?.faults?.save()
+        faults: simulation?.faults?.save(),
+        alarms: simulation?.alarms?.save()
       })
     current = {
       options,
@@ -508,6 +517,10 @@ export = function simulatorPlugin(app: App) {
       const faulty = faults.length
         ? `, faults: ${faults.map((f) => f.id).join(', ')}`
         : ''
+      const alarms = simulation.alarms?.active() ?? []
+      const alarmed = alarms.length
+        ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
+        : ''
       const state = simulation.isPaused
         ? 'Paused'
         : result.finished
@@ -515,7 +528,7 @@ export = function simulatorPlugin(app: App) {
           : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}${faulty}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -599,6 +612,14 @@ export = function simulatorPlugin(app: App) {
               'The route is moved out of water shallower than the draft plus this; marinas are exempt',
             minimum: 0,
             default: DEFAULTS.minDepthUnderKeelM
+          },
+          shallowAlarmM: {
+            type: 'number',
+            title: 'Shallow water alarm (m under the keel)',
+            description:
+              "The depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper",
+            minimum: 0,
+            default: DEFAULTS.shallowAlarmM
           },
           showTraffic: {
             type: 'boolean',

@@ -17,6 +17,8 @@ import { depthDelta, targetDelta } from './deltas'
 import { Scenario } from './scenario'
 import { SystemsModel, SystemsState } from '../systems/model'
 import { Faults, FaultsState } from '../faults/faults'
+import { AlarmPanel, AlarmsState } from '../alarms/panel'
+import { DEFAULT_SHALLOW_M, alarmBands } from '../alarms/zones'
 
 /**
  * Runs a scenario: each tick works out the scenario time from the clock, moves the own
@@ -26,7 +28,8 @@ import { Faults, FaultsState } from '../faults/faults'
  *
  * With systems, everything the boat sends is the state at the systems model's latest
  * step, position and scenario time included, so a delta carries the same values for the
- * same scenario time at any multiplier: a faster clock only sends fewer of them.
+ * same scenario time at any multiplier: a faster clock only sends fewer of them. The
+ * boat's alarm panel reads what goes out and raises the notifications its zones call for.
  */
 export interface SimulationOptions {
   timeMultiplier: number
@@ -48,6 +51,10 @@ export interface SimulationOptions {
   faultsPerDay?: number
   /** the faults as a previous run saved them, carried on with the systems */
   faultsState?: FaultsState
+  /** the sounders' shallow water alarm, metres under the keel */
+  shallowM?: number
+  /** the alarms as a previous run saved them, carried on with the systems */
+  alarmsState?: AlarmsState
 }
 
 /** an AIS target as last heard, for the plugin's page */
@@ -84,6 +91,7 @@ export class Simulation {
   private readonly heardContexts = new Set<string>()
   readonly systems?: SystemsModel
   readonly faults?: Faults
+  readonly alarms?: AlarmPanel
   /** the targets heard, as last heard */
   readonly targets = new Map<string, TargetSeen>()
   /** what the latest send sent */
@@ -125,6 +133,10 @@ export class Simulation {
           : undefined,
         state: options.systemsState
       })
+      this.alarms = new AlarmPanel(
+        alarmBands(scenario.profile, options.shallowM ?? DEFAULT_SHALLOW_M),
+        options.systemsState ? options.alarmsState : undefined
+      )
     }
     const identity = identityDelta(
       vesselIdentity(scenario.route.vessel, scenario.profile),
@@ -134,6 +146,19 @@ export class Simulation {
     this.identitySent = identity.sent
     this.emit(identity.delta)
     if (this.systems) this.emit(this.systems.metaDelta(wallStartMs))
+    if (this.alarms) {
+      this.emit({
+        context: 'vessels.self',
+        updates: [
+          {
+            source: SOURCE,
+            timestamp: new Date(wallStartMs).toISOString(),
+            values: [],
+            meta: this.alarms.meta()
+          }
+        ]
+      })
+    }
   }
 
   /** forgets every target still heard, as a receiver switched off does */
@@ -237,8 +262,11 @@ export class Simulation {
     const position = this.systems
       ? offTrack(onTrack, this.systems.trackOffsetM)
       : onTrack
-    const own = (delta: Delta) =>
-      this.emit(this.faults ? this.faults.filter(delta) : delta)
+    const own = (delta: Delta) => {
+      const sent = this.faults ? this.faults.filter(delta) : delta
+      this.alarms?.record(sent)
+      this.emit(sent)
+    }
     own(ownBoatDelta(position, sentMs, wallMs, !this.systems))
 
     let depthM: number | undefined
@@ -253,9 +281,14 @@ export class Simulation {
       const slow = this.ticks % SLOW_EVERY_TICKS === 0
       for (const delta of this.systems.deltas(wallMs, slow)) own(delta)
     }
-    if (this.faults) {
+    if (this.faults && this.alarms) {
       for (const delta of this.faults.deltas(wallMs, SOURCE)) this.emit(delta)
-      const notes = this.faults.notifications(wallMs, SOURCE, this.notifyAll)
+      const notes = this.alarms.notifications(
+        wallMs,
+        SOURCE,
+        this.faults.alarms(),
+        this.notifyAll
+      )
       this.notifyAll = false
       if (notes) this.emit(notes)
     }

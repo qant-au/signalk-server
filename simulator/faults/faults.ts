@@ -1,3 +1,4 @@
+import type { Alarm } from '../alarms/panel'
 import { Delta } from '../soak/deltas'
 import { SystemFaults } from '../systems/model'
 import { Rng } from '../systems/random'
@@ -7,9 +8,9 @@ import { VesselProfile } from '../vessels/profile'
  * Things that go wrong on a real boat. A fault comes on, develops at the rate it would,
  * and clears on its own when it would (a crew clearing a blocked intake, a receiver
  * regaining its fix) or when cleared by hand. The paths carry it the way a real sensor
- * would: the value goes wrong, and where the boat's own alarm would sound, the plugin
- * raises the specification's notification for that path, and clears it when the value is
- * back.
+ * would: the value goes wrong, and the boat's alarm panel (simulator/alarms) raises the
+ * notification its zones call for. What no zone can know (a generator that would not start,
+ * a fix lost, a charger tripped) the faults raise themselves, through `alarms()`.
  *
  * A fault touches the boat in one of two places. Those that change what happens on board
  * (an overheating engine, a dead cell, a charger tripping, a generator that will not
@@ -39,25 +40,10 @@ const KELVIN = 273.15
 const PASCALS_PER_BAR = 100000
 const SECONDS_PER_HOUR = 3600
 
-/** the engine panel's coolant warning and alarm, degrees C */
-const COOLANT_WARN_C = 95
-const COOLANT_ALARM_C = 100
-/** an overheat is over once the coolant is back below this */
+/** an overheat is over once the coolant is back below this, clear of its warning zone */
 const COOLANT_NORMAL_C = 90
-/** the engine panel's low oil pressure alarm, running */
-const OIL_PRESSURE_ALARM_BAR = 1
 /** a failing cell takes this long to fail completely */
 const CELL_FAILURE_MIN = 60
-/** a battery monitor's low voltage warning and alarm, per 12 V */
-const BATTERY_WARN_V = 11.8
-const BATTERY_ALARM_V = 11
-/**
- * An alarm, once raised, holds until its value is back past its threshold by this much,
- * as a real panel's does, so a value wandering about the threshold does not flicker it.
- */
-const COOLANT_HYSTERESIS_C = 2
-const OIL_PRESSURE_HYSTERESIS_BAR = 0.3
-const BATTERY_HYSTERESIS_V = 0.2
 /** bilge sump litres per (length in metres)^1.5, and pump litres an hour */
 const SUMP_L_PER_M15 = 2
 const PUMP_L_PER_H = 1000
@@ -78,13 +64,6 @@ const FIX_ACQUIRE_S = 20
 const FIX_SETTLE_S = 60
 const SATELLITES_WITHOUT_FIX = 2
 const SATELLITES_FOR_FIX = 4
-
-/** what a notification carries */
-export interface NotificationValue {
-  state: 'normal' | 'warn' | 'alarm'
-  method: ('visual' | 'sound')[]
-  message: string
-}
 
 interface KindSpec {
   title: string
@@ -213,8 +192,6 @@ export interface FaultsState {
   rng: number
   faults: Fault[]
   bilge: { litres: number; pumpOn: boolean; pumpRunS: number }
-  /** the notifications last sent, by path, so a restart clears what has cleared */
-  notified: Record<string, NotificationValue>
 }
 
 export const FAULTS_STATE_VERSION = 1
@@ -242,11 +219,6 @@ export interface FaultView extends Fault {
 
 const faultId = (f: { kind: string; target: string }) => `${f.kind}:${f.target}`
 
-const methodFor = (
-  state: NotificationValue['state']
-): NotificationValue['method'] =>
-  state === 'alarm' ? ['visual', 'sound'] : state === 'warn' ? ['visual'] : []
-
 export class Faults implements SystemFaults {
   private nowMs: number
   private faults: Fault[] = []
@@ -255,7 +227,6 @@ export class Faults implements SystemFaults {
   private readonly sumpL: number
   private readonly pumpLph: number
   private bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
-  private notified = new Map<string, NotificationValue>()
   /** the latest value sent on each path, as an alarm panel reads it */
   private readonly lastSent = new Map<string, unknown>()
   /** the systems model's satellites and dilution, before a lost fix changes them */
@@ -288,7 +259,6 @@ export class Faults implements SystemFaults {
           ? (state.nextMs ?? undefined)
           : undefined
       this.bilge = { ...state.bilge }
-      this.notified = new Map(Object.entries(state.notified ?? {}))
     }
   }
 
@@ -301,8 +271,7 @@ export class Faults implements SystemFaults {
       nextMs: this.nextMs ?? null,
       rng: this.rng.save(),
       faults: this.faults.map((f) => ({ ...f })),
-      bilge: { ...this.bilge },
-      notified: Object.fromEntries(this.notified)
+      bilge: { ...this.bilge }
     }
   }
 
@@ -698,37 +667,14 @@ export class Faults implements SystemFaults {
 
   // ---- alarms ------------------------------------------------------------------------
 
-  /** each alarm the boat's own panel would raise now, by its notification path */
-  private alarms(): Map<string, Omit<NotificationValue, 'method'>> {
-    const out = new Map<string, Omit<NotificationValue, 'method'>>()
-    const num = (path: string) => {
-      const v = this.lastSent.get(path)
-      return typeof v === 'number' ? v : undefined
-    }
+  /**
+   * The alarms a fault raises that no zone can know, by notification path: the values an
+   * overheat or a failing cell sends are the alarm panel's to judge against their zones.
+   */
+  alarms(): Map<string, Alarm> {
+    const out = new Map<string, Alarm>()
     const raise = (path: string, state: 'warn' | 'alarm', message: string) =>
       out.set(`notifications.${path}`, { state, message })
-    /** the alarm state for a value past (or, falling, below) its thresholds, with hysteresis */
-    const level = (
-      path: string,
-      value: number,
-      warnAt: number,
-      alarmAt: number,
-      hysteresis: number
-    ): 'warn' | 'alarm' | undefined => {
-      const held = this.notified.get(`notifications.${path}`)?.state
-      // thresholds on a falling value are given negated, so one comparison serves both
-      if (
-        value >= alarmAt ||
-        (held === 'alarm' && value >= alarmAt - hysteresis)
-      )
-        return 'alarm'
-      if (
-        value >= warnAt ||
-        (held !== undefined && value >= warnAt - hysteresis)
-      )
-        return 'warn'
-      return undefined
-    }
     const name = (id: string) =>
       [...this.profile.engines, ...this.profile.generators].find(
         (u) => u.id === id
@@ -736,42 +682,6 @@ export class Faults implements SystemFaults {
     for (const f of this.faults) {
       const t = f.target
       switch (f.kind) {
-        case 'engineOverheat': {
-          const coolantPath = `propulsion.${t}.coolantTemperature`
-          const c = num(coolantPath)
-          const hot =
-            c === undefined
-              ? undefined
-              : level(
-                  coolantPath,
-                  c - KELVIN,
-                  COOLANT_WARN_C,
-                  COOLANT_ALARM_C,
-                  COOLANT_HYSTERESIS_C
-                )
-          if (hot) {
-            raise(
-              coolantPath,
-              hot,
-              `${name(t)} ${hot === 'alarm' ? 'overheating' : 'coolant temperature high'}`
-            )
-          }
-          const oilPath = `propulsion.${t}.oilPressure`
-          const p = num(oilPath)
-          const low =
-            p === undefined ||
-            this.lastSent.get(`propulsion.${t}.state`) !== 'started'
-              ? undefined
-              : level(
-                  oilPath,
-                  -p / PASCALS_PER_BAR,
-                  -OIL_PRESSURE_ALARM_BAR,
-                  -OIL_PRESSURE_ALARM_BAR,
-                  OIL_PRESSURE_HYSTERESIS_BAR
-                )
-          if (low) raise(oilPath, 'alarm', `${name(t)} oil pressure low`)
-          break
-        }
         case 'generatorNoStart':
           if (f.crankedMs !== undefined && f.clearedMs === undefined) {
             raise(
@@ -781,30 +691,6 @@ export class Faults implements SystemFaults {
             )
           }
           break
-        case 'batteryCellFailure': {
-          const bank = this.profile.banks.find((b) => b.id === t)!
-          const voltagePath = `electrical.batteries.${t}.voltage`
-          const v = num(voltagePath)
-          const scale = bank.nominalVoltage / 12
-          const sag =
-            v === undefined
-              ? undefined
-              : level(
-                  voltagePath,
-                  -v,
-                  -BATTERY_WARN_V * scale,
-                  -BATTERY_ALARM_V * scale,
-                  BATTERY_HYSTERESIS_V * scale
-                )
-          if (sag) {
-            raise(
-              voltagePath,
-              sag,
-              `${bank.displayName} voltage ${sag === 'alarm' ? 'very low' : 'low'}`
-            )
-          }
-          break
-        }
         case 'chargerFailure':
           if (
             this.lastSent.get(`electrical.chargers.${t}.chargingMode`) ===
@@ -867,45 +753,6 @@ export class Faults implements SystemFaults {
       }
     }
     return out
-  }
-
-  /**
-   * The notifications that have changed since the last call: each alarm raised or changed,
-   * and each one that has cleared, sent once as `normal`. `all` sends every one raised,
-   * as after a restart, when the server may not have them.
-   */
-  notifications(
-    sentAtMs: number,
-    source: Delta['updates'][number]['source'],
-    all = false
-  ): Delta | undefined {
-    const now = this.alarms()
-    const values: { path: string; value: NotificationValue }[] = []
-    for (const [path, a] of now) {
-      const before = this.notified.get(path)
-      if (all || before?.state !== a.state || before.message !== a.message) {
-        const value = {
-          state: a.state,
-          method: methodFor(a.state),
-          message: a.message
-        }
-        values.push({ path, value })
-        this.notified.set(path, value)
-      }
-    }
-    for (const [path, before] of this.notified) {
-      if (now.has(path)) continue
-      values.push({
-        path,
-        value: { state: 'normal', method: [], message: before.message }
-      })
-      this.notified.delete(path)
-    }
-    if (!values.length) return undefined
-    return {
-      context: 'vessels.self',
-      updates: [{ source, timestamp: new Date(sentAtMs).toISOString(), values }]
-    }
   }
 
   // ---- for the page -----------------------------------------------------------------

@@ -498,7 +498,8 @@ describe('Simulator faults', () => {
     whole.until(50)
     const savedSystems = whole.sim.systems!.save()
     const savedFaults = whole.faults.save()
-    const notified = Object.keys(savedFaults.notified)
+    const savedAlarms = whole.sim.alarms!.save()
+    const notified = Object.keys(savedAlarms.notified)
     expect(notified.length).to.be.above(0)
     const tail = whole.minutes(10)
 
@@ -507,7 +508,8 @@ describe('Simulator faults', () => {
       {
         scenarioStartMs: savedSystems.nowMs,
         systemsState: JSON.parse(JSON.stringify(savedSystems)),
-        faultsState: JSON.parse(JSON.stringify(savedFaults))
+        faultsState: JSON.parse(JSON.stringify(savedFaults)),
+        alarmsState: JSON.parse(JSON.stringify(savedAlarms))
       },
       60
     )
