@@ -1,6 +1,6 @@
 import { ChildProcess, fork } from 'child_process'
 import { openSync, closeSync } from 'fs'
-import { cp, mkdir, rm, symlink, writeFile } from 'fs/promises'
+import { cp, mkdir, readFile, rm, symlink, writeFile } from 'fs/promises'
 import path from 'path'
 import { performance } from 'perf_hooks'
 import type { ProbeSample } from './busy-probe'
@@ -152,10 +152,12 @@ export function targetsInStatus(status: string): number | undefined {
   return match ? Number(match[1]) : undefined
 }
 
-/** the deltas for lost targets the plugin held back, from its status */
-export function heldBackInStatus(status: string): number {
-  const match = /(\d+) deltas for lost targets held back/.exec(status)
-  return match ? Number(match[1]) : 0
+/** the deltas for lost targets the plugin held back, from the line it logs as it stops */
+export function heldBackInLog(log: string): number {
+  const matches = [
+    ...log.matchAll(/stopped, (\d+) deltas for lost targets held back/g)
+  ]
+  return matches.length > 0 ? Number(matches[matches.length - 1][1]) : 0
 }
 
 interface Subscriber {
@@ -484,12 +486,7 @@ export async function busy(
 
     await post(false)
     await sleep(QUIET_MS)
-    const stoppedStatus = await timed<{ id: string; statusMessage?: string }[]>(
-      `${base}/skServer/plugins`
-    )
-    const heldBack = heldBackInStatus(
-      stoppedStatus.body?.find((p) => p.id === PLUGIN_ID)?.statusMessage ?? ''
-    )
+    const heldBack = heldBackInLog(await readFile(logFile, 'utf8'))
     const serverDeltas = serverCount - serverAtStart
     const totals = subscribers.map((s, i) => ({
       ...s.total,

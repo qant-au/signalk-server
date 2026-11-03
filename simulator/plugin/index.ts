@@ -552,7 +552,10 @@ export = function simulatorPlugin(app: App) {
       if (timer) clearInterval(timer)
       timer = undefined
       simulation = undefined
-      app.setPluginStatus(`Stopped${heldBackNote()}`)
+      // the server sets the status to a bare "Stopped" after this, so the count goes to the log
+      console.log(
+        `${PLUGIN_ID}: stopped, ${dropped.heldBack} deltas for lost targets held back`
+      )
     }
   }
 }

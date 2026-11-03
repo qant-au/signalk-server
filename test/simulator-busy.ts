@@ -4,7 +4,7 @@ import {
   MinuteRow,
   SubscriberTotal,
   heapStillGrowing,
-  heldBackInStatus,
+  heldBackInLog,
   judge,
   targetsInStatus
 } from '../simulator/soak/busy'
@@ -95,9 +95,11 @@ describe('simulator busy run', () => {
       )
     ).to.equal(379)
     expect(
-      heldBackInStatus('Stopped, 1290 deltas for lost targets held back')
+      heldBackInLog(
+        'signalk-simulator: stopped, 1290 deltas for lost targets held back\n'
+      )
     ).to.equal(1290)
-    expect(heldBackInStatus('Stopped')).to.equal(0)
+    expect(heldBackInLog('Stopped plugin')).to.equal(0)
     expect(targetsInStatus('Under way: 15:00 at x24, traffic off')).to.equal(
       undefined
     )
