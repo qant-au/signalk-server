@@ -127,6 +127,7 @@ describe('Simulator collision avoidance', () => {
     it('raises nothing for a target lying to its moorings', () => {
       const w = new CollisionWatch(limits)
       expect(step(w, target(5, 30, 0.3))).to.deep.equal([])
+      expect(step(w, { ...target(5, 30), navStatus: 5 })).to.deep.equal([])
     })
 
     it('sends the approach with each report, every second when near, and null once past', () => {
@@ -214,6 +215,7 @@ describe('Simulator collision avoidance', () => {
           showTraffic: true,
           scenarioStartMs: START,
           seed: 1,
+          collision: { distanceM: 30, timeS: 120 },
           forget: (c) => forgotten.push(`${c} after ${sent.length}`)
         },
         (d) => sent.push(d),

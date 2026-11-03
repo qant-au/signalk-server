@@ -81,6 +81,7 @@ export interface TargetSeen {
   cogDeg?: number
   /** scenario time of its latest report */
   atMs: number
+  navStatus?: number
   /** its closest approach, while it is closing */
   approach?: Approach
 }
@@ -357,7 +358,8 @@ export class Simulation {
           lon: target.lon,
           sogKn: target.sogKn,
           cogDeg: target.cogDeg,
-          atMs: target.atMs
+          atMs: target.atMs,
+          navStatus: target.navStatus
         })
       }
       // every target's closest approach, from where it has got to on its last report
@@ -372,6 +374,7 @@ export class Simulation {
           context: t.context,
           label: t.name ?? `MMSI ${t.mmsi ?? t.context}`,
           sogKn: t.sogKn,
+          navStatus: t.navStatus,
           approach: t.approach
         })),
         heardNow

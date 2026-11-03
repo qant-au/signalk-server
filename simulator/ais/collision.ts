@@ -76,11 +76,17 @@ export interface CollisionLimits {
 }
 
 export const DEFAULT_COLLISION_LIMITS: CollisionLimits = {
-  distanceM: 30,
-  timeS: 2 * 60
+  distanceM: 15,
+  timeS: 60
 }
-/** a target making less than this is lying to its moorings or drifting, and raises no alarm */
+/**
+ * A target making less than this, or reporting itself moored or at anchor, is lying to
+ * its moorings or drifting, and raises no alarm, as a plotter's target filters keep a
+ * waterway lined with berths quiet
+ */
 export const ALARM_MIN_SPEED_KN = 1
+/** AIS navigational statuses: at anchor, moored */
+const AT_REST = new Set([1, 5])
 /** a raised alarm holds until its approach is this share wider, or this much later */
 const DISTANCE_MARGIN_SHARE = 0.25
 const TIME_MARGIN_S = 15
@@ -100,6 +106,8 @@ export interface WatchedTarget {
   /** how the alarm names it: its name, or its MMSI */
   label: string
   sogKn: number
+  /** its AIS navigational status */
+  navStatus?: number
   approach?: Approach
 }
 
@@ -129,7 +137,12 @@ export class CollisionWatch {
 
   private judge(t: WatchedTarget): CollisionState | undefined {
     const a = t.approach
-    if (!a || t.sogKn < ALARM_MIN_SPEED_KN) return undefined
+    if (
+      !a ||
+      t.sogKn < ALARM_MIN_SPEED_KN ||
+      (t.navStatus !== undefined && AT_REST.has(t.navStatus))
+    )
+      return undefined
     const { distanceM, timeS } = this.limits
     const inside = (d: number, s: number) => a.distanceM < d && a.timeToS < s
     const raw = inside(distanceM, timeS / 2)
