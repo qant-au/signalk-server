@@ -188,9 +188,22 @@ export function runView(control: Control) {
             2
           ),
           sogKn: round(t.sogKn, 1),
-          cogDeg: t.cogDeg === undefined ? undefined : Math.round(t.cogDeg)
+          cogDeg: t.cogDeg === undefined ? undefined : Math.round(t.cogDeg),
+          closestApproach: t.approach && {
+            distanceM: Math.round(t.approach.distanceM),
+            timeToS: Math.round(t.approach.timeToS)
+          }
         }))
-        .sort((a, b) => a.distanceNm - b.distanceNm)
+        // the closing targets first, soonest first, then the rest by distance
+        .sort((a, b) =>
+          a.closestApproach && b.closestApproach
+            ? a.closestApproach.timeToS - b.closestApproach.timeToS
+            : a.closestApproach
+              ? -1
+              : b.closestApproach
+                ? 1
+                : a.distanceNm - b.distanceNm
+        )
         .slice(0, MAX_TARGETS)
     : []
   return {
@@ -249,7 +262,19 @@ export function runView(control: Control) {
       inRange: simulation.trafficCount,
       targets
     },
-    faults: simulation.faults?.active() ?? []
+    faults: simulation.faults?.active() ?? [],
+    alarms: [
+      ...(simulation.alarms?.active() ?? []).map((a) => ({
+        path: a.path,
+        state: a.state,
+        message: a.message
+      })),
+      ...simulation.collisions.active().map((c) => ({
+        path: `${c.context}.notifications.navigation.closestApproach`,
+        state: c.value.state,
+        message: c.value.message
+      }))
+    ]
   }
 }
 

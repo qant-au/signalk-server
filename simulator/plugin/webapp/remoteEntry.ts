@@ -71,9 +71,11 @@ interface RunView {
       distanceNm: number
       sogKn: number
       cogDeg?: number
+      closestApproach?: { distanceM: number; timeToS: number }
     }[]
   }
   faults: Fault[]
+  alarms: { path: string; state: string; message: string }[]
 }
 
 ;(() => {
@@ -89,6 +91,9 @@ interface RunView {
     const POLL_MS = 2000
     const MULTIPLIERS = [1, 2, 5, 10, 20, 24, 30, 60, 120, 300]
     const TARGETS_SHOWN = 15
+    /** a time to the closest approach as minutes and seconds */
+    const minSec = (s: number) =>
+      `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
     async function call<T>(
       method: string,
@@ -456,9 +461,14 @@ interface RunView {
                     h(
                       'tr',
                       null,
-                      ...['Name', 'MMSI', 'Distance', 'Speed'].map((x) =>
-                        h('th', { key: x }, x)
-                      )
+                      ...[
+                        'Name',
+                        'MMSI',
+                        'Distance',
+                        'Speed',
+                        'CPA',
+                        'TCPA'
+                      ].map((x) => h('th', { key: x }, x))
                     )
                   ),
                   h(
@@ -473,7 +483,21 @@ interface RunView {
                           h('td', null, x.name ?? ''),
                           h('td', null, x.mmsi ?? ''),
                           h('td', null, `${x.distanceNm} nm`),
-                          h('td', null, `${x.sogKn} kn`)
+                          h('td', null, `${x.sogKn} kn`),
+                          h(
+                            'td',
+                            null,
+                            x.closestApproach
+                              ? `${x.closestApproach.distanceM} m`
+                              : ''
+                          ),
+                          h(
+                            'td',
+                            null,
+                            x.closestApproach
+                              ? minSec(x.closestApproach.timeToS)
+                              : ''
+                          )
                         )
                       )
                   )

@@ -14,6 +14,7 @@ import { Simulation } from '../engine/simulation'
 import { FaultsState } from '../faults/faults'
 import { AlarmsState } from '../alarms/panel'
 import { DEFAULT_SHALLOW_M } from '../alarms/zones'
+import { DEFAULT_COLLISION_LIMITS } from '../ais/collision'
 import { Control, ControlError, controlRoutes } from './control'
 import {
   Delta,
@@ -42,6 +43,8 @@ interface Options {
   timeMultiplier: number
   minDepthUnderKeelM: number
   shallowAlarmM: number
+  collisionDistanceM: number
+  collisionTimeMin: number
   showTraffic: boolean
   receiverAntennaHeightM: number
   seed: number
@@ -136,6 +139,8 @@ const DEFAULTS: Options = {
   timeMultiplier: 1,
   minDepthUnderKeelM: DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
   shallowAlarmM: DEFAULT_SHALLOW_M,
+  collisionDistanceM: DEFAULT_COLLISION_LIMITS.distanceM,
+  collisionTimeMin: DEFAULT_COLLISION_LIMITS.timeS / 60,
   showTraffic: true,
   receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
   seed: 1,
@@ -405,6 +410,10 @@ export = function simulatorPlugin(app: App) {
           faultsState: systemsState ? saved?.faults : undefined,
           shallowM: options.shallowAlarmM,
           alarmsState: systemsState ? saved?.alarms : undefined,
+          collision: {
+            distanceM: options.collisionDistanceM,
+            timeS: options.collisionTimeMin * 60
+          },
           identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
           forget: forgetTarget
         },
@@ -517,7 +526,10 @@ export = function simulatorPlugin(app: App) {
       const faulty = faults.length
         ? `, faults: ${faults.map((f) => f.id).join(', ')}`
         : ''
-      const alarms = simulation.alarms?.active() ?? []
+      const alarms = [
+        ...(simulation.alarms?.active() ?? []),
+        ...simulation.collisions.active().map((c) => c.value)
+      ]
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -620,6 +632,20 @@ export = function simulatorPlugin(app: App) {
               "The depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper",
             minimum: 0,
             default: DEFAULTS.shallowAlarmM
+          },
+          collisionDistanceM: {
+            type: 'number',
+            title: 'Collision alarm: closest approach (m)',
+            description:
+              'A moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half that time',
+            minimum: 0,
+            default: DEFAULTS.collisionDistanceM
+          },
+          collisionTimeMin: {
+            type: 'number',
+            title: 'Collision alarm: time to closest approach (min)',
+            minimum: 0,
+            default: DEFAULTS.collisionTimeMin
           },
           showTraffic: {
             type: 'boolean',
