@@ -273,6 +273,12 @@ export const MetaValueSchema = Type.Object(
           'The zones defining the range of values for this Signal K value.'
       })
     ),
+    zonesNotifiedBy: Type.Optional(
+      Type.String({
+        description:
+          'The provider that raises the notifications for these zones itself; the server raises none for the path'
+      })
+    ),
     supportsPut: Type.Optional(
       Type.Boolean({
         description: 'Whether this path supports PUT operations'

@@ -31,6 +31,12 @@ export class Zones {
         this.sendNormalDelta(path)
         return
       }
+      // a provider that raises this path's zone notifications itself would only be
+      // contradicted by a second notification raised here
+      if (value.zonesNotifiedBy) {
+        this.unwatch(path)
+        return
+      }
       if (value.zones) {
         this.watchForZones(path, value.zones, value as ZoneMethods)
       }
@@ -52,10 +58,13 @@ export class Zones {
     })
   }
 
+  private unwatch(path: Path) {
+    this.unsubscribesForPaths[path]?.()
+    delete this.unsubscribesForPaths[path]
+  }
+
   watchForZones(path: Path, zones: Zone[], methods: ZoneMethods) {
-    if (this.unsubscribesForPaths[path]) {
-      this.unsubscribesForPaths[path]()
-    }
+    this.unwatch(path)
     const tests = zones.map((zone) => {
       const { upper = Infinity, lower = -Infinity } = zone
 
