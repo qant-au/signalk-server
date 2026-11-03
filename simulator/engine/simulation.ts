@@ -86,6 +86,8 @@ export class Simulation {
   readonly faults?: Faults
   /** the targets heard, as last heard */
   readonly targets = new Map<string, TargetSeen>()
+  /** what the latest send sent */
+  last?: TickResult
   /** the next send carries every raised notification, as after a start */
   private notifyAll = true
   /** the identity fields this run sent, all but those withheld */
@@ -284,6 +286,13 @@ export class Simulation {
     }
 
     this.lastScenarioMs = scenarioMs
-    return { scenarioMs, position, depthM, heard, finished: position.finished }
+    this.last = {
+      scenarioMs,
+      position,
+      depthM,
+      heard,
+      finished: position.finished
+    }
+    return this.last
   }
 }

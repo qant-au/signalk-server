@@ -85,6 +85,9 @@ simulator/samples/*/cache/
 simulator/soak/reports/
 .gstack/
 
+# the simulator plugin's page, built from simulator/plugin/webapp
+simulator/plugin/public/
+
 # bin/simulator's configuration directory
 /.simulator/
 

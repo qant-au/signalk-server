@@ -21,7 +21,8 @@ COPY --chown=node:node . .
 RUN npm install --no-audit --no-fund \
   && npm run build:workspaces \
   && npm run build \
-  && npx tsc -p simulator/plugin
+  && npx tsc -p simulator/plugin \
+  && npx tsc -p simulator/plugin/webapp
 
 # Webapps install into the server's configuration directory, the way the App Store does.
 WORKDIR /home/node/rig

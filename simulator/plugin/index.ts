@@ -11,6 +11,8 @@ import {
 } from '../engine/scenario'
 import { DroppedTargets } from '../engine/dropped'
 import { Simulation } from '../engine/simulation'
+import { FaultsState } from '../faults/faults'
+import { Control, ControlError, controlRoutes } from './control'
 import {
   Delta,
   IDENTITY_FIELDS,
@@ -40,6 +42,7 @@ interface Options {
   showTraffic: boolean
   receiverAntennaHeightM: number
   seed: number
+  faultsPerDay: number
 }
 
 /** the systems belong to the sample here, and to the profile and seed they carry */
@@ -47,12 +50,17 @@ interface SavedState {
   sample: string
   scenarioMs: number
   systems?: SystemsState
+  /** the faults on board, which belong to the systems saved with them */
+  faults?: FaultsState
 }
 
 /** a delta as the server hands it to an input handler, as far as this plugin reads it */
 interface InputDelta {
   context?: string
 }
+
+/** the router the server gives a plugin's REST routes, as far as this plugin uses it */
+type PluginRouter = Parameters<typeof controlRoutes>[0]
 
 // The subset of the server's plugin API this plugin uses.
 interface App {
@@ -124,7 +132,8 @@ const DEFAULTS: Options = {
   minDepthUnderKeelM: DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
   showTraffic: true,
   receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
-  seed: 1
+  seed: 1,
+  faultsPerDay: 0
 }
 
 function samplesDir(): string {
@@ -337,7 +346,24 @@ export = function simulatorPlugin(app: App) {
     }
   }
 
-  async function run(options: Options) {
+  /** the run in progress, for the REST surface and the page */
+  let current:
+    | {
+        options: Options
+        scenario: Scenario
+        /** a jump back starts the run again from that time, systems and faults fresh */
+        restartAt(scenarioMs: number): Promise<void>
+      }
+    | undefined
+
+  /** where a restarted run starts, and how its clock runs, in place of the saved run */
+  interface Restart {
+    scenarioMs: number
+    rate: number
+    paused: boolean
+  }
+
+  async function run(options: Options, restart?: Restart) {
     app.setPluginStatus(`Loading ${options.sample}`)
     const scenario = await loadScenario(samplesDir(), options.sample, {
       minDepthUnderKeelM: options.minDepthUnderKeelM,
@@ -353,9 +379,10 @@ export = function simulatorPlugin(app: App) {
     }
 
     const departure = scenario.legs[0].departMs
-    const saved = readState()
-    const scenarioStartMs =
-      options.resume && saved?.sample === options.sample
+    const saved = restart ? undefined : readState()
+    const scenarioStartMs = restart
+      ? restart.scenarioMs
+      : options.resume && saved?.sample === options.sample
         ? saved.scenarioMs
         : departure + options.startAtMinutes * 60000
 
@@ -363,11 +390,13 @@ export = function simulatorPlugin(app: App) {
       new Simulation(
         scenario,
         {
-          timeMultiplier: options.timeMultiplier,
+          timeMultiplier: restart?.rate ?? options.timeMultiplier,
           showTraffic: options.showTraffic,
           scenarioStartMs,
           seed: options.seed,
           systemsState,
+          faultsPerDay: options.faultsPerDay,
+          faultsState: systemsState ? saved?.faults : undefined,
           identityWithheld: [...owned, ...SERVER_KEPT_FIELDS],
           forget: forgetTarget
         },
@@ -384,6 +413,7 @@ export = function simulatorPlugin(app: App) {
       app.error(`systems start fresh: ${error.message}`)
       simulation = start(undefined)
     }
+    if (restart?.paused) simulation.retime(Date.now(), { paused: true })
     const adjusted = scenario.adjustments.filter(
       (a) => a.resolved && a.added
     ).length
@@ -425,6 +455,26 @@ export = function simulatorPlugin(app: App) {
     let busy = false
     // alongside after arrival the boat keeps sending, as a moored boat does
     let arrived = false
+    const save = (scenarioMs: number) =>
+      saveState({
+        sample: options.sample,
+        scenarioMs,
+        systems: simulation?.systems?.save(),
+        faults: simulation?.faults?.save()
+      })
+    current = {
+      options,
+      scenario,
+      async restartAt(scenarioMs: number) {
+        const from = simulation!
+        stopRun()
+        await run(options, {
+          scenarioMs,
+          rate: from.timeMultiplier,
+          paused: from.isPaused
+        })
+      }
+    }
     timer = setInterval(async () => {
       if (!simulation || busy) return
       busy = true
@@ -437,13 +487,7 @@ export = function simulatorPlugin(app: App) {
       ticks++
       const arriving = result.finished && !arrived
       arrived = result.finished
-      if (ticks % SAVE_EVERY_TICKS === 0 || arriving) {
-        saveState({
-          sample: options.sample,
-          scenarioMs: result.scenarioMs,
-          systems: simulation.systems?.save()
-        })
-      }
+      if (ticks % SAVE_EVERY_TICKS === 0 || arriving) save(result.scenarioMs)
       const depth =
         result.depthM !== undefined
           ? `, depth ${result.depthM.toFixed(1)} m`
@@ -460,12 +504,68 @@ export = function simulatorPlugin(app: App) {
       const systems = onBoard
         ? `, ${onBoard.enginesRunning} engines and ${onBoard.generatorsRunning} generators running`
         : ''
+      const faults = simulation.faults?.active() ?? []
+      const faulty = faults.length
+        ? `, faults: ${faults.map((f) => f.id).join(', ')}`
+        : ''
+      const state = simulation.isPaused
+        ? 'Paused'
+        : result.finished
+          ? 'Arrived'
+          : 'Under way'
       app.setPluginStatus(
-        `${result.finished ? 'Arrived' : 'Under way'}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${options.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}` +
+        `${state}: ${fmtTime(result.scenarioMs)} ` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${depth}${traffic}${systems}${faulty}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
+  }
+
+  /** stops the clock and lets go of the targets, leaving the server's vessel settings */
+  function stopRun() {
+    if (timer) clearInterval(timer)
+    timer = undefined
+    simulation?.forgetAll()
+    simulation = undefined
+  }
+
+  /** what the REST surface and the page can read and do */
+  const control: Control = {
+    run() {
+      if (!current || !simulation) throw new ControlError(503, 'not running')
+      return { ...current, simulation }
+    },
+    async setRun(change) {
+      const { simulation: sim, scenario } = control.run()
+      const now = Date.now()
+      if (change.paused !== undefined || change.timeMultiplier !== undefined) {
+        sim.retime(now, {
+          paused: change.paused,
+          rate: change.timeMultiplier
+        })
+      }
+      if (change.scenarioMs === undefined) return
+      const legs = scenario.legs
+      const from = legs[0].departMs
+      const to = legs[legs.length - 1].arriveMs
+      if (change.scenarioMs < from || change.scenarioMs > to) {
+        throw new ControlError(
+          400,
+          `the route runs from ${new Date(from).toISOString()} to ${new Date(to).toISOString()}`
+        )
+      }
+      const reached = sim.systems?.scenarioMs ?? sim.last?.scenarioMs
+      if (reached !== undefined && change.scenarioMs >= reached) {
+        sim.jump(now, change.scenarioMs)
+      } else {
+        await current?.restartAt(change.scenarioMs)
+      }
+    },
+    faults() {
+      const faults = control.run().simulation.faults
+      if (!faults) throw new ControlError(409, 'this run has no boat systems')
+      return faults
+    }
   }
 
   return {
@@ -513,6 +613,14 @@ export = function simulatorPlugin(app: App) {
               'Seed for the boat systems: the same seed and start repeat a run exactly',
             default: DEFAULTS.seed
           },
+          faultsPerDay: {
+            type: 'number',
+            title: 'Faults a day',
+            description:
+              'Faults the seed throws on its own, on average, per day of scenario time; 0 for none. Faults can always be raised by hand.',
+            minimum: 0,
+            default: DEFAULTS.faultsPerDay
+          },
           receiverAntennaHeightM: {
             type: 'number',
             title: 'Own AIS antenna height (m)',
@@ -545,13 +653,15 @@ export = function simulatorPlugin(app: App) {
       })
     },
 
+    registerWithRouter(router: PluginRouter) {
+      controlRoutes(router, control)
+    },
+
     stop() {
       stopped = true
       returnIdentity()
-      simulation?.forgetAll()
-      if (timer) clearInterval(timer)
-      timer = undefined
-      simulation = undefined
+      stopRun()
+      current = undefined
       // the server sets the status to a bare "Stopped" after this, so the count goes to the log
       console.log(
         `${PLUGIN_ID}: stopped, ${dropped.heldBack} deltas for lost targets held back`

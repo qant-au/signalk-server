@@ -13,6 +13,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="${ROOT}/.simulator"
 
 npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin"
+npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin/webapp"
 mkdir -p "${RUN}/node_modules" "${RUN}/plugin-config-data"
 cp "${ROOT}/settings/simulator.json" "${RUN}/settings.json"
 ln -sfn "${ROOT}/simulator/plugin" "${RUN}/node_modules/signalk-simulator"

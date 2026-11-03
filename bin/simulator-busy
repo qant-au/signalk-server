@@ -13,4 +13,5 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin"
+npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin/webapp"
 exec npx --prefix "${ROOT}" ts-node "${ROOT}/simulator/tools/busy.ts" "$@"

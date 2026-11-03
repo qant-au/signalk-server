@@ -1,15 +1,19 @@
 {
   "name": "signalk-simulator",
   "version": "0.1.0",
-  "description": "Signal K Simulator: sails a sample scenario with depth and AIS traffic",
+  "description": "Signal K Simulator: sails a sample scenario with depth, AIS traffic, the boat's systems and their faults",
   "main": "dist/plugin/index.js",
   "private": true,
   "license": "Apache-2.0",
   "keywords": [
     "signalk-node-server-plugin",
+    "signalk-embeddable-webapp",
     "signalk-category-utility"
   ],
   "scripts": {
-    "build": "tsc -p ."
+    "build": "tsc -p . && tsc -p webapp"
+  },
+  "signalk": {
+    "displayName": "Signal K Simulator"
   }
 }
