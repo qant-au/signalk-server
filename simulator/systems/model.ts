@@ -52,6 +52,24 @@ export interface SystemsOptions {
   variationAt?: (lat: number, lon: number) => number
   /** a saved run to carry on from, in place of starting fresh at `startMs` */
   state?: SystemsState
+  /** faults on board (simulator/faults), stepped with the model */
+  faults?: SystemFaults
+}
+
+/** what the faults on board do to the systems, asked at each of the model's steps */
+export interface SystemFaults {
+  /** moves each fault on its course to this scenario time */
+  step(nowMs: number, dt: number): void
+  /** the engine's raw-water intake is blocked: its coolant heats while it runs */
+  intakeBlocked(engineId: string): boolean
+  /** the generator will not start; asking is a start that failed */
+  refusesStart(generatorId: string): boolean
+  /** how far a cell in the bank has failed, 0 to 1 */
+  cellFailure(bankId: string): number
+  alternatorFailed(engineId: string): boolean
+  chargerFailed(bankId: string): boolean
+  /** watts the bilge pump draws from the house bank */
+  bilgePumpW(): number
 }
 
 type Scalar = number | boolean | string | null
@@ -221,6 +239,17 @@ const DAY_TANK_FULL = 0.95
 const INVERTER_SHARE = 0.06
 /** above this length every generator-equipped boat carries its AC load on generators */
 const LARGE_YACHT_M = 24
+/** heat a blocked raw-water intake leaves in the coolant, degrees a second */
+const OVERHEAT_C_PER_S = 0.1
+/** above this coolant temperature the oil thins, losing up to this share of its pressure */
+const OIL_THINS_FROM_C = 100
+const OIL_THINS_OVER_C = 20
+const OIL_THINNING = 0.85
+/** one cell's voltage, lost when it fails */
+const CELL_VOLTS = { lead: 2.1, LiFePO4: 3.3 }
+/** a failed cell takes this share of the bank's capacity, and multiplies its resistance by 1 plus this */
+const FAILED_CELL_CAPACITY = 0.5
+const FAILED_CELL_RESISTANCE = 4
 
 interface EngineState {
   p: EngineProfile
@@ -268,6 +297,8 @@ interface BankState {
   voltage: number
   tempC: number
   chargerW: number
+  /** a charger that would be charging has tripped; sent as not charging */
+  chargerTripped: boolean
   drift: Drift
 }
 
@@ -487,6 +518,7 @@ export class SystemsModel {
         voltage: p.nominalVoltage,
         tempC: 20,
         chargerW: 0,
+        chargerTripped: false,
         drift: new Drift(r, 0.003, 60)
       }
     })
@@ -841,6 +873,7 @@ export class SystemsModel {
 
   private step(dt: number, motion: Motion): void {
     this.motion = motion
+    this.options.faults?.step(this.nowMs, dt)
     this.stepWeather(dt)
     this.stepPropulsion(dt)
     this.stepThrusters(dt)
@@ -984,6 +1017,11 @@ export class SystemsModel {
           : 80 + 6 * e.load
         : roomC
       e.coolantC = relax(e.coolantC, coolantTarget, dt, hot ? 400 : 2400)
+      // with the raw water blocked the coolant keeps the engine's heat, until the
+      // relaxation back towards its normal running temperature balances it
+      if (e.running && this.options.faults?.intakeBlocked(ep.id)) {
+        e.coolantC += OVERHEAT_C_PER_S * dt
+      }
       e.oilC = relax(
         e.oilC,
         hot ? 85 + 15 * e.load : roomC,
@@ -1157,6 +1195,7 @@ export class SystemsModel {
   /** once started a generator runs a minimum time, so a passing load cannot cycle it */
   private setGenerator(g: GeneratorState, wanted: boolean): void {
     if (wanted && !g.running) {
+      if (this.options.faults?.refusesStart(g.p.id)) return
       g.running = true
       g.runForS = 0
     } else if (!wanted && g.running && g.runForS >= GENERATOR_MIN_RUN_S) {
@@ -1297,6 +1336,7 @@ export class SystemsModel {
         }
       }
       draw(house, fridgeW, 'fridges')
+      draw(house, this.options.faults?.bilgePumpW() ?? 0, 'bilge pump')
     }
     // a hybrid's inverter hangs off its propulsion bank, which carries its hotel load
     const inverterBank = p.hybrid && propulsion ? propulsion : house
@@ -1327,7 +1367,13 @@ export class SystemsModel {
     const alternatorW = new Map<EngineState, number>()
     const charged = this.alternatorBank()
     for (const e of this.engines) {
-      if (!e.running || e.p.type === 'electric' || !charged) continue
+      if (
+        !e.running ||
+        e.p.type === 'electric' ||
+        !charged ||
+        this.options.faults?.alternatorFailed(e.p.id)
+      )
+        continue
       const revs = clamp(
         (e.rpm - e.p.idleRpm) / (e.p.maxRpm - e.p.idleRpm),
         0,
@@ -1380,9 +1426,14 @@ export class SystemsModel {
           take(b, -e.bankKw * 1000, 'regeneration')
       }
       b.chargerW = 0
+      b.chargerTripped = false
       if (b.p.role === 'start') continue
       const ratingW = CHARGER_RATING_C * b.p.capacityAh * b.p.nominalVoltage
-      if (atBerth) {
+      if (this.options.faults?.chargerFailed(b.p.id)) {
+        b.chargerTripped =
+          atBerth ||
+          this.generators.some((g) => g.running && g.p.chargesBank === b.p.id)
+      } else if (atBerth) {
         b.chargerW = take(
           b,
           Math.min(ratingW, SHORE_CHARGER_W_PER_M * p.lengthM),
@@ -1409,14 +1460,21 @@ export class SystemsModel {
     for (const b of this.banks) {
       const w = (supplied.get(b) ?? 0) - (loadW.get(b) ?? 0)
       const scale = b.p.nominalVoltage / 12
-      const ocv = scale * openCircuitVolts(b.p.chemistry, b.soc)
-      const resistance = (scale * BLOCK_RESISTANCE_OHM_AH) / b.p.capacityAh
+      // a failing cell gives up its voltage, holds less charge and resists the current
+      const failed = this.options.faults?.cellFailure(b.p.id) ?? 0
+      const ocv =
+        scale * openCircuitVolts(b.p.chemistry, b.soc) -
+        failed * CELL_VOLTS[b.p.chemistry === 'LiFePO4' ? 'LiFePO4' : 'lead']
+      const resistance =
+        ((scale * BLOCK_RESISTANCE_OHM_AH) / b.p.capacityAh) *
+        (1 + FAILED_CELL_RESISTANCE * failed)
       // the terminals take w = I (ocv + I r): the current that does it, through the
       // resistance, so what goes in at the terminals is what is stored plus I squared r
       const current =
         (-ocv + Math.sqrt(Math.max(0, ocv * ocv + 4 * resistance * w))) /
         (2 * resistance)
-      const capacityAh = b.p.capacityAh * b.health
+      const capacityAh =
+        b.p.capacityAh * b.health * (1 - FAILED_CELL_CAPACITY * failed)
       const wantedSoc = b.soc + (current * dt) / SECONDS_PER_HOUR / capacityAh
       b.soc = clamp(wantedSoc, SOC_FLOOR, 1)
       b.currentA = current
@@ -1829,11 +1887,17 @@ export class SystemsModel {
     const rpmShare = e.running
       ? (e.rpm - e.p.idleRpm) / (e.p.maxRpm - e.p.idleRpm)
       : 0
+    // oil thins as an overheating engine runs on, and its pressure falls
+    const thinning =
+      1 -
+      OIL_THINNING *
+        clamp((e.coolantC - OIL_THINS_FROM_C) / OIL_THINS_OVER_C, 0, 1)
     put(
       `${base}.oilPressure`,
       e.running
         ? Math.round(
             (1.8 + 2.5 * clamp(rpmShare, 0, 1) + e.pressureDrift.value) *
+              thinning *
               PASCALS_PER_BAR
           )
         : 0
@@ -1925,11 +1989,15 @@ export class SystemsModel {
         Math.round((usableAh / -b.currentA) * SECONDS_PER_HOUR)
       )
     }
-    if (b.chargerW > 0) {
+    if (b.chargerW > 0 || b.chargerTripped) {
       const charger = `electrical.chargers.${b.p.id}`
       put(`${charger}.voltage`, round2(b.voltage))
       put(`${charger}.current`, round2(b.chargerW / b.voltage))
-      put(`${charger}.chargingMode`, chargingMode(b))
+      // the specification has no fault mode, so a tripped charger is `other`
+      put(
+        `${charger}.chargingMode`,
+        b.chargerTripped ? 'other' : chargingMode(b)
+      )
     }
   }
 

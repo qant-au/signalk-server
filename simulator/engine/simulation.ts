@@ -8,6 +8,7 @@ import { ScenarioClock } from '../soak/clock'
 import {
   Delta,
   IdentityField,
+  SOURCE,
   identityDelta,
   ownBoatDelta,
   vesselIdentity
@@ -15,6 +16,7 @@ import {
 import { depthDelta, targetDelta } from './deltas'
 import { Scenario } from './scenario'
 import { SystemsModel, SystemsState } from '../systems/model'
+import { Faults, FaultsState } from '../faults/faults'
 
 /**
  * Runs a scenario: each tick works out the scenario time from the clock, moves the own
@@ -42,6 +44,21 @@ export interface SimulationOptions {
   forget?: (context: string) => void
   /** identity fields not to send, because the server's own vessel settings give them */
   identityWithheld?: readonly string[]
+  /** faults the seed throws on its own, per day of scenario time; none when 0 or unset */
+  faultsPerDay?: number
+  /** the faults as a previous run saved them, carried on with the systems */
+  faultsState?: FaultsState
+}
+
+/** an AIS target as last heard, for the plugin's page */
+export interface TargetSeen {
+  context: string
+  mmsi?: string
+  name?: string
+  lat: number
+  lon: number
+  sogKn: number
+  cogDeg?: number
 }
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
@@ -59,12 +76,18 @@ export interface TickResult {
 }
 
 export class Simulation {
-  private readonly clock: ScenarioClock
+  private clock: ScenarioClock
+  private paused = false
   private lastScenarioMs: number
   /** the clock's scenario time at the last `advance` */
   private pendingMs: number
   private readonly heardContexts = new Set<string>()
   readonly systems?: SystemsModel
+  readonly faults?: Faults
+  /** the targets heard, as last heard */
+  readonly targets = new Map<string, TargetSeen>()
+  /** the next send carries every raised notification, as after a start */
+  private notifyAll = true
   /** the identity fields this run sent, all but those withheld */
   readonly identitySent: IdentityField[]
   private ticks = 0
@@ -84,7 +107,14 @@ export class Simulation {
     this.pendingMs = options.scenarioStartMs
     if (scenario.profile) {
       const depth = scenario.depth
+      this.faults = new Faults(scenario.profile, {
+        seed: options.seed,
+        perDay: options.faultsPerDay ?? 0,
+        startMs: options.scenarioStartMs,
+        state: options.systemsState ? options.faultsState : undefined
+      })
       this.systems = new SystemsModel(scenario.profile, {
+        faults: this.faults,
         seed: options.seed,
         startMs: options.scenarioStartMs,
         depthAt: depth ? (lat, lon) => depth.depth(lat, lon) : undefined,
@@ -108,6 +138,43 @@ export class Simulation {
   forgetAll(): void {
     for (const context of this.heardContexts) this.options.forget?.(context)
     this.heardContexts.clear()
+    this.targets.clear()
+  }
+
+  get timeMultiplier(): number {
+    return this.clock.rate
+  }
+
+  get isPaused(): boolean {
+    return this.paused
+  }
+
+  /**
+   * Pauses or resumes the clock, or changes its multiplier, from the scenario time it has
+   * reached. A paused run keeps sending the boat as it is, as a boat stopped in time.
+   */
+  retime(wallMs: number, change: { paused?: boolean; rate?: number }): void {
+    const at = this.paused ? this.pendingMs : this.clock.scenarioTime(wallMs)
+    if (change.paused !== undefined) this.paused = change.paused
+    this.clock = new ScenarioClock(at, wallMs, change.rate ?? this.clock.rate)
+  }
+
+  /**
+   * Moves the run forward to a later scenario time: the systems run through every step
+   * to it, as they would have, and the receiver hears the traffic afresh from there. A
+   * jump back needs systems started fresh, which only a new Simulation gives.
+   */
+  jump(wallMs: number, scenarioMs: number): void {
+    if (scenarioMs < this.pendingMs) {
+      throw new RangeError(
+        'a run only jumps forward; start a new one to go back'
+      )
+    }
+    this.clock = new ScenarioClock(scenarioMs, wallMs, this.clock.rate)
+    this.pendingMs = scenarioMs
+    this.forgetAll()
+    this.scenario.traffic?.restart()
+    this.lastScenarioMs = scenarioMs
   }
 
   /** targets currently heard (not yet lost) */
@@ -127,7 +194,9 @@ export class Simulation {
    * goes out (the plugin sets the course for it).
    */
   advance(wallMs: number): number {
-    const scenarioMs = this.clock.scenarioTime(wallMs)
+    const scenarioMs = this.paused
+      ? this.pendingMs
+      : this.clock.scenarioTime(wallMs)
     this.pendingMs = scenarioMs
     const legs = this.scenario.legs
     if (this.systems) {
@@ -161,7 +230,9 @@ export class Simulation {
     const position = this.systems
       ? offTrack(onTrack, this.systems.trackOffsetM)
       : onTrack
-    this.emit(ownBoatDelta(position, sentMs, wallMs, !this.systems))
+    const own = (delta: Delta) =>
+      this.emit(this.faults ? this.faults.filter(delta) : delta)
+    own(ownBoatDelta(position, sentMs, wallMs, !this.systems))
 
     let depthM: number | undefined
     if (this.scenario.depth) {
@@ -173,7 +244,13 @@ export class Simulation {
 
     if (this.systems) {
       const slow = this.ticks % SLOW_EVERY_TICKS === 0
-      for (const delta of this.systems.deltas(wallMs, slow)) this.emit(delta)
+      for (const delta of this.systems.deltas(wallMs, slow)) own(delta)
+    }
+    if (this.faults) {
+      for (const delta of this.faults.deltas(wallMs, SOURCE)) this.emit(delta)
+      const notes = this.faults.notifications(wallMs, SOURCE, this.notifyAll)
+      this.notifyAll = false
+      if (notes) this.emit(notes)
     }
     this.ticks++
 
@@ -187,10 +264,20 @@ export class Simulation {
       )
       for (const target of result.heard) {
         this.heardContexts.add(target.context)
+        this.targets.set(target.context, {
+          context: target.context,
+          mmsi: target.mmsi,
+          name: target.name,
+          lat: target.lat,
+          lon: target.lon,
+          sogKn: target.sogKn,
+          cogDeg: target.cogDeg
+        })
         this.emit(targetDelta(target, wallMs))
       }
       for (const context of result.lost) {
         this.heardContexts.delete(context)
+        this.targets.delete(context)
         this.options.forget?.(context)
       }
       heard = result.heard.length

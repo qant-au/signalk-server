@@ -219,6 +219,19 @@ export class Traffic {
   }
 
   /**
+   * Forgets every target, as a receiver just switched on knows none: after a jump in
+   * time each one is heard afresh from the new time.
+   */
+  restart(): void {
+    for (const track of this.tracks) {
+      track.nextTransmitMs = 0
+      track.lastHeardMs = -Infinity
+      track.lastIntervalS = 0
+      track.lastStaticMs = -Infinity
+    }
+  }
+
+  /**
    * Every report heard in (fromMs, toMs]: for each target, the transmissions due in that
    * window are judged in turn and the latest one heard is returned, so a fast clock sends
    * one update per target per tick however many transmissions it covered.
