@@ -90,6 +90,8 @@ const PLUGIN_ID = 'signalk-simulator'
 const MINUTE_MS = 60000
 const STATS_INTERVAL_MS = 5000
 const QUIET_MS = 2 * STATS_INTERVAL_MS + 2000
+/** the AIS status plugin marks a target lost 6 minutes after its last position and removed 3 later */
+const SETTLE_MAX_MS = 12 * MINUTE_MS
 const START_TIMEOUT_MS = 120000
 const ROOT = path.resolve(__dirname, '..', '..')
 const RUN_DIR = path.join(ROOT, '.simulator-busy')
@@ -362,6 +364,16 @@ export async function busy(
     )
 
     const clock: ClockState = { maxBehindMs: 0, maxGapMs: 0 }
+    let lastDeltaAt = Date.now()
+    // quiet for longer than two statistics intervals, so the server's count covers every delta sent
+    const settle = async (): Promise<boolean> => {
+      const giveUpAt = Date.now() + SETTLE_MAX_MS
+      while (Date.now() - lastDeltaAt < QUIET_MS) {
+        if (Date.now() > giveUpAt) return false
+        await sleep(STATS_INTERVAL_MS)
+      }
+      return true
+    }
     const subscribers: Subscriber[] = []
     for (let i = 0; i < options.subscribers; i++) {
       const total: SubscriberTotal = { received: 0, merged: 0, closed: false }
@@ -373,6 +385,7 @@ export async function busy(
           if (first) watchClock(clock, delta, options.timeMultiplier)
           if (!delta.updates) return
           total.received++
+          lastDeltaAt = Date.now()
           if (delta.$backpressure) total.merged++
         }
       )
@@ -400,8 +413,8 @@ export async function busy(
       }
     })
 
-    // the counts start from a quiet server, so every delta from here is counted on both sides
-    await sleep(QUIET_MS)
+    // the counts start and end on a quiet server, so every delta between is counted on both sides
+    await settle()
     const serverAtStart = serverCount
     const subscribersAtStart = subscribers.map((s) => s.total.received)
     await probe(server)
@@ -485,7 +498,7 @@ export async function busy(
     clearInterval(lagWatch)
 
     await post(false)
-    await sleep(QUIET_MS)
+    const settled = await settle()
     const heldBack = heldBackInLog(await readFile(logFile, 'utf8'))
     const serverDeltas = serverCount - serverAtStart
     const totals = subscribers.map((s, i) => ({
@@ -495,6 +508,11 @@ export async function busy(
     stopping = true
     await Promise.all(readers)
     const problems = serverExited ? ['the server exited during the run'] : []
+    if (!settled) {
+      problems.push(
+        `the server did not go quiet within ${SETTLE_MAX_MS / MINUTE_MS} minutes of the plugin stopping, so the delta counts may not agree`
+      )
+    }
     problems.push(
       ...judge(rows, serverDeltas - heldBack, totals, failedRequests)
     )
