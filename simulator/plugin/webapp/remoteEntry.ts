@@ -81,412 +81,431 @@ interface RunView {
     __SK_REACT__: ReactModule
     signalk_simulator?: unknown
   }
-  const React = host.__SK_REACT__
-  const h = React.createElement
-  const API = '/plugins/signalk-simulator'
-  const POLL_MS = 2000
-  const MULTIPLIERS = [1, 2, 5, 10, 20, 24, 30, 60, 120, 300]
-  const TARGETS_SHOWN = 15
+  // the Admin UI puts its React on window as it starts, after this script has run, so
+  // the page is built on it when the Admin UI first asks for it
+  function panel(React: ReactModule): () => El {
+    const h = React.createElement
+    const API = '/plugins/signalk-simulator'
+    const POLL_MS = 2000
+    const MULTIPLIERS = [1, 2, 5, 10, 20, 24, 30, 60, 120, 300]
+    const TARGETS_SHOWN = 15
 
-  async function call<T>(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<T> {
-    const res = await fetch(API + path, {
-      method,
-      credentials: 'include',
-      headers:
-        body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json?.error ?? `${res.status}`)
-    return json as T
-  }
-
-  const time = (iso?: string | number) =>
-    iso === undefined
-      ? ''
-      : new Date(iso).toISOString().replace('T', ' ').slice(0, 19) + 'Z'
-
-  const card = (title: string, ...body: El[]) =>
-    h(
-      'div',
-      { className: 'card mb-3' },
-      h('div', { className: 'card-header' }, h('strong', null, title)),
-      h('div', { className: 'card-body' }, ...body)
-    )
-
-  const facts = (rows: [string, El][]) =>
-    h(
-      'table',
-      { className: 'table table-sm mb-0' },
-      h(
-        'tbody',
-        null,
-        ...rows
-          .filter(([, v]) => v !== undefined && v !== '')
-          .map(([k, v]) =>
-            h(
-              'tr',
-              { key: k },
-              h('th', { scope: 'row', style: { width: '40%' } }, k),
-              h('td', null, v)
-            )
-          )
-      )
-    )
-
-  function AppPanel(): El {
-    const [run, setRun] = React.useState<RunView>()
-    const [available, setAvailable] = React.useState<Available[]>([])
-    const [error, setError] = React.useState<string>()
-    const [kind, setKind] = React.useState('')
-    const [target, setTarget] = React.useState('')
-    const [minutes, setMinutes] = React.useState('')
-
-    const refresh = React.useCallback(() => {
-      call<RunView>('GET', '/run')
-        .then((r) => {
-          setRun(r)
-          setError(undefined)
-        })
-        .catch((e: Error) => setError(e.message))
-    }, [])
-
-    React.useEffect(() => {
-      refresh()
-      call<{ available: Available[] }>('GET', '/faults')
-        .then((f) => {
-          setAvailable(f.available)
-          if (f.available.length) {
-            setKind(f.available[0].kind)
-            setTarget(f.available[0].targets[0])
-          }
-        })
-        .catch((e: Error) => setError(e.message))
-      const timer = setInterval(refresh, POLL_MS)
-      return () => clearInterval(timer)
-    }, [refresh])
-
-    const act = (method: string, path: string, body?: unknown) =>
-      call(method, path, body)
-        .then(refresh)
-        .catch((e: Error) => setError(e.message))
-
-    if (!run) {
-      return h(
-        'div',
-        { className: 'card' },
-        h('div', { className: 'card-body' }, error ?? 'Loading the run')
-      )
-    }
-    const c = run.clock
-    const chosen = available.find((a) => a.kind === kind)
-
-    const clock = card(
-      'Run',
-      facts([
-        [
-          'Boat',
-          `${run.boat.name ?? ''} ${run.boat.mmsi ? `(${run.boat.mmsi})` : ''}`.trim()
-        ],
-        ['Profile', run.boat.description],
-        ['Sample', `${run.sample}: ${run.route}`],
-        ['Scenario time', time(c.time)],
-        [
-          'Along the route',
-          c.minutesIntoRoute === undefined
+    async function call<T>(
+      method: string,
+      path: string,
+      body?: unknown
+    ): Promise<T> {
+      const res = await fetch(API + path, {
+        method,
+        credentials: 'include',
+        headers:
+          body === undefined
             ? undefined
-            : `${c.minutesIntoRoute} of ${c.routeMinutes} minutes`
-        ],
-        [
-          'Clock',
-          h(
-            'span',
-            null,
-            `x${c.timeMultiplier} `,
-            c.paused
-              ? h('span', { className: 'badge bg-warning text-dark' }, 'Paused')
-              : h('span', { className: 'badge bg-success' }, 'Running')
-          )
-        ]
-      ]),
+            : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body)
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error ?? `${res.status}`)
+      return json as T
+    }
+
+    const time = (iso?: string | number) =>
+      iso === undefined
+        ? ''
+        : new Date(iso).toISOString().replace('T', ' ').slice(0, 19) + 'Z'
+
+    const card = (title: string, ...body: El[]) =>
       h(
         'div',
-        { className: 'd-flex flex-wrap gap-2 align-items-center mt-3' },
+        { className: 'card mb-3' },
+        h('div', { className: 'card-header' }, h('strong', null, title)),
+        h('div', { className: 'card-body' }, ...body)
+      )
+
+    const facts = (rows: [string, El][]) =>
+      h(
+        'table',
+        { className: 'table table-sm mb-0' },
         h(
-          'button',
-          {
-            type: 'button',
-            className: 'btn btn-sm btn-primary',
-            onClick: () => act('PUT', '/run', { paused: !c.paused })
-          },
-          c.paused ? 'Resume' : 'Pause'
-        ),
-        h(
-          'select',
-          {
-            className: 'form-select form-select-sm w-auto',
-            'aria-label': 'Time multiplier',
-            value: String(c.timeMultiplier),
-            onChange: (e: { target: { value: string } }) =>
-              act('PUT', '/run', { timeMultiplier: Number(e.target.value) })
-          },
-          ...[...new Set([...MULTIPLIERS, c.timeMultiplier])]
-            .sort((a, b) => a - b)
-            .map((m) => h('option', { key: m, value: String(m) }, `x${m}`))
-        ),
-        h('input', {
-          className: 'form-control form-control-sm w-auto',
-          type: 'number',
-          min: 0,
-          max: c.routeMinutes,
-          placeholder: 'Minutes into route',
-          'aria-label': 'Minutes into route',
-          value: minutes,
-          onChange: (e: { target: { value: string } }) =>
-            setMinutes(e.target.value)
-        }),
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'btn btn-sm btn-outline-primary',
-            disabled: minutes === '',
-            onClick: () =>
-              act('PUT', '/run', { minutesIntoRoute: Number(minutes) })
-          },
-          'Jump'
+          'tbody',
+          null,
+          ...rows
+            .filter(([, v]) => v !== undefined && v !== '')
+            .map(([k, v]) =>
+              h(
+                'tr',
+                { key: k },
+                h('th', { scope: 'row', style: { width: '40%' } }, k),
+                h('td', null, v)
+              )
+            )
         )
       )
-    )
 
-    const p = run.position
-    const where = card(
-      'Where the Boat Is',
-      facts([
-        [
-          'Position',
-          p && `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
-        ],
-        ['State', p?.state],
-        ['Speed and course over ground', p && `${p.sogKn} kn, ${p.cogDeg}°`],
-        [
-          'Next route point',
-          run.nextPoint && `${run.nextPoint.index} of ${run.nextPoint.of}`
-        ],
-        ['Depth', run.depthM === undefined ? undefined : `${run.depthM} m`]
-      ])
-    )
+    function AppPanel(): El {
+      const [run, setRun] = React.useState<RunView>()
+      const [available, setAvailable] = React.useState<Available[]>([])
+      const [error, setError] = React.useState<string>()
+      const [kind, setKind] = React.useState('')
+      const [target, setTarget] = React.useState('')
+      const [minutes, setMinutes] = React.useState('')
 
-    const s = run.systems
-    const systems =
-      s &&
-      card(
-        'Systems',
+      const refresh = React.useCallback(() => {
+        call<RunView>('GET', '/run')
+          .then((r) => {
+            setRun(r)
+            setError(undefined)
+          })
+          .catch((e: Error) => setError(e.message))
+      }, [])
+
+      React.useEffect(() => {
+        refresh()
+        call<{ available: Available[] }>('GET', '/faults')
+          .then((f) => {
+            setAvailable(f.available)
+            if (f.available.length) {
+              setKind(f.available[0].kind)
+              setTarget(f.available[0].targets[0])
+            }
+          })
+          .catch((e: Error) => setError(e.message))
+        const timer = setInterval(refresh, POLL_MS)
+        return () => clearInterval(timer)
+      }, [refresh])
+
+      const act = (method: string, path: string, body?: unknown) =>
+        call(method, path, body)
+          .then(refresh)
+          .catch((e: Error) => setError(e.message))
+
+      if (!run) {
+        return h(
+          'div',
+          { className: 'card' },
+          h('div', { className: 'card-body' }, error ?? 'Loading the run')
+        )
+      }
+      const c = run.clock
+      const chosen = available.find((a) => a.kind === kind)
+
+      const clock = card(
+        'Run',
         facts([
-          ['Engines running', s.enginesRunning],
-          ['Generators running', s.generatorsRunning],
-          ['Under sail', s.sailing ? 'yes' : 'no'],
           [
-            'House bank',
-            s.houseStateOfCharge === undefined
-              ? undefined
-              : `${Math.round(s.houseStateOfCharge * 100)} %`
+            'Boat',
+            `${run.boat.name ?? ''} ${run.boat.mmsi ? `(${run.boat.mmsi})` : ''}`.trim()
           ],
-          ['Fuel', `${s.fuelL} l`],
+          ['Profile', run.boat.description],
+          ['Sample', `${run.sample}: ${run.route}`],
+          ['Scenario time', time(c.time)],
           [
-            'Fresh water',
-            s.freshWaterLevel === undefined
+            'Along the route',
+            c.minutesIntoRoute === undefined
               ? undefined
-              : `${Math.round(s.freshWaterLevel * 100)} %`
+              : `${c.minutesIntoRoute} of ${c.routeMinutes} minutes`
+          ],
+          [
+            'Clock',
+            h(
+              'span',
+              null,
+              `x${c.timeMultiplier} `,
+              c.paused
+                ? h(
+                    'span',
+                    { className: 'badge bg-warning text-dark' },
+                    'Paused'
+                  )
+                : h('span', { className: 'badge bg-success' }, 'Running')
+            )
           ]
+        ]),
+        h(
+          'div',
+          { className: 'd-flex flex-wrap gap-2 align-items-center mt-3' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'btn btn-sm btn-primary',
+              onClick: () => act('PUT', '/run', { paused: !c.paused })
+            },
+            c.paused ? 'Resume' : 'Pause'
+          ),
+          h(
+            'select',
+            {
+              className: 'form-select form-select-sm w-auto',
+              'aria-label': 'Time multiplier',
+              value: String(c.timeMultiplier),
+              onChange: (e: { target: { value: string } }) =>
+                act('PUT', '/run', { timeMultiplier: Number(e.target.value) })
+            },
+            ...[...new Set([...MULTIPLIERS, c.timeMultiplier])]
+              .sort((a, b) => a - b)
+              .map((m) => h('option', { key: m, value: String(m) }, `x${m}`))
+          ),
+          h('input', {
+            className: 'form-control form-control-sm',
+            style: { width: '11rem' },
+            type: 'number',
+            min: 0,
+            max: c.routeMinutes,
+            placeholder: 'Minutes into route',
+            'aria-label': 'Minutes into route',
+            value: minutes,
+            onChange: (e: { target: { value: string } }) =>
+              setMinutes(e.target.value)
+          }),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'btn btn-sm btn-outline-primary',
+              disabled: minutes === '',
+              onClick: () =>
+                act('PUT', '/run', { minutesIntoRoute: Number(minutes) })
+            },
+            'Jump'
+          )
+        )
+      )
+
+      const p = run.position
+      const where = card(
+        'Where the Boat Is',
+        facts([
+          [
+            'Position',
+            p && `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
+          ],
+          ['State', p?.state],
+          ['Speed and course over ground', p && `${p.sogKn} kn, ${p.cogDeg}°`],
+          [
+            'Next route point',
+            run.nextPoint && `${run.nextPoint.index} of ${run.nextPoint.of}`
+          ],
+          ['Depth', run.depthM === undefined ? undefined : `${run.depthM} m`]
         ])
       )
 
-    const faults = card(
-      'Faults',
-      run.faults.length
-        ? h(
-            'table',
-            { className: 'table table-sm' },
-            h(
-              'thead',
-              null,
+      const s = run.systems
+      const systems =
+        s &&
+        card(
+          'Systems',
+          facts([
+            ['Engines running', s.enginesRunning],
+            ['Generators running', s.generatorsRunning],
+            ['Under sail', s.sailing ? 'yes' : 'no'],
+            [
+              'House bank',
+              s.houseStateOfCharge === undefined
+                ? undefined
+                : `${Math.round(s.houseStateOfCharge * 100)} %`
+            ],
+            ['Fuel', `${s.fuelL} l`],
+            [
+              'Fresh water',
+              s.freshWaterLevel === undefined
+                ? undefined
+                : `${Math.round(s.freshWaterLevel * 100)} %`
+            ]
+          ])
+        )
+
+      const faults = card(
+        'Faults',
+        run.faults.length
+          ? h(
+              'table',
+              { className: 'table table-sm' },
               h(
-                'tr',
+                'thead',
                 null,
-                ...['Fault', 'On', 'Raised', 'Clears', 'Course', ''].map((t) =>
-                  h('th', { key: t }, t)
-                )
-              )
-            ),
-            h(
-              'tbody',
-              null,
-              ...run.faults.map((f) =>
                 h(
                   'tr',
-                  { key: f.id },
+                  null,
+                  ...['Fault', 'On', 'Raised', 'Clears', 'Course', ''].map(
+                    (t) => h('th', { key: t }, t)
+                  )
+                )
+              ),
+              h(
+                'tbody',
+                null,
+                ...run.faults.map((f) =>
                   h(
-                    'td',
-                    null,
-                    f.title,
-                    ' ',
+                    'tr',
+                    { key: f.id },
                     h(
-                      'span',
-                      { className: 'badge bg-secondary' },
-                      f.by === 'seed' ? 'seed' : 'by hand'
-                    )
-                  ),
-                  h('td', null, f.target),
-                  h('td', null, time(f.raisedMs)),
-                  h(
-                    'td',
-                    null,
-                    f.phase === 'clearing'
-                      ? 'clearing'
-                      : f.clearsMs
-                        ? time(f.clearsMs)
-                        : 'by hand'
-                  ),
-                  h('td', null, f.course),
-                  h(
-                    'td',
-                    null,
-                    f.phase === 'developing' &&
+                      'td',
+                      null,
+                      f.title,
+                      ' ',
                       h(
-                        'button',
-                        {
-                          type: 'button',
-                          className: 'btn btn-sm btn-outline-danger',
-                          onClick: () =>
-                            act(
-                              'DELETE',
-                              `/faults/${encodeURIComponent(f.kind)}/${encodeURIComponent(f.target)}`
-                            )
-                        },
-                        'Clear'
+                        'span',
+                        { className: 'badge bg-secondary' },
+                        f.by === 'seed' ? 'seed' : 'by hand'
                       )
+                    ),
+                    h('td', null, f.target),
+                    h('td', null, time(f.raisedMs)),
+                    h(
+                      'td',
+                      null,
+                      f.phase === 'clearing'
+                        ? 'clearing'
+                        : f.clearsMs
+                          ? time(f.clearsMs)
+                          : 'by hand'
+                    ),
+                    h('td', null, f.course),
+                    h(
+                      'td',
+                      null,
+                      f.phase === 'developing' &&
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'btn btn-sm btn-outline-danger',
+                            onClick: () =>
+                              act(
+                                'DELETE',
+                                `/faults/${encodeURIComponent(f.kind)}/${encodeURIComponent(f.target)}`
+                              )
+                          },
+                          'Clear'
+                        )
+                    )
                   )
                 )
               )
             )
-          )
-        : h('p', null, 'None on board.'),
-      h(
-        'div',
-        { className: 'd-flex flex-wrap gap-2 align-items-center' },
+          : h('p', null, 'None on board.'),
         h(
-          'select',
-          {
-            className: 'form-select form-select-sm w-auto',
-            'aria-label': 'Fault',
-            value: kind,
-            onChange: (e: { target: { value: string } }) => {
-              setKind(e.target.value)
-              setTarget(
-                available.find((a) => a.kind === e.target.value)?.targets[0] ??
-                  ''
-              )
-            }
-          },
-          ...available.map((a) =>
-            h('option', { key: a.kind, value: a.kind }, a.title)
+          'div',
+          { className: 'd-flex flex-wrap gap-2 align-items-center' },
+          h(
+            'select',
+            {
+              className: 'form-select form-select-sm w-auto',
+              'aria-label': 'Fault',
+              value: kind,
+              onChange: (e: { target: { value: string } }) => {
+                setKind(e.target.value)
+                setTarget(
+                  available.find((a) => a.kind === e.target.value)
+                    ?.targets[0] ?? ''
+                )
+              }
+            },
+            ...available.map((a) =>
+              h('option', { key: a.kind, value: a.kind }, a.title)
+            )
+          ),
+          h(
+            'select',
+            {
+              className: 'form-select form-select-sm w-auto',
+              'aria-label': 'On',
+              value: target,
+              onChange: (e: { target: { value: string } }) =>
+                setTarget(e.target.value)
+            },
+            ...(chosen?.targets ?? []).map((t) =>
+              h('option', { key: t, value: t }, t)
+            )
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'btn btn-sm btn-warning',
+              disabled: !kind,
+              onClick: () => act('POST', '/faults', { kind, target })
+            },
+            'Raise'
           )
         ),
-        h(
-          'select',
-          {
-            className: 'form-select form-select-sm w-auto',
-            'aria-label': 'On',
-            value: target,
-            onChange: (e: { target: { value: string } }) =>
-              setTarget(e.target.value)
-          },
-          ...(chosen?.targets ?? []).map((t) =>
-            h('option', { key: t, value: t }, t)
+        chosen &&
+          h(
+            'p',
+            { className: 'text-muted small mt-2 mb-0' },
+            chosen.description
           )
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'btn btn-sm btn-warning',
-            disabled: !kind,
-            onClick: () => act('POST', '/faults', { kind, target })
-          },
-          'Raise'
-        )
-      ),
-      chosen &&
-        h('p', { className: 'text-muted small mt-2 mb-0' }, chosen.description)
-    )
+      )
 
-    const t = run.traffic
-    const traffic = card(
-      'Targets in Range',
-      t.shown
-        ? h(
-            'div',
-            null,
-            h('p', null, `${t.inRange} heard`),
-            t.targets.length > 0 &&
-              h(
-                'table',
-                { className: 'table table-sm mb-0' },
+      const t = run.traffic
+      const traffic = card(
+        'Targets in Range',
+        t.shown
+          ? h(
+              'div',
+              null,
+              h('p', null, `${t.inRange} heard`),
+              t.targets.length > 0 &&
                 h(
-                  'thead',
-                  null,
+                  'table',
+                  { className: 'table table-sm mb-0' },
                   h(
-                    'tr',
+                    'thead',
                     null,
-                    ...['Name', 'MMSI', 'Distance', 'Speed'].map((x) =>
-                      h('th', { key: x }, x)
-                    )
-                  )
-                ),
-                h(
-                  'tbody',
-                  null,
-                  ...t.targets
-                    .slice(0, TARGETS_SHOWN)
-                    .map((x, i) =>
-                      h(
-                        'tr',
-                        { key: x.mmsi ?? i },
-                        h('td', null, x.name ?? ''),
-                        h('td', null, x.mmsi ?? ''),
-                        h('td', null, `${x.distanceNm} nm`),
-                        h('td', null, `${x.sogKn} kn`)
+                    h(
+                      'tr',
+                      null,
+                      ...['Name', 'MMSI', 'Distance', 'Speed'].map((x) =>
+                        h('th', { key: x }, x)
                       )
                     )
+                  ),
+                  h(
+                    'tbody',
+                    null,
+                    ...t.targets
+                      .slice(0, TARGETS_SHOWN)
+                      .map((x, i) =>
+                        h(
+                          'tr',
+                          { key: x.mmsi ?? i },
+                          h('td', null, x.name ?? ''),
+                          h('td', null, x.mmsi ?? ''),
+                          h('td', null, `${x.distanceNm} nm`),
+                          h('td', null, `${x.sogKn} kn`)
+                        )
+                      )
+                  )
                 )
-              )
-          )
-        : 'Traffic is off in the plugin settings.'
-    )
-
-    return h(
-      'div',
-      { className: 'animated fadeIn' },
-      error && h('div', { className: 'alert alert-danger' }, error),
-      h(
-        'div',
-        { className: 'row' },
-        h('div', { className: 'col-lg-6' }, clock, where, systems),
-        h('div', { className: 'col-lg-6' }, faults, traffic)
+            )
+          : 'Traffic is off in the plugin settings.'
       )
-    )
+
+      return h(
+        'div',
+        { className: 'animated fadeIn' },
+        error && h('div', { className: 'alert alert-danger' }, error),
+        h(
+          'div',
+          { className: 'row' },
+          h('div', { className: 'col-lg-6' }, clock, where, systems),
+          h('div', { className: 'col-lg-6' }, faults, traffic)
+        )
+      )
+    }
+
+    return AppPanel
   }
 
+  let built: (() => El) | undefined
+  const appPanel = () => {
+    built ??= panel(host.__SK_REACT__)
+    return { default: built }
+  }
   host.signalk_simulator = {
     init: () => undefined,
     get: (module: string) =>
-      Promise.resolve(
-        module === './AppPanel' ? () => ({ default: AppPanel }) : undefined
-      )
+      Promise.resolve(module === './AppPanel' ? appPanel : undefined)
   }
 })()
