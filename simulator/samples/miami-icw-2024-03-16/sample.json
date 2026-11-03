@@ -317,5 +317,70 @@
     ],
     "harbourRadiusM": 250,
     "harbourNoDataIsWater": false
+  },
+  "weather": {
+    "sources": [
+      {
+        "format": "coops",
+        "file": "open/weather/coops_8723214_{product}_20240316.csv",
+        "use": ["wind", "pressure", "tide", "waterLevel"],
+        "station": {
+          "id": "8723214",
+          "name": "Virginia Key",
+          "lat": 25.7314,
+          "lon": -80.1618
+        },
+        "gridDatumAboveChartDatumM": 0.614
+      },
+      {
+        "format": "coops",
+        "file": "open/weather/coops_8722956_{product}_20240316.csv",
+        "use": ["wind", "pressure", "tide", "waterLevel"],
+        "station": {
+          "id": "8722956",
+          "name": "South Port Everglades",
+          "lat": 26.0817,
+          "lon": -80.1167
+        },
+        "gridDatumAboveChartDatumM": 0.676
+      },
+      {
+        "format": "ndbc",
+        "file": "open/weather/ndbc-vakf1-2024-03-16.txt",
+        "use": ["air", "water"],
+        "station": {
+          "id": "VAKF1",
+          "name": "Virginia Key",
+          "lat": 25.731,
+          "lon": -80.162
+        }
+      },
+      {
+        "format": "ndbc",
+        "file": "open/weather/ndbc-pegf1-2024-03-16.txt",
+        "use": ["air"],
+        "station": {
+          "id": "PEGF1",
+          "name": "Port Everglades",
+          "lat": 26.086,
+          "lon": -80.116
+        }
+      },
+      {
+        "format": "ndbc",
+        "file": "open/weather/ndbc-41122-2024-03-16.txt",
+        "use": ["water", "waves"],
+        "station": {
+          "id": "41122",
+          "name": "Hollywood Beach",
+          "lat": 26.001,
+          "lon": -80.096
+        }
+      }
+    ],
+    "tide": {
+      "chartDatum": "MLLW",
+      "gridDatum": "NAVD88"
+    }
   }
 }

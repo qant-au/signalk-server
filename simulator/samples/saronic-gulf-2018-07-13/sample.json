@@ -36,5 +36,20 @@
     ],
     "harbourRadiusM": 1000,
     "harbourNoDataIsWater": true
+  },
+  "weather": {
+    "sources": [
+      {
+        "format": "open-meteo",
+        "file": "open/weather/open-meteo-era5.json",
+        "use": ["wind", "pressure", "air", "humidity"]
+      },
+      {
+        "format": "gfs-csv",
+        "file": "restricted/weather-gfs.csv",
+        "use": ["wind", "pressure", "air", "humidity"],
+        "optional": true
+      }
+    ]
   }
 }
