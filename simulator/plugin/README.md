@@ -42,7 +42,7 @@ and starts the systems fresh. A saved file that cannot be read, or whose systems
 fit the profile (a unit added or removed, an older format), is ignored with a message in
 the server log, and the run starts fresh rather than failing.
 
-The status line on the plugin page shows whether the run is under way, paused or arrived,
+The status line on the plugin page shows whether the run is under way, at anchor, paused or arrived,
 the scenario time, the multiplier, the boat's speed, at anchor her distance from the anchor
 with the radius she swings in and the watch's ("at anchor 38 m from it, swinging in 47 m,
 watch 57 m"), the depth under her, how many AIS targets she currently hears, the faults on

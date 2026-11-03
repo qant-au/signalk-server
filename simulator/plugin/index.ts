@@ -547,7 +547,9 @@ export = function simulatorPlugin(app: App) {
         ? 'Paused'
         : result.finished
           ? 'Arrived'
-          : 'Under way'
+          : result.position.anchored
+            ? 'At anchor'
+            : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
           `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${anchored}${depth}${traffic}${systems}${faulty}${alarmed}` +
