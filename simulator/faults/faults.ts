@@ -501,7 +501,8 @@ export class Faults implements SystemFaults {
     switch (f.kind) {
       case 'engineOverheat': {
         const c = this.lastSent.get(`propulsion.${f.target}.coolantTemperature`)
-        return typeof c !== 'number' || c - KELVIN < COOLANT_NORMAL_C
+        // before the first reading after a restart it has not been seen to cool
+        return typeof c === 'number' && c - KELVIN < COOLANT_NORMAL_C
       }
       case 'bilgeFlooding':
         return !this.bilge.pumpOn

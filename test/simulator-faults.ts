@@ -521,6 +521,32 @@ describe('Simulator faults', () => {
     ).to.not.deep.equal([])
   })
 
+  it('resumes a fault that was winding down, until it has', () => {
+    const scenario = scenarioFor('motor-yacht-20m')
+    const whole = new Run(scenario, {}, 60)
+    whole.until(40)
+    whole.faults.raise('engineOverheat', 'port')
+    whole.until(55)
+    whole.faults.clear('engineOverheat', 'port')
+    whole.minutes(1)
+    expect(whole.faults.active()[0].phase).to.equal('clearing')
+    const resumed = new Run(
+      scenario,
+      {
+        scenarioStartMs: whole.sim.systems!.scenarioMs,
+        systemsState: whole.sim.systems!.save(),
+        faultsState: whole.faults.save()
+      },
+      60
+    )
+    resumed.minutes(1)
+    expect(resumed.faults.active().map((f) => f.phase)).to.deep.equal([
+      'clearing'
+    ])
+    resumed.minutes(30)
+    expect(resumed.faults.active()).to.deep.equal([])
+  })
+
   it('throws faults from the seed at the rate set, and none by default', () => {
     const thrown = (perDay: number | undefined, seed = 1) => {
       const run = new Run(
