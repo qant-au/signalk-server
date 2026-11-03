@@ -14,6 +14,7 @@ simulator/
   engine/                   the simulation: scenario loading, traffic, own boat, depth
   systems/                  the boat's systems model (engines, generators, electrics, tanks, inside) and its navigation suite
   faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
+  alarms/                   the alarm zones every watched value carries, and the panel that raises notifications from them (see vessels/README.md#alarms)
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container
