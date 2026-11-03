@@ -249,20 +249,24 @@ the run and sent again when it resumes.
 
 **The boat raises on its own,** with no fault, what its day brings: a fuel or water tank
 running low, a grey or black water tank filling before it is pumped out, a bank run down,
-and shallow water. The [systems soak](../soak/README.md#what-it-checks) checks that a day
-out raises these and nothing else. What no zone can know, a fault raises itself: a
+and shallow water, and, from the AIS targets it hears, a target coming too close (see
+[Collision Avoidance](../ais/README.md#collision-avoidance), raised in the target's own
+context). The [systems soak](../soak/README.md#what-it-checks) checks that a day out raises
+the first four and nothing else; it sails without traffic. What no zone can know, a fault raises itself: a
 generator that will not start, a charger tripped, an alternator not charging, the bilge
 filling, a silent sounder, a lost fix (see [the faults](../faults/README.md#alarms)).
 An anchor dragging waits for the anchorage round.
 
-**The server's own notification.** The server raises a notification from any zones in a
-path's metadata itself (`src/zones.ts`), under the source `self.notificationhandler`, so
-each watched path has two: the panel's, under `simulator`, and the server's. The metadata
-carries the panel's method for each state (`warnMethod`, `alarmMethod`, `alertMethod`,
-`emergencyMethod`), so the two agree on state, message and method; the server's goes back
-to `normal` the moment the value leaves the zone, where the panel's holds to the margin.
-Oil pressure's zones are left out of the metadata: the server cannot tell a stopped engine
-from a failing one, and would raise its alarm for as long as the engine is stopped.
+**One notification per path.** The server raises a notification itself from any zones in
+a path's metadata (`src/zones.ts`), at a zone's edge, with no margin, and for an engine's
+oil pressure whether it runs or not. So the metadata also carries `zonesNotifiedBy:
+"simulator"`, naming the source that raises the path's notifications, and the server raises
+none of its own for a path that has it: each watched path has one notification, the
+panel's, under `simulator`, and the path's value is the panel's through the margin. That
+field is this fork's (`MetaValue.zonesNotifiedBy` in `@signalk/server-api`); the
+specification does not have it, so the tests take it out before checking a delta against the
+schema. The metadata also carries the panel's method for each state (`warnMethod`,
+`alarmMethod`, `alertMethod`, `emergencyMethod`).
 
 **Shallow water.** The depth sounder's shallow alarm is raised on
 `notifications.environment.depth.belowKeel` below the plugin's `Shallow water alarm`

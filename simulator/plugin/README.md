@@ -9,18 +9,20 @@ surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 
-| Setting                                | Default   | What It Does                                                                                    |
-| -------------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
-| Sample                                 | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                 |
-| Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                       |
-| Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this                       |
-| Shallow water alarm                    | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper |
-| Show traffic                           | on        | send the AIS targets the boat would hear                                                        |
-| Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                       |
-| Faults a day                           | 0         | faults the seed throws on its own, on average, per day of scenario time                         |
-| Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                               |
-| Start this many minutes into the route | 0         | where a new run starts                                                                          |
-| Resume where the last run reached      | on        | carry on from the saved scenario time and the boat's systems                                    |
+| Setting                                   | Default   | What It Does                                                                                                                         |
+| ----------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Sample                                    | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                                                      |
+| Time multiplier                           | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                                                            |
+| Minimum depth under keel                  | 1 m       | the route is moved out of water shallower than the boat's draft plus this                                                            |
+| Collision alarm: closest approach         | 15 m      | a moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half the time |
+| Collision alarm: time to closest approach | 1 min     | the time limit for the collision alarm                                                                                               |
+| Shallow water alarm                       | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper                                      |
+| Show traffic                              | on        | send the AIS targets the boat would hear                                                                                             |
+| Seed                                      | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                                                            |
+| Faults a day                              | 0         | faults the seed throws on its own, on average, per day of scenario time                                                              |
+| Own AIS antenna height                    | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                                                                    |
+| Start this many minutes into the route    | 0         | where a new run starts                                                                                                               |
+| Resume where the last run reached         | on        | carry on from the saved scenario time and the boat's systems                                                                         |
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
@@ -42,7 +44,8 @@ the server log, and the run starts fresh rather than failing.
 The status line on the plugin page shows whether the run is under way, paused or arrived,
 the scenario time, the multiplier, the boat's speed, the depth under it, how many AIS
 targets it currently hears, the faults on board, the alarms on board with their state
-("alarms: Shallow water (alarm), Grey water tank nearly full (warn)"), and anything that
+("alarms: Shallow water (alarm), LUCY GOOSE: closest approach alarm (alarm)"), the collision
+alarms among them, and anything that
 limits the run (a leg that could not be cleared of shallow water, or AIS not available on
 this machine).
 
@@ -65,13 +68,13 @@ A tester can script a scenario without the plugin's settings: the plugin serves 
 surface under its own path, `/plugins/signalk-simulator`, and a page in the Admin UI that
 uses it.
 
-| Method and Path                  | What It Does                                                                                                                                                                                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /run`                       | the run: sample and route, the boat, the clock (scenario time, multiplier, paused, departure and arrival, minutes into the route), position and state, next route point, depth, the systems' headline state, the targets in range (nearest 100), and the faults on board |
-| `PUT /run`                       | changes the run and answers with it: any of `paused` (true or false), `timeMultiplier` (above 0, up to 3600), and one of `time` (ISO 8601) or `minutesIntoRoute`, to jump along the route                                                                                |
-| `GET /faults`                    | `available`: each fault this boat can have, with its title, description, targets and how long it lasts; `active`: the faults on board                                                                                                                                    |
-| `POST /faults`                   | raises a fault, `{"kind": ..., "target": ...}`; the target defaults to the first the boat has. Answers 201 with the fault                                                                                                                                                |
-| `DELETE /faults/<kind>/<target>` | clears a fault by hand; it winds down as it would                                                                                                                                                                                                                        |
+| Method and Path                  | What It Does                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /run`                       | the run: sample and route, the boat, the clock (scenario time, multiplier, paused, departure and arrival, minutes into the route), position and state, next route point, depth, the systems' headline state, the targets in range (100 of them, the closing ones first, soonest first, then the nearest), each with its closest approach and the time to it while it is closing, the faults on board, and the alarms on board |
+| `PUT /run`                       | changes the run and answers with it: any of `paused` (true or false), `timeMultiplier` (above 0, up to 3600), and one of `time` (ISO 8601) or `minutesIntoRoute`, to jump along the route                                                                                                                                                                                                                                     |
+| `GET /faults`                    | `available`: each fault this boat can have, with its title, description, targets and how long it lasts; `active`: the faults on board                                                                                                                                                                                                                                                                                         |
+| `POST /faults`                   | raises a fault, `{"kind": ..., "target": ...}`; the target defaults to the first the boat has. Answers 201 with the fault                                                                                                                                                                                                                                                                                                     |
+| `DELETE /faults/<kind>/<target>` | clears a fault by hand; it winds down as it would                                                                                                                                                                                                                                                                                                                                                                             |
 
 A fault on board carries its `id` (`kind:target`), `title`, whether it was raised `by`
 hand or the seed, when it was raised (`raisedMs`), when it clears on its own (`clearsMs`)
@@ -115,7 +118,9 @@ security is on; with security off, as on the rig, anyone who can reach the serve
 Admin UI opens it inside the Admin UI's own frame (at `/admin/#/e/signalk-simulator`). It
 shows the run (the boat, the scenario time and how far along the route, the multiplier and
 whether it is paused), where the boat is, the systems' headline state, the faults on board
-with their course, and the targets in range, nearest first, refreshed every two seconds. Its
+with their course, and the targets in range, refreshed every two seconds: Targets in Range
+lists the closing targets first, soonest first, each with its closest approach (CPA) and the
+time to it (TCPA, minutes and seconds), then the rest, nearest first. Its
 buttons are the same controls as the REST surface: pause and resume, the multiplier, a jump
 to a number of minutes into the route, and raising and clearing faults. It is built on the
 Admin UI's own React and styles, so it needs nothing beyond the plugin's own build.

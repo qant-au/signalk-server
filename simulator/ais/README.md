@@ -165,6 +165,64 @@ What each sample's source has:
 | Saronic Gulf | Piraeus | no     | yes     | no (anonymised)      | code      | no     | no            |
 | Queensland   | AMSA    | no     | no      | no (anonymised)      | in words  | yes    | yes           |
 
+## Collision Avoidance
+
+The plugin works out each target's closest point of approach (CPA) and the time to it
+(TCPA) as a plotter does, every second, for every target in range: from the own boat's
+position, course and speed as she sends them, and the target's from its latest report,
+carried on along its course at its speed to the moment of the own boat's position.
+
+**The geometry.** Over the few miles AIS reaches, the sea is flat enough to work on, so
+both boats go onto a plane about the own boat, in metres east and north. With the target
+at `r` from the own boat and moving at `w` relative to her, the time to the closest
+approach is `t = -(r · w) / |w|²`, and the closest approach is `|r + w t|`. A target is
+closing while `t` is positive. One drawing away, or keeping station with the own boat,
+has no closest approach. A target with no course over the ground is taken as still, so a
+boat lying at a berth is closed on by the own boat's own speed. `simulator/ais/collision.ts`
+holds it, and `test/simulator-collision.ts` checks it against a target crossing ahead at
+right angles, one overtaking, one on a reciprocal course and one stopped.
+
+**What is sent.** On the target, where the specification puts it, under the simulator's
+source: `navigation.closestApproach` with `distance` (metres) and `timeTo` (seconds), only
+while the target is closing. It goes with each of the target's reports, and every second
+in between while the target is inside twice the collision alarm's limits, so a display
+sees a close one count down. Once a target is no longer closing, `navigation.closestApproach`
+is sent once as `null`, so a display drops it.
+
+**The alarm.** A target whose closest approach comes inside the plugin's **Collision alarm:
+closest approach** (15 m by default) within its **time to closest approach** (1 minute)
+raises a warning, and an alarm once the time is under half that (30 seconds), as
+`notifications.navigation.closestApproach` in the target's own context, the way the AIS
+target prioritizer plugin names its own, so Freeboard and anything else that reads those
+needs nothing new. The message names the target, by its name or its MMSI ("LUCY GOOSE:
+closest approach warning"), with method `["visual"]` for a warning and `["visual",
+"sound"]` for an alarm. A raised one holds until the approach is back out by a quarter of
+the distance or 15 seconds of the time, and goes as `normal`, with no method, once that
+margin is passed, the target is past and drawing away, or the receiver loses it; a lost
+target's clear goes out before the target is dropped, and nothing is raised for it while
+it is. A target making less than a knot, or reporting itself moored or at anchor, raises
+no alarm, as a plotter's target filters keep a waterway lined with berths quiet; it still
+carries its closest approach.
+
+**Where Miami throws it.** The Miami sample, sailed from its departure at seed 1 with the
+defaults, throws it in eight places, for eleven targets moving through the waterway:
+
+| Time              | Where                                  | Leg | Target               | Raised           |
+| ----------------- | -------------------------------------- | --- | -------------------- | ---------------- |
+| 14:29:25-14:30:15 | Biscayne Bay, 25.767 N 80.183 W        | 7   | ISLA MARIE           | warn, alarm      |
+| 16:13:55-16:14:05 | 25.976 N 80.123 W                      | 32  | T/T REBEL            | alarm            |
+| 16:31:40-16:33:30 | at a bridge hold, 26.013 N 80.118 W    | 38  | AQUARIUS, MISS MINKS | warn, alarm      |
+| 16:47:55-16:48:50 | 26.031 N 80.117 W                      | 40  | EMOTIONAL RESCUE II  | warn, alarm      |
+| 16:54:45-16:55:50 | near Dania Beach, 26.046 N 80.116 W    | 44  | LUCY GOOSE           | warn, then alarm |
+| 16:59:35-16:59:45 | 26.054 N 80.115 W                      | 47  | NEW TRAILS           | alarm            |
+| 17:03:55-17:04:50 | 26.054 N 80.115 W                      | 47  | WOLFPACK             | warn, alarm      |
+| 17:45:55-17:47:25 | approaching Pier 66, 26.097 N 80.118 W | 50  | CADILLA, CARRIE B    | warn, alarm      |
+
+Most of these are within ten metres. The route follows a real vessel's passage south run
+the other way, so it keeps to the side of the channel that southbound boats use, and meets
+them head on; wider limits only add more of the same rather than the boats passing at a
+channel's ordinary 20 to 40 metres. The times shift by seconds with another start or seed.
+
 ## Checked Against the Samples
 
 `simulator/tools/ais-coverage.ts` counts the targets in a sample around one place and moment,
