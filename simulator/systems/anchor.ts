@@ -89,17 +89,21 @@ const DEFAULT_DEPTH_M = 6
 const SLACK_SHARE = 0.6
 const TAUT_WIND_KN = 20
 /** chain paid out and heaved in, metres a second, at a windlass's pace */
-const PAY_OUT_M_S = 0.5
+const PAY_OUT_M_S = 0.3
 export const HEAVE_M_S = 0.3
 /** she sheers this far either side of the wind, over this period for a 10 m boat */
 const SHEER_DEG = 15
 const SHEER_PERIOD_S_AT_10M = 240
+/** however much chain is out, her sheer carries her across the wind no faster than this */
+const SHEER_MAX_KN = 0.5
 /** and the line she lies on wanders with the gusts */
 const WANDER_DEG = 8
 const WANDER_TAU_S = 300
 /** she follows where the chain and the wind put her with this time constant */
 const SETTLE_S = 25
 const HEAVE_SETTLE_S = 4
+/** and at no more than this, metres a second */
+const MAX_ANCHORED_M_S = 0.45
 /** a dragging anchor moves at this pace */
 export const DRAG_KN = 0.5
 /** after weighing she is back on the route's track with this time constant */
@@ -149,6 +153,7 @@ export class Anchorage {
   private readonly bowHeightM: number
   private readonly gnssAftM: number
   private readonly sheerPeriodS: number
+  private readonly sheerMaxM: number
   private out: AnchorPosition | undefined
 
   constructor(
@@ -162,6 +167,9 @@ export class Anchorage {
     this.bowHeightM = BOW_HEIGHT_PER_LENGTH * lengthM
     this.gnssAftM = GNSS_AFT_SHARE * lengthM
     this.sheerPeriodS = SHEER_PERIOD_S_AT_10M * Math.sqrt(lengthM / 10)
+    // the side to side distance at which a sine of this period peaks at that speed
+    this.sheerMaxM =
+      (SHEER_MAX_KN * KNOT_MS * this.sheerPeriodS) / (2 * Math.PI)
   }
 
   /** the anchor is down */
@@ -246,24 +254,30 @@ export class Anchorage {
     this.dragging = m.dragging
     const depthM = this.depth(bottom.lat, bottom.lon)
     const full = this.scopeM(set.depthM)
-    const h = depthM + this.bowHeightM
-    const heaving =
-      m.leavesInS !== undefined && h + m.leavesInS * HEAVE_M_S < this.chainM
-    this.chainM = heaving
-      ? Math.max(h, h + (m.leavesInS ?? 0) * HEAVE_M_S)
-      : Math.min(full, this.chainM + PAY_OUT_M_S * dt)
+    this.chainM = Math.min(full, this.chainM + PAY_OUT_M_S * dt)
 
     this.sheerRad =
       (this.sheerRad + (2 * Math.PI * dt) / this.sheerPeriodS) % (2 * Math.PI)
     this.sheer.step(dt)
     const pull = Math.min(1, m.windKn / TAUT_WIND_KN)
-    const lie =
+    const lying =
       this.reach(this.chainM, depthM) *
       (m.dragging ? 1 : SLACK_SHARE + (1 - SLACK_SHARE) * pull)
+    // heaving in, the windlass brings her up to the anchor at its own pace, timed so the
+    // anchor breaks out as she leaves
+    const heaving = m.leavesInS !== undefined && m.leavesInS * HEAVE_M_S < lying
+    const lie = heaving ? Math.max(0, m.leavesInS! * HEAVE_M_S) : lying
+    const from = lie + this.gnssAftM
+    // on a long scope the same angle would carry her far, and fast, from side to side
+    const swingRad = Math.min(
+      SHEER_DEG * RADIANS,
+      Math.asin(Math.min(1, this.sheerMaxM / Math.max(from, this.sheerMaxM)))
+    )
     const bearing =
       downwind +
-      (SHEER_DEG * Math.sin(this.sheerRad) + this.sheer.value) * RADIANS
-    const from = lie + this.gnssAftM
+      (swingRad / SHEER_DEG / RADIANS) *
+        (SHEER_DEG * Math.sin(this.sheerRad) + this.sheer.value) *
+        RADIANS
     const target = offset(
       bottom,
       from * Math.sin(bearing),
@@ -273,9 +287,13 @@ export class Anchorage {
     const [e, n] = metresFrom(boat, target)
     // heaving in, the chain brings her up to the anchor as fast as it comes in
     const k = 1 - Math.exp(-dt / (heaving ? HEAVE_SETTLE_S : SETTLE_S))
-    this.boat = offset(boat, e * k, n * k)
-    this.velE = (e * k) / dt
-    this.velN = (n * k) / dt
+    // on her chain, under the windlass or dragging, she never makes a passage's speed
+    const stepM = Math.hypot(e, n) * k
+    const cap =
+      stepM > MAX_ANCHORED_M_S * dt ? (MAX_ANCHORED_M_S * dt) / stepM : 1
+    this.boat = offset(boat, e * k * cap, n * k * cap)
+    this.velE = (e * k * cap) / dt
+    this.velN = (n * k * cap) / dt
     const [toE, toN] = metresFrom(this.boat, bottom)
     this.out = {
       lat: this.boat.lat,
