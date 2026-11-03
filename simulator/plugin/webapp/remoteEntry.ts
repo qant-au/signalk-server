@@ -53,6 +53,14 @@ interface RunView {
     state: string
   }
   nextPoint?: { index: number; of: number }
+  anchor?: {
+    latitude: number
+    longitude: number
+    depthM: number
+    maxRadiusM: number
+    currentRadiusM: number
+    watchRadiusM: number
+  }
   depthM?: number
   systems?: {
     enginesRunning: number
@@ -155,26 +163,30 @@ interface RunView {
       const [target, setTarget] = React.useState('')
       const [minutes, setMinutes] = React.useState('')
 
+      // what can be raised changes with what the boat is doing: a dragging anchor only
+      // at anchor, so it is read again with the run
       const refresh = React.useCallback(() => {
-        call<RunView>('GET', '/run')
-          .then((r) => {
+        Promise.all([
+          call<RunView>('GET', '/run'),
+          call<{ available: Available[] }>('GET', '/faults')
+        ])
+          .then(([r, f]) => {
             setRun(r)
+            setAvailable(f.available)
             setError(undefined)
           })
           .catch((e: Error) => setError(e.message))
       }, [])
 
       React.useEffect(() => {
+        const chosen = available.find((a) => a.kind === kind)
+        if (chosen && chosen.targets.includes(target)) return
+        setKind(chosen?.kind ?? available[0]?.kind ?? '')
+        setTarget((chosen ?? available[0])?.targets[0] ?? '')
+      }, [available, kind, target])
+
+      React.useEffect(() => {
         refresh()
-        call<{ available: Available[] }>('GET', '/faults')
-          .then((f) => {
-            setAvailable(f.available)
-            if (f.available.length) {
-              setKind(f.available[0].kind)
-              setTarget(f.available[0].targets[0])
-            }
-          })
-          .catch((e: Error) => setError(e.message))
         const timer = setInterval(refresh, POLL_MS)
         return () => clearInterval(timer)
       }, [refresh])
@@ -290,6 +302,16 @@ interface RunView {
           [
             'Next route point',
             run.nextPoint && `${run.nextPoint.index} of ${run.nextPoint.of}`
+          ],
+          [
+            'Anchor',
+            run.anchor &&
+              `${run.anchor.latitude.toFixed(5)}, ${run.anchor.longitude.toFixed(5)}, in ${run.anchor.depthM} m`
+          ],
+          [
+            'From the anchor',
+            run.anchor &&
+              `${run.anchor.currentRadiusM} m, swinging in ${run.anchor.maxRadiusM} m, watch ${run.anchor.watchRadiusM} m`
           ],
           ['Depth', run.depthM === undefined ? undefined : `${run.depthM} m`]
         ])

@@ -177,6 +177,7 @@ export function runView(control: Control) {
   const position = result?.position
   const vessel = scenario.route.vessel
   const summary = simulation.systems?.summary()
+  const anchor = simulation.systems?.anchor
   const nextPoint =
     scenarioMs !== undefined ? nextPointIndex(legs, scenarioMs) : undefined
   const targets = position
@@ -236,6 +237,14 @@ export function runView(control: Control) {
       nextPoint === undefined
         ? undefined
         : { index: nextPoint, of: legs.length },
+    anchor: anchor && {
+      latitude: anchor.lat,
+      longitude: anchor.lon,
+      depthM: round(anchor.depthM, 1),
+      maxRadiusM: round(anchor.maxRadiusM, 1),
+      currentRadiusM: round(anchor.currentRadiusM, 1),
+      watchRadiusM: round(anchor.watchRadiusM, 1)
+    },
     depthM: result?.depthM === undefined ? undefined : round(result.depthM, 1),
     systems: summary && {
       enginesRunning: summary.enginesRunning,
