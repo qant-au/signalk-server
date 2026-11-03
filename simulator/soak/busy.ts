@@ -89,6 +89,8 @@ export const LIMITS = {
 const PLUGIN_ID = 'signalk-simulator'
 const MINUTE_MS = 60000
 const STATS_INTERVAL_MS = 5000
+/** the plugin sends the own boat once a second */
+const TICK_MS = 1000
 const QUIET_MS = 2 * STATS_INTERVAL_MS + 2000
 /** the AIS status plugin marks a target lost 6 minutes after its last position and removed 3 later */
 const SETTLE_MAX_MS = 12 * MINUTE_MS
@@ -169,7 +171,7 @@ interface Subscriber {
   atLastRow: number
 }
 
-interface ClockState {
+export interface ClockState {
   selfContext?: string
   anchor?: { wallMs: number; scenarioMs: number }
   latestScenarioMs?: number
@@ -318,6 +320,21 @@ function watchClock(clock: ClockState, delta: Delta, multiplier: number) {
       )
     }
   }
+}
+
+/**
+ * How far behind the clock is at a moment between deltas: the lag the latest delta arrived
+ * with, and any wait since beyond the plugin's tick. Up to a tick since the latest delta
+ * is the plugin's rhythm, not lag.
+ */
+export function stalledBehindMs(
+  clock: ClockState,
+  now: number,
+  multiplier: number
+): number {
+  if (clock.latestAtMs === undefined) return 0
+  const overdueMs = Math.max(0, now - clock.latestAtMs - TICK_MS)
+  return behindMs(clock, clock.latestAtMs, multiplier) + overdueMs * multiplier
 }
 
 function behindMs(clock: ClockState, now: number, multiplier: number) {
@@ -471,7 +488,7 @@ export async function busy(
         clockBehindS:
           Math.max(
             clock.maxBehindMs,
-            behindMs(clock, now, options.timeMultiplier)
+            stalledBehindMs(clock, now, options.timeMultiplier)
           ) / 1000,
         ownBoatGapS: clock.maxGapMs / 1000,
         serverDeltasPerS: (serverCount - serverAtLastRow) / seconds,

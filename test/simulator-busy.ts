@@ -6,6 +6,7 @@ import {
   heapStillGrowing,
   heldBackInLog,
   judge,
+  stalledBehindMs,
   targetsInStatus
 } from '../simulator/soak/busy'
 
@@ -103,5 +104,21 @@ describe('simulator busy run', () => {
     expect(targetsInStatus('Under way: 15:00 at x24, traffic off')).to.equal(
       undefined
     )
+  })
+
+  it('counts the clock behind between deltas only past the tick', () => {
+    // at x24 the latest delta arrived on time at 1 s, carrying 24 scenario seconds
+    const clock = {
+      maxBehindMs: 0,
+      maxGapMs: 0,
+      anchor: { wallMs: 0, scenarioMs: 0 },
+      latestScenarioMs: 24000,
+      latestAtMs: 1000
+    }
+    expect(stalledBehindMs(clock, 1900, 24)).to.equal(0)
+    expect(stalledBehindMs(clock, 3000, 24)).to.equal(24000)
+    expect(
+      stalledBehindMs({ ...clock, latestScenarioMs: 22000 }, 1900, 24)
+    ).to.equal(2000)
   })
 })
