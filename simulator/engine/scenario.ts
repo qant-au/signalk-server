@@ -14,6 +14,7 @@ import {
 } from '../routes/route'
 import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { VesselProfile, loadProfile } from '../vessels/profile'
+import { Environment, loadEnvironment } from '../weather/environment'
 import { Traffic } from './traffic'
 
 /**
@@ -50,6 +51,8 @@ export interface Scenario {
   profile?: VesselProfile
   /** magnetic variation over the sample's area, when the sample has it */
   variation?: VariationGrid
+  /** the sample's weather and water level (simulator/weather), when it lists them */
+  environment?: Environment
   /** why traffic or depth is missing, for the status line */
   notes: string[]
 }
@@ -143,6 +146,11 @@ export async function loadScenario(
     )
   }
 
+  const environment = loadEnvironment(dir)
+  for (const file of environment?.missing ?? []) {
+    notes.push(`no ${file}: see the sample's README`)
+  }
+
   const profile = planned.vessel.profile
     ? loadProfile(planned.vessel.profile, vesselsDirFor(dir))
     : undefined
@@ -158,6 +166,7 @@ export async function loadScenario(
     traffic,
     profile,
     variation: loadVariation(dir),
+    environment,
     notes
   }
 }

@@ -246,6 +246,21 @@ export function runView(control: Control) {
       watchRadiusM: round(anchor.watchRadiusM, 1)
     },
     depthM: result?.depthM === undefined ? undefined : round(result.depthM, 1),
+    weather: summary && {
+      windKn: round(summary.weather.windKn, 1),
+      windDeg: Math.round(summary.weather.windDeg),
+      pressureHpa: round(summary.weather.pressurePa / 100, 1),
+      airC: round(summary.weather.airC, 1),
+      waterC: round(summary.weather.waterC, 1),
+      humidity:
+        summary.weather.humidity === undefined
+          ? undefined
+          : round(summary.weather.humidity, 2),
+      tideM:
+        summary.weather.tideM === undefined
+          ? undefined
+          : round(summary.weather.tideM, 2)
+    },
     systems: summary && {
       enginesRunning: summary.enginesRunning,
       generatorsRunning: summary.generatorsRunning,

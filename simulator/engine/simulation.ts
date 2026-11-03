@@ -157,7 +157,12 @@ export class Simulation {
         faults: this.faults,
         seed: options.seed,
         startMs: options.scenarioStartMs,
-        depthAt: depth ? (lat, lon) => depth.depth(lat, lon) : undefined,
+        depthAt: depth
+          ? (lat, lon, ms) => this.depthAt(lat, lon, ms)
+          : undefined,
+        weatherAt: scenario.environment
+          ? (lat, lon, ms) => scenario.environment!.at(lat, lon, ms)
+          : undefined,
         variationAt: scenario.variation
           ? (lat, lon) => scenario.variation!.at(lat, lon)
           : undefined,
@@ -190,6 +195,18 @@ export class Simulation {
         ]
       })
     }
+  }
+
+  /**
+   * The depth below the surface: the grid's depth below its datum and the sample's water
+   * level above that datum, where the sample has one (simulator/weather)
+   */
+  depthAt(lat: number, lon: number, ms: number): number | undefined {
+    const grid = this.scenario.depth?.depth(lat, lon)
+    if (grid === undefined) return undefined
+    const level =
+      this.scenario.environment?.value('waterLevelM', lat, lon, ms) ?? 0
+    return Math.max(0, grid + level)
   }
 
   /** forgets every target still heard, as a receiver switched off does */
@@ -330,7 +347,7 @@ export class Simulation {
 
     let depthM: number | undefined
     if (this.scenario.depth) {
-      depthM = this.scenario.depth.depth(position.lat, position.lon)
+      depthM = this.depthAt(position.lat, position.lon, sentMs)
       if (depthM !== undefined && !this.systems) {
         this.emit(depthDelta(depthM, this.scenario.route.vessel.draftM, wallMs))
       }

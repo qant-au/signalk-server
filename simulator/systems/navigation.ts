@@ -28,6 +28,8 @@ export interface TrueWind {
   kn: number
   /** the direction it comes from */
   deg: number
+  /** the significant wave height where the sample measures it, in place of a sea built from the wind */
+  waveHeightM?: number
 }
 
 export type NavigationStateValue =
@@ -281,9 +283,13 @@ export class Navigation {
     this.rollDeg =
       this.heelDeg(wind, m, sailing) + rollAmpDeg * this.drifts.roll.value
     const powered = state === 'motoring' && p.rig === 'motor'
-    this.pitchDeg =
+    // a short boat in a measured sea would otherwise pitch past what any boat does
+    this.pitchDeg = clamp(
       (powered ? TRIM_AT_FULL_DEG * Math.min(1, m.sogKn / p.maxSpeedKn) : 0) +
-      pitchAmpDeg * this.drifts.pitch.value
+        pitchAmpDeg * this.drifts.pitch.value,
+      -PITCH_MAX_DEG,
+      PITCH_MAX_DEG
+    )
 
     const steering = !m.atBerth && !m.anchored && m.sogKn >= STEERAGE_KN
     const offTrackM = steering
@@ -340,7 +346,8 @@ export class Navigation {
 
   private seaHeightM(wind: TrueWind, m: NavigationMotion): number {
     const ms = wind.kn * KNOT_MS
-    const open = Math.min(SEA_HS_MAX_M, SEA_HS_PER_MS2 * ms * ms)
+    const open =
+      wind.waveHeightM ?? Math.min(SEA_HS_MAX_M, SEA_HS_PER_MS2 * ms * ms)
     return open * (m.atBerth ? BERTH_SHELTER : m.anchored ? ANCHOR_SHELTER : 1)
   }
 

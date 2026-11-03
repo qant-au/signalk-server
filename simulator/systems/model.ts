@@ -20,6 +20,7 @@ import {
   watchRadiusM
 } from './anchor'
 import { Navigation, NavigationState } from './navigation'
+import type { Conditions, TideNow } from '../weather/environment'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
 
@@ -57,7 +58,10 @@ export interface SystemsOptions {
   /** scenario time the model starts at, ms since the epoch */
   startMs: number
   /** depth below the surface at a position, metres, or undefined with no data */
-  depthAt?: (lat: number, lon: number) => number | undefined
+  /** depth below the surface at a position and scenario time, the tide included, metres */
+  depthAt?: (lat: number, lon: number, ms: number) => number | undefined
+  /** the sample's weather at a position and scenario time (simulator/weather) */
+  weatherAt?: (lat: number, lon: number, ms: number) => Conditions
   /** magnetic variation at a position, degrees, positive east, where the sample has it */
   variationAt?: (lat: number, lon: number) => number
   /** a saved run to carry on from, in place of starting fresh at `startMs` */
@@ -458,6 +462,10 @@ export class SystemsModel {
   private pressurePa = 101325
   private windKn = 0
   private windDeg = 0
+  /** what the sample gives that the model has no state of its own for */
+  private humidity: number | undefined
+  private waveHeightM: number | undefined
+  private tide: TideNow | undefined
   private hotelKw = 0
   private hvacKw = 0
   /** AC the shore supply carries alongside: the hotel load and the chargers */
@@ -916,7 +924,8 @@ export class SystemsModel {
         leavesInS: motion.leavesInS,
         windKn: this.windKn,
         windDeg: this.windDeg,
-        dragging: this.options.faults?.anchorDragging() === true
+        dragging: this.options.faults?.anchorDragging() === true,
+        ms: this.nowMs
       },
       !this.stepped
     )
@@ -953,7 +962,7 @@ export class SystemsModel {
             ? motion.cogDeg
             : at?.headDeg
       },
-      { kn: this.windKn, deg: this.windDeg },
+      { kn: this.windKn, deg: this.windDeg, waveHeightM: this.waveHeightM },
       this.sailing
     )
     this.stepAc(dt)
@@ -1011,15 +1020,26 @@ export class SystemsModel {
     const baseC = 30 - 0.2 * Math.abs(lat) + seasonalRange * seasonal
     const hour = solarHour(t, lon)
     const diurnal = Math.cos((2 * Math.PI * (hour - 15)) / 24)
-    this.airC = baseC + 4 * diurnal + this.airDrift.step(dt)
-    this.waterC = baseC
-    this.pressurePa = 101325 + this.pressureDrift.step(dt)
-    // a sea breeze freshens through the afternoon
+    // every stream steps whether or not the sample replaces its value, so a run with and
+    // without a sample's weather draws the same numbers
+    const airDrift = this.airDrift.step(dt)
+    const pressureDrift = this.pressureDrift.step(dt)
+    const gusts = this.windSpeedDrift.step(dt)
+    const shifts = this.windDirDrift.step(dt)
+    const c = this.options.weatherAt?.(lat, lon, t) ?? {}
+    this.airC = c.airC ?? baseC + 4 * diurnal + airDrift
+    this.waterC = c.waterC ?? baseC
+    this.pressurePa = c.pressurePa ?? 101325 + pressureDrift
+    this.humidity = c.humidity
+    this.waveHeightM = c.waveHeightM
+    this.tide = c.tide
+    // the sample's wind with the seed's gusts and shifts on it; without one, a sea breeze
+    // that freshens through the afternoon
     this.windKn = Math.max(
       0,
-      this.windBaseKn + 3 * diurnal + this.windSpeedDrift.step(dt)
+      (c.windKn ?? this.windBaseKn + 3 * diurnal) + gusts
     )
-    this.windDeg = (this.windBaseDeg + this.windDirDrift.step(dt) + 360) % 360
+    this.windDeg = ((c.windDeg ?? this.windBaseDeg) + shifts + 360) % 360
   }
 
   private stepPropulsion(dt: number): void {
@@ -1741,7 +1761,7 @@ export class SystemsModel {
       const dLat = (s.offsetM * Math.cos(bearing)) / 111320
       const dLon =
         (s.offsetM * Math.sin(bearing)) / (111320 * Math.cos(lat * RADIANS))
-      const depth = depthAt(lat + dLat, lon + dLon)
+      const depth = depthAt(lat + dLat, lon + dLon, this.nowMs)
       s.reading =
         depth === undefined ? undefined : depth + s.bias + s.drift.value
     }
@@ -1913,6 +1933,9 @@ export class SystemsModel {
       put('environment.outside.temperature', round2(this.airC + KELVIN))
       put('environment.outside.pressure', Math.round(this.pressurePa))
       put('environment.water.temperature', round2(this.waterC + KELVIN))
+      if (this.humidity !== undefined)
+        put('environment.outside.relativeHumidity', round3(this.humidity))
+      this.putTide(put)
     }
 
     const deltas: Delta[] = [
@@ -1952,6 +1975,21 @@ export class SystemsModel {
       deltas.push({ context: 'vessels.self', updates: sounderUpdates })
     }
     return deltas
+  }
+
+  /** the tide as a tide table and gauge give it, above chart datum, where the sample has one */
+  private putTide(put: (path: string, value: unknown) => void): void {
+    const tide = this.tide
+    if (!tide) return
+    put('environment.tide.heightNow', round3(tide.heightM))
+    if (tide.high) {
+      put('environment.tide.heightHigh', round3(tide.high.heightM))
+      put('environment.tide.timeHigh', iso(tide.high.ms))
+    }
+    if (tide.low) {
+      put('environment.tide.heightLow', round3(tide.low.heightM))
+      put('environment.tide.timeLow', iso(tide.low.ms))
+    }
   }
 
   /** the anchor's values while it is down, as the anchor alarm plugin sends them, and cleared once it is up */
@@ -2193,6 +2231,15 @@ export class SystemsModel {
       fuelL: this.tanksOf('fuel').reduce((sum, t) => sum + t.litres, 0),
       houseSoc: this.banks.find((b) => b.p.role === 'house')?.soc,
       airC: this.airC,
+      weather: {
+        windKn: this.windKn,
+        windDeg: this.windDeg,
+        pressurePa: this.pressurePa,
+        airC: this.airC,
+        waterC: this.waterC,
+        humidity: this.humidity,
+        tideM: this.tide?.heightM
+      },
       hotelKw: this.hotelKw,
       hvacKw: this.hvacKw,
       watermakerRunning: this.watermakerRunning,
@@ -2221,6 +2268,16 @@ export interface SystemsSummary {
   fuelL: number
   houseSoc?: number
   airC: number
+  /** the true wind (with the seed's gusts and shifts), the air, the water and the tide */
+  weather: {
+    windKn: number
+    windDeg: number
+    pressurePa: number
+    airC: number
+    waterC: number
+    humidity?: number
+    tideM?: number
+  }
   hotelKw: number
   /** air conditioning load being carried */
   hvacKw: number

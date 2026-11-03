@@ -47,17 +47,25 @@ export interface Delta {
 
 /**
  * The delta as the Signal K schema can check it: without `zonesNotifiedBy` in the
- * metadata, which this server reads (src/zones.ts) and the specification does not have,
- * and without the null that clears the anchor's values once it is weighed. The anchor
- * alarm plugin clears them so, and displays read it so, but the schema has no null for a
- * position.
+ * metadata, which this server reads (src/zones.ts) and the specification does not have;
+ * without the null that clears the anchor's values once it is weighed, which the anchor
+ * alarm plugin sends and displays read, but for which the schema has no null position;
+ * and without the times of the next high and low water, which schema 1.8.2 defines as a
+ * bare string rather than a value, so no delta can satisfy it.
  */
+const BARE_STRINGS = new Set([
+  'environment.tide.timeHigh',
+  'environment.tide.timeLow'
+])
+
 export function forSchema(delta: Delta): Delta {
   return {
     ...delta,
     updates: delta.updates.map((u) => {
       const values = u.values.filter(
-        (v) => !(v.value === null && v.path.startsWith('navigation.anchor.'))
+        (v) =>
+          !(v.value === null && v.path.startsWith('navigation.anchor.')) &&
+          !BARE_STRINGS.has(v.path)
       )
       const meta = u.meta?.map((m) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars

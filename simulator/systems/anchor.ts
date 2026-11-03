@@ -36,6 +36,8 @@ export interface AnchorInput {
   windDeg: number
   /** the anchor is dragging */
   dragging: boolean
+  /** scenario time, for the depth with the tide on it */
+  ms: number
 }
 
 export interface AnchorPosition {
@@ -159,7 +161,11 @@ export class Anchorage {
   constructor(
     lengthM: number,
     seed: number,
-    private readonly depthAt?: (lat: number, lon: number) => number | undefined
+    private readonly depthAt?: (
+      lat: number,
+      lon: number,
+      ms: number
+    ) => number | undefined
   ) {
     const rng = new Rng(seed, 'anchorage')
     this.sheerRad = rng.between(0, 2 * Math.PI)
@@ -219,8 +225,8 @@ export class Anchorage {
     return Math.sqrt(Math.max(0, chainM * chainM - h * h))
   }
 
-  private depth(lat: number, lon: number): number {
-    const d = this.depthAt?.(lat, lon)
+  private depth(lat: number, lon: number, ms: number): number {
+    const d = this.depthAt?.(lat, lon, ms)
     return d !== undefined && d > 0 ? d : DEFAULT_DEPTH_M
   }
 
@@ -243,7 +249,7 @@ export class Anchorage {
       )
     } else if (this.dragging) {
       // the crew has re-anchored: the anchor is set again where it now lies
-      const depthM = this.depth(bottom.lat, bottom.lon)
+      const depthM = this.depth(bottom.lat, bottom.lon, m.ms)
       this.set = {
         lat: bottom.lat,
         lon: bottom.lon,
@@ -252,7 +258,7 @@ export class Anchorage {
       }
     }
     this.dragging = m.dragging
-    const depthM = this.depth(bottom.lat, bottom.lon)
+    const depthM = this.depth(bottom.lat, bottom.lon, m.ms)
     const full = this.scopeM(set.depthM)
     this.chainM = Math.min(full, this.chainM + PAY_OUT_M_S * dt)
 
@@ -304,7 +310,7 @@ export class Anchorage {
   }
 
   private drop(m: AnchorInput, first: boolean): void {
-    const depthM = this.depth(m.lat, m.lon)
+    const depthM = this.depth(m.lat, m.lon, m.ms)
     this.set = {
       lat: m.lat,
       lon: m.lon,

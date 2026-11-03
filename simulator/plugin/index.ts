@@ -528,6 +528,11 @@ export = function simulatorPlugin(app: App) {
       const systems = onBoard
         ? `, ${onBoard.enginesRunning} engines and ${onBoard.generatorsRunning} generators running`
         : ''
+      const w = onBoard?.weather
+      const weather = w
+        ? `, wind ${w.windKn.toFixed(0)} kn from ${w.windDeg.toFixed(0)}°, ${(w.pressurePa / 100).toFixed(0)} hPa, air ${w.airC.toFixed(1)} °C, water ${w.waterC.toFixed(1)} °C` +
+          (w.tideM === undefined ? '' : `, tide ${w.tideM.toFixed(2)} m`)
+        : ''
       const faults = simulation.faults?.active() ?? []
       const faulty = faults.length
         ? `, faults: ${faults.map((f) => f.id).join(', ')}`
@@ -552,7 +557,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${anchored}${depth}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
