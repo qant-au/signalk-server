@@ -373,9 +373,12 @@ export function positionAt(legs: Leg[], timeMs: number): RoutePosition {
 /**
  * The route point the boat is heading for at a moment, as the Course API counts them
  * (the index of the waypoint in the route): the end of the leg it is on. At the start it
- * is already on its first leg. A waypoint the boat stops at stays the next point while it
- * holds there, and is passed when it leaves; one it turns through is passed at the middle
- * of the arc, when the boat comes abeam of it. Undefined once the boat has arrived.
+ * is already on its first leg. A waypoint the boat holds at under way stays the next point
+ * while she holds there, and is passed when she leaves; an anchorage is reached when she
+ * anchors, and the point after it is the next point through the stay, held until she
+ * weighs, so her swing about the anchor never crosses the point she is making for. One she
+ * turns through is passed at the middle of the arc, when the boat comes abeam of it.
+ * Undefined once the boat has arrived.
  */
 export function nextPointIndex(
   legs: Leg[],
@@ -388,8 +391,9 @@ export function nextPointIndex(
     if (turn && timeMs > turn.startMs && timeMs < turn.endMs) {
       return timeMs < turnMiddleMs(turn) ? i + 1 : i + 2
     }
-    if (timeMs <= legs[i].arriveMs) return i + 1
-    if (next && timeMs < next.departMs) return i + 1
+    if (timeMs < legs[i].arriveMs) return i + 1
+    if (next && timeMs < next.departMs) return legs[i].to.anchor ? i + 2 : i + 1
+    if (timeMs === legs[i].arriveMs) return i + 1
   }
   return undefined
 }

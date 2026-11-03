@@ -106,18 +106,30 @@ describe('Simulator next route point', () => {
   const route = passage()
   const legs = routeLegs(route)
 
-  it('starts on the first leg, holds a stop until it leaves, and ends with no point', () => {
+  it('starts on the first leg, makes for the point after an anchorage through the stay, and ends with no point', () => {
     expect(nextPointIndex(legs, START)).to.equal(1)
     legs.forEach((leg, i) => {
       const mid = (leg.departMs + leg.arriveMs) / 2
       expect(nextPointIndex(legs, mid), `leg ${i}`).to.equal(i + 1)
     })
     const anchorLeg = legs.findIndex((l) => l.to.anchor)
-    const holding = legs[anchorLeg].arriveMs + 5 * MINUTE
-    expect(nextPointIndex(legs, holding)).to.equal(anchorLeg + 1)
-    expect(nextPointIndex(legs, legs[anchorLeg + 1].departMs + 1)).to.equal(
-      anchorLeg + 2
+    // reached as she anchors, so her swing about the anchor never passes the point she
+    // is making for; the next one holds through the stay
+    expect(nextPointIndex(legs, legs[anchorLeg].arriveMs - 1)).to.equal(
+      anchorLeg + 1
     )
+    const anchored = legs[anchorLeg].arriveMs
+    const weighs = legs[anchorLeg + 1].departMs
+    for (const at of [
+      anchored,
+      anchored + 5 * MINUTE,
+      weighs - 1,
+      weighs + 1
+    ]) {
+      expect(nextPointIndex(legs, at), new Date(at).toISOString()).to.equal(
+        anchorLeg + 2
+      )
+    }
     expect(nextPointIndex(legs, legs[legs.length - 1].arriveMs + 1)).to.equal(
       undefined
     )
@@ -324,6 +336,8 @@ describe('Simulator course', function () {
       if (i === undefined || e.ms! < legs[0].departMs) continue
       const leg = legs[i - 1]
       if (e.ms! < leg.departMs) continue
+      // weighed, she makes back to the track from where her anchor lay
+      if (leg.from.anchor && e.ms! < leg.departMs + 5 * MINUTE) continue
       const inTurn = [turns[i - 2], turns[i - 1]].some(
         (t) => t && e.ms! >= t.startMs && e.ms! <= t.endMs
       )

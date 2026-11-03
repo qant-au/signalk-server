@@ -344,7 +344,8 @@ describe('Simulator faults', () => {
         cellFailure: (id) => (id === 'house' ? failed : 0),
         alternatorFailed: () => false,
         chargerFailed: () => false,
-        bilgePumpW: () => 0
+        bilgePumpW: () => 0,
+        anchorDragging: () => false
       }
       const model = new SystemsModel(profile, {
         seed: 1,

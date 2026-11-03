@@ -31,7 +31,8 @@ export const FAULT_KINDS = [
   'depthSounderSilent',
   'gnssLost',
   'windInstrumentFrozen',
-  'staleSensor'
+  'staleSensor',
+  'anchorDragging'
 ] as const
 export type FaultKind = (typeof FAULT_KINDS)[number]
 
@@ -73,6 +74,8 @@ interface KindSpec {
   targets(p: VesselProfile): string[]
   /** scenario minutes until it clears on its own, low and high; none: cleared by hand */
   lastsMin?: [number, number]
+  /** it can happen only while the boat lies at anchor, and ends when the anchor comes up */
+  atAnchor?: boolean
 }
 
 const combustion = (p: VesselProfile) =>
@@ -159,6 +162,14 @@ export const FAULT_SPECS: Record<FaultKind, KindSpec> = {
       'A gateway keeps sending a sensor value it has cached, at the time it was read',
     targets: STALE_PATHS,
     lastsMin: [10, 20]
+  },
+  anchorDragging: {
+    title: 'Anchor dragging',
+    description:
+      "At anchor only: the anchor loses its hold and the boat moves downwind at a dragging boat's pace, past the anchor watch; clears when the crew re-anchors, which sets the anchor again where it now lies",
+    targets: () => ['anchor'],
+    lastsMin: [10, 20],
+    atAnchor: true
   }
 }
 
@@ -192,6 +203,8 @@ export interface FaultsState {
   rng: number
   faults: Fault[]
   bilge: { litres: number; pumpOn: boolean; pumpRunS: number }
+  /** the boat lay at anchor at the last step */
+  anchored?: boolean
 }
 
 export const FAULTS_STATE_VERSION = 1
@@ -227,6 +240,7 @@ export class Faults implements SystemFaults {
   private readonly sumpL: number
   private readonly pumpLph: number
   private bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
+  private anchored = false
   /** the latest value sent on each path, as an alarm panel reads it */
   private readonly lastSent = new Map<string, unknown>()
   /** the systems model's satellites and dilution, before a lost fix changes them */
@@ -259,6 +273,7 @@ export class Faults implements SystemFaults {
           ? (state.nextMs ?? undefined)
           : undefined
       this.bilge = { ...state.bilge }
+      this.anchored = state.anchored === true
     }
   }
 
@@ -271,12 +286,20 @@ export class Faults implements SystemFaults {
       nextMs: this.nextMs ?? null,
       rng: this.rng.save(),
       faults: this.faults.map((f) => ({ ...f })),
-      bilge: { ...this.bilge }
+      bilge: { ...this.bilge },
+      anchored: this.anchored
     }
   }
 
   private targetsOf(kind: FaultKind): string[] {
     return FAULT_SPECS[kind].targets(this.profile)
+  }
+
+  /** what it can happen to now: nothing, for a fault of the anchorage while under way */
+  private targetsNow(kind: FaultKind): string[] {
+    return FAULT_SPECS[kind].atAnchor && !this.anchored
+      ? []
+      : this.targetsOf(kind)
   }
 
   /** every fault this boat can have, with what it can happen to */
@@ -291,7 +314,7 @@ export class Faults implements SystemFaults {
       kind,
       title: FAULT_SPECS[kind].title,
       description: FAULT_SPECS[kind].description,
-      targets: this.targetsOf(kind),
+      targets: this.targetsNow(kind),
       lastsMin: FAULT_SPECS[kind].lastsMin
     })).filter((k) => k.targets.length)
   }
@@ -320,6 +343,9 @@ export class Faults implements SystemFaults {
       throw new FaultError(`no fault called ${kind}`)
     }
     const k = kind as FaultKind
+    if (FAULT_SPECS[k].atAnchor && !this.anchored) {
+      throw new FaultError(`${kind} happens only while the boat lies at anchor`)
+    }
     const targets = this.targetsOf(k)
     const on = target ?? targets[0]
     if (on === undefined || !targets.includes(on)) {
@@ -364,15 +390,17 @@ export class Faults implements SystemFaults {
 
   // ---- inside the systems model, at each of its steps -------------------------------
 
-  step(nowMs: number, dt: number): void {
+  step(nowMs: number, dt: number, anchored: boolean): void {
     this.nowMs = nowMs
+    this.anchored = anchored
     for (const f of this.faults) {
-      if (
-        f.clearedMs === undefined &&
-        f.clearsMs !== undefined &&
-        nowMs >= f.clearsMs
-      ) {
+      if (f.clearedMs !== undefined) continue
+      if (f.clearsMs !== undefined && nowMs >= f.clearsMs) {
         f.clearedMs = f.clearsMs
+        f.clearedBy = 'course'
+      } else if (FAULT_SPECS[f.kind].atAnchor && !anchored) {
+        // weighing anchor ends it
+        f.clearedMs = nowMs
         f.clearedBy = 'course'
       }
     }
@@ -411,6 +439,10 @@ export class Faults implements SystemFaults {
 
   chargerFailed(bankId: string): boolean {
     return this.on('chargerFailure', bankId) !== undefined
+  }
+
+  anchorDragging(): boolean {
+    return this.on('anchorDragging', 'anchor') !== undefined
   }
 
   bilgePumpW(): number {
@@ -791,6 +823,11 @@ export class Faults implements SystemFaults {
         break
       case 'gnssLost':
         parts.push(this.gnssPhase() ?? 'settled')
+        break
+      case 'anchorDragging':
+        parts.push(
+          f.clearedMs === undefined ? 'dragging' : 'set again where it lies'
+        )
         break
     }
     return parts.join(', ')

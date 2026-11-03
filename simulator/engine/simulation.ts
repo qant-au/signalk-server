@@ -68,6 +68,8 @@ export interface SimulationOptions {
   alarmsState?: AlarmsState
   /** the collision alarm's limits */
   collision?: CollisionLimits
+  /** the anchor watch's radius, metres; unset or 0, the scope's radius plus a margin */
+  anchorWatchRadiusM?: number
 }
 
 /** an AIS target as last heard, for the plugin's page */
@@ -85,6 +87,9 @@ export interface TargetSeen {
   /** its closest approach, while it is closing */
   approach?: Approach
 }
+
+/** the anchor watch's notification, where the anchor alarm plugin raises it */
+export const ANCHOR_NOTIFICATION = 'notifications.navigation.anchor'
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
 const SLOW_EVERY_TICKS = 5
@@ -156,7 +161,8 @@ export class Simulation {
         variationAt: scenario.variation
           ? (lat, lon) => scenario.variation!.at(lat, lon)
           : undefined,
-        state: options.systemsState
+        state: options.systemsState,
+        anchorWatchRadiusM: options.anchorWatchRadiusM
       })
       this.alarms = new AlarmPanel(
         alarmBands(scenario.profile, options.shallowM ?? DEFAULT_SHALLOW_M),
@@ -284,7 +290,11 @@ export class Simulation {
           leavingSoon:
             p.sogKn === 0 &&
             !p.finished &&
-            positionAt(legs, ms + SWING_BEFORE_LEAVING_MS).sogKn > 0
+            positionAt(legs, ms + SWING_BEFORE_LEAVING_MS).sogKn > 0,
+          leavesInS:
+            p.sogKn === 0 && !p.finished
+              ? (legs[p.legIndex].departMs - ms) / 1000
+              : undefined
         }
       })
     }
@@ -298,9 +308,19 @@ export class Simulation {
     const legs = this.scenario.legs
     const sentMs = this.systems ? this.systems.scenarioMs : scenarioMs
     const onTrack = positionAt(legs, sentMs)
-    const position = this.systems
-      ? offTrack(onTrack, this.systems.trackOffsetM)
-      : onTrack
+    // at anchor she lies to her chain, off the waypoint the route stops her at
+    const swung = this.systems?.anchoredPosition
+    const position = swung
+      ? {
+          ...onTrack,
+          lat: swung.lat,
+          lon: swung.lon,
+          sogKn: swung.sogKn,
+          cogDeg: swung.cogDeg
+        }
+      : this.systems
+        ? offTrack(onTrack, this.systems.trackOffsetM)
+        : onTrack
     const own = (delta: Delta) => {
       const sent = this.faults ? this.faults.filter(delta) : delta
       this.alarms?.record(sent)
@@ -322,10 +342,13 @@ export class Simulation {
     }
     if (this.faults && this.alarms) {
       for (const delta of this.faults.deltas(wallMs, SOURCE)) this.emit(delta)
+      const others = this.faults.alarms()
+      const anchor = this.systems?.anchorAlarm()
+      if (anchor) others.set(ANCHOR_NOTIFICATION, anchor)
       const notes = this.alarms.notifications(
         wallMs,
         SOURCE,
-        this.faults.alarms(),
+        others,
         this.notifyAll
       )
       this.notifyAll = false

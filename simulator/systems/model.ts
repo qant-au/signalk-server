@@ -11,6 +11,14 @@ import {
   WindTurbineProfile,
   ZoneProfile
 } from '../vessels/profile'
+import {
+  AnchorPosition,
+  AnchorReport,
+  Anchorage,
+  AnchorageState,
+  anchorWatch,
+  watchRadiusM
+} from './anchor'
 import { Navigation, NavigationState } from './navigation'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
@@ -38,6 +46,8 @@ export interface Motion {
   rateOfTurnDegS?: number
   /** stopped, and leaving within a few minutes */
   leavingSoon?: boolean
+  /** stopped, seconds until the route has the boat leave */
+  leavesInS?: number
   /** under way, metres from the berth the boat left or is coming to */
   nearBerthM?: number
 }
@@ -54,12 +64,14 @@ export interface SystemsOptions {
   state?: SystemsState
   /** faults on board (simulator/faults), stepped with the model */
   faults?: SystemFaults
+  /** the anchor watch's radius, metres; unset, the scope's radius plus a margin */
+  anchorWatchRadiusM?: number
 }
 
 /** what the faults on board do to the systems, asked at each of the model's steps */
 export interface SystemFaults {
-  /** moves each fault on its course to this scenario time */
-  step(nowMs: number, dt: number): void
+  /** moves each fault on its course to this scenario time; `anchored` while the boat lies at anchor */
+  step(nowMs: number, dt: number, anchored: boolean): void
   /** the engine's raw-water intake is blocked: its coolant heats while it runs */
   intakeBlocked(engineId: string): boolean
   /** the generator will not start; asking is a start that failed */
@@ -70,6 +82,8 @@ export interface SystemFaults {
   chargerFailed(bankId: string): boolean
   /** watts the bilge pump draws from the house bank */
   bilgePumpW(): number
+  /** the anchor is dragging */
+  anchorDragging(): boolean
 }
 
 type Scalar = number | boolean | string | null
@@ -103,12 +117,13 @@ export interface SystemsState {
   zones: UnitState[]
   sounders: UnitState[]
   navigation: NavigationState
+  anchorage: AnchorageState
   /** holding tanks being pumped out, as `type.id` */
   pumping: string[]
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 5
+export const SYSTEMS_STATE_VERSION = 6
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -458,6 +473,11 @@ export class SystemsModel {
   private readonly pumping = new Set<TankState>()
   private readonly pumpOuts = new Map<string, number>()
   private sailing = false
+  private readonly anchorage: Anchorage
+  /** the anchor watch's alarm is raised */
+  private anchorAlarmed = false
+  /** the model has stepped since it started or was restored */
+  private stepped = false
   /** a hybrid's diesels have taken over to charge its bank, until it is full enough again */
   private hybridCharging = false
   private transferring: string | undefined
@@ -595,6 +615,7 @@ export class SystemsModel {
     this.pressureDrift = new Drift(weather, 150, 7200)
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
     this.navigation = new Navigation(profile, seed, options.startMs)
+    this.anchorage = new Anchorage(profile.lengthM, seed, options.depthAt)
     if (options.state) this.restore(options.state)
     this.openBooks()
   }
@@ -694,7 +715,8 @@ export class SystemsModel {
         sailing: this.sailing,
         hybridCharging: this.hybridCharging,
         transferring: this.transferring ?? null,
-        inverterKw: this.inverterKw
+        inverterKw: this.inverterKw,
+        anchorAlarmed: this.anchorAlarmed
       },
       drifts: Object.fromEntries(
         Object.entries(drifts).map(([k, d]) => [k, d.save()])
@@ -723,6 +745,7 @@ export class SystemsModel {
         saveUnit(s.id, s, ['reading'], ['drift'])
       ),
       navigation: this.navigation.save(),
+      anchorage: this.anchorage.save(),
       pumping: [...this.pumping].map(tankKey),
       pumpOuts: Object.fromEntries(this.pumpOuts)
     }
@@ -827,6 +850,11 @@ export class SystemsModel {
       },
       checkedDrift
     )
+    this.anchorage.restore(state.anchorage, (ok, what) => {
+      if (!ok)
+        throw new StaleStateError(`saved systems state has a bad ${what}`)
+    })
+    this.stepped = true
     const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
     const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
     if (pumping.some((t) => !t)) {
@@ -854,6 +882,7 @@ export class SystemsModel {
     this.hybridCharging = values.hybridCharging as boolean
     this.transferring = (values.transferring as string | null) ?? undefined
     this.inverterKw = values.inverterKw as number
+    this.anchorAlarmed = values.anchorAlarmed as boolean
     this.pumping.clear()
     for (const t of pumping) this.pumping.add(t as TankState)
     this.pumpOuts.clear()
@@ -873,22 +902,56 @@ export class SystemsModel {
 
   private step(dt: number, motion: Motion): void {
     this.motion = motion
-    this.options.faults?.step(this.nowMs, dt)
+    const anchored = motion.anchored === true
+    this.options.faults?.step(this.nowMs, dt, anchored)
     this.stepWeather(dt)
+    this.anchorage.step(
+      dt,
+      {
+        anchored,
+        lat: motion.lat,
+        lon: motion.lon,
+        sogKn: motion.sogKn,
+        cogDeg: motion.cogDeg,
+        leavesInS: motion.leavesInS,
+        windKn: this.windKn,
+        windDeg: this.windDeg,
+        dragging: this.options.faults?.anchorDragging() === true
+      },
+      !this.stepped
+    )
+    this.stepped = true
+    const at = this.anchorage.position
+    // the boat lies to her chain, or makes back to the track after weighing
+    if (at) {
+      this.motion = {
+        ...motion,
+        lat: at.lat,
+        lon: at.lon,
+        sogKn: at.sogKn,
+        cogDeg: at.cogDeg
+      }
+    }
+    this.stepAnchorWatch()
     this.stepPropulsion(dt)
     this.stepThrusters(dt)
     this.navigation.step(
       dt,
       this.nowMs,
       {
-        lat: motion.lat,
-        lon: motion.lon,
-        sogKn: motion.sogKn,
-        cogDeg: motion.cogDeg,
+        lat: this.motion.lat,
+        lon: this.motion.lon,
+        sogKn: this.motion.sogKn,
+        cogDeg: this.motion.cogDeg,
         rateOfTurnDegS: motion.rateOfTurnDegS ?? 0,
         atBerth: motion.atBerth,
         anchored: motion.anchored === true,
-        leavingSoon: motion.leavingSoon === true
+        leavingSoon: motion.leavingSoon === true,
+        // the crew points her on the course she is about to leave on
+        headDeg:
+          at?.headDeg !== undefined && motion.leavingSoon
+            ? motion.cogDeg
+            : at?.headDeg
       },
       { kn: this.windKn, deg: this.windDeg },
       this.sailing
@@ -899,6 +962,43 @@ export class SystemsModel {
     this.stepGenerators(dt)
     this.stepTanks(dt)
     this.stepSounders(dt)
+  }
+
+  /** the anchor watch, on while the anchor is down */
+  private stepAnchorWatch(): void {
+    const report = this.anchorage.report
+    if (!report) {
+      this.anchorAlarmed = false
+      return
+    }
+    this.anchorAlarmed = anchorWatch(
+      this.anchorAlarmed,
+      report.currentRadiusM,
+      watchRadiusM(report, this.options.anchorWatchRadiusM)
+    )
+  }
+
+  /** the anchor as the boat reports it, with the watch's radius, while it is down */
+  get anchor(): (AnchorReport & { watchRadiusM: number }) | undefined {
+    const report = this.anchorage.report
+    return (
+      report && {
+        ...report,
+        watchRadiusM: watchRadiusM(report, this.options.anchorWatchRadiusM)
+      }
+    )
+  }
+
+  /** the anchor watch's alarm, as the anchor alarm plugin raises it */
+  anchorAlarm(): { state: 'emergency'; message: string } | undefined {
+    return this.anchorAlarmed
+      ? { state: 'emergency', message: 'Anchor Alarm - Emergency' }
+      : undefined
+  }
+
+  /** where the boat is, when she lies at anchor or is rejoining her track from it */
+  get anchoredPosition(): AnchorPosition | undefined {
+    return this.anchorage.position
   }
 
   private stepWeather(dt: number): void {
@@ -1787,6 +1887,7 @@ export class SystemsModel {
     if (this.profile.wind) this.putWind(put)
     const { lat, lon } = this.motion
     this.navigation.put(put, this.options.variationAt?.(lat, lon))
+    this.putAnchor(put)
     if (!slow) {
       // a battery monitor reports every second: a thruster burst is over in a few
       for (const b of this.banks) {
@@ -1851,6 +1952,24 @@ export class SystemsModel {
       deltas.push({ context: 'vessels.self', updates: sounderUpdates })
     }
     return deltas
+  }
+
+  /** the anchor's values while it is down, as the anchor alarm plugin sends them, and cleared once it is up */
+  private putAnchor(put: (path: string, value: unknown) => void): void {
+    const report = this.anchorage.report
+    if (this.anchorage.takeWeighed() && !report) {
+      put('navigation.anchor.position', null)
+      put('navigation.anchor.maxRadius', null)
+      put('navigation.anchor.currentRadius', null)
+    }
+    if (!report) return
+    put('navigation.anchor.position', {
+      latitude: report.lat,
+      longitude: report.lon,
+      altitude: -round2(report.depthM)
+    })
+    put('navigation.anchor.maxRadius', round2(report.maxRadiusM))
+    put('navigation.anchor.currentRadius', round2(report.currentRadiusM))
   }
 
   private putEngine(

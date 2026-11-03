@@ -20,6 +20,8 @@ export interface NavigationMotion {
   anchored: boolean
   /** stopped, and leaving within a few minutes on the course `cogDeg` */
   leavingSoon: boolean
+  /** at anchor, the heading she lies to on her chain, or is pointed on to leave */
+  headDeg?: number
 }
 
 export interface TrueWind {
@@ -229,6 +231,10 @@ export class Navigation {
       // alongside: held by the lines on the berth's heading, nothing through the water
       targetDeg = m.cogDeg
       this.stwKn = 0
+    } else if (m.anchored && m.headDeg !== undefined) {
+      // lying to her chain: through the water only what her swing gives
+      targetDeg = m.headDeg
+      this.stwKn = m.sogKn
     } else if (m.sogKn < STEERAGE_KN) {
       // at anchor or holding: lying head to the current, which runs past the hull, until
       // the crew points her on the course she is about to leave on

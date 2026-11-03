@@ -47,23 +47,25 @@ export interface Delta {
 
 /**
  * The delta as the Signal K schema can check it: without `zonesNotifiedBy` in the
- * metadata, which this server reads (src/zones.ts) and the specification does not have.
+ * metadata, which this server reads (src/zones.ts) and the specification does not have,
+ * and without the null that clears the anchor's values once it is weighed. The anchor
+ * alarm plugin clears them so, and displays read it so, but the schema has no null for a
+ * position.
  */
 export function forSchema(delta: Delta): Delta {
   return {
     ...delta,
-    updates: delta.updates.map((u) =>
-      u.meta
-        ? {
-            ...u,
-            meta: u.meta.map((m) => {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { zonesNotifiedBy, ...value } = m.value
-              return { ...m, value }
-            })
-          }
-        : u
-    )
+    updates: delta.updates.map((u) => {
+      const values = u.values.filter(
+        (v) => !(v.value === null && v.path.startsWith('navigation.anchor.'))
+      )
+      const meta = u.meta?.map((m) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { zonesNotifiedBy, ...value } = m.value
+        return { ...m, value }
+      })
+      return { ...u, values, ...(meta ? { meta } : {}) }
+    })
   }
 }
 
