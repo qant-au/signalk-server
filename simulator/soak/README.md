@@ -1,19 +1,19 @@
 # Soak Tests
 
-There are two soaks here, and they answer different questions:
+There are two soaks and a busy run here, and they answer different questions:
 
-|              | [Rig Soak](#rig-soak)                                                   | [Systems Soak](#systems-soak)                                                                                                                           |
-| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Question     | does **the server** keep up with a run?                                 | do **the simulated boats** stay believable over days?                                                                                                   |
-| Clock        | real time: one scenario second per real second                          | the simulator's controllable clock, 60 scenario seconds per tick; a day of scenario time in about 25 seconds                                            |
-| Runs against | a running server (the [test rig](../rig/README.md)), over its WebSocket | nothing: the simulator's own code, in the test process                                                                                                  |
-| Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's and the hybrid catamaran's three-day passages                    |
-| Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, the systems behaving as they should together, and every bank's energy books balancing |
-| Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                                                           |
-| Takes        | as long as you ask it to run                                            | about eight minutes                                                                                                                                     |
-| Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 |
+|              | [Rig Soak](#rig-soak)                                                   | [Systems Soak](#systems-soak)                                                                                                                           | [Busy Run](#busy-run)                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Question     | does **the server** keep up with a run?                                 | do **the simulated boats** stay believable over days?                                                                                                   | does **the server** keep up with the plugin at x24, traffic on, and a crowd of clients?                                                                 |
+| Clock        | real time: one scenario second per real second                          | the simulator's controllable clock, 60 scenario seconds per tick; a day of scenario time in about 25 seconds                                            | x24: a day of scenario time in an hour                                                                                                                  |
+| Runs against | a running server (the [test rig](../rig/README.md)), over its WebSocket | nothing: the simulator's own code, in the test process                                                                                                  | a server of its own, started from this checkout with the plugin                                                                                         |
+| Covers       | the own boat's navigation data on one sample route                      | every vessel profile and every system on board, for a day each, and the motor-sailer's and the hybrid catamaran's three-day passages                    | the plugin on one sample with its AIS traffic, 10 WebSocket subscribers to the full stream and 3 REST readers of the vessels tree                       |
+| Checks       | sends succeed, positions read back, response time, server memory        | every value in a band for its kind, no gaps, schema-valid deltas, the systems behaving as they should together, and every bank's energy books balancing | the scenario clock against wall time, every delta reaching every subscriber, event loop lag, memory levelling off, and Admin UI and REST response times |
+| Command      | `npx ts-node simulator/tools/soak.ts <sample>`                          | `npm run test:simulator-soak`                                                                                                                           | `bin/simulator-busy <sample>`                                                                                                                           |
+| Takes        | as long as you ask it to run                                            | about eight minutes                                                                                                                                     | an hour for a day, and up to 12 minutes more to settle                                                                                                  |
+| Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 | after a change to the plugin's traffic, its send path or the server's delta fanout                                                                      |
 
-Neither is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
+None is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
 seconds) run there and check one of each shape; the systems soak runs the same model for
 days and checks everything it sends.
 
@@ -21,8 +21,8 @@ days and checks everything it sends.
 
 A rig soak sails a sample's route on the [test rig](../rig/README.md) and checks that the
 server keeps up for the length of the run. It runs in **real time only** (one scenario
-second per real second) and drives **the own boat only**. AIS traffic, faster-than-real
-time and full-route runs come next.
+second per real second) and drives **the own boat only**. AIS traffic and faster than real
+time are the [busy run](#busy-run)'s; full-route runs come next.
 
 ### Running One
 
@@ -223,3 +223,127 @@ do not fill far enough in a day to need emptying. The hybrid catamaran's generat
 starts: by day its sun carries its hotel load, on passage its diesels keep the bank full,
 and its 140 kWh bank never falls to its 30 % floor (the fast tests start the generator on a
 smaller bank).
+
+## Busy Run
+
+The busy run drives the server hard and reports whether it keeps up. It starts a server
+from this checkout with the plugin on a chosen sample, traffic on, at x24, puts a crowd of
+clients on it, and measures as it goes. It is a tool, not a test, and is not part of
+`npm test`.
+
+### Running One
+
+```shell
+bin/simulator-busy <sample> [--hours N] [--multiplier N] [--subscribers N] [--readers N] [--start-at N] [--port N]
+```
+
+| Option          | Default | Meaning                                                                    |
+| --------------- | ------- | -------------------------------------------------------------------------- |
+| `--hours`       | 24      | scenario hours to run                                                      |
+| `--multiplier`  | 24      | scenario seconds per real second                                           |
+| `--subscribers` | 10      | WebSocket clients subscribed to the full stream                            |
+| `--readers`     | 3       | REST clients reading `/signalk/v1/api/vessels`, each once a second         |
+| `--start-at`    | 0       | start this many minutes into the route                                     |
+| `--port`        | 3100    | the server's HTTP port; the next two take its NMEA 0183 and TCP stream out |
+
+It builds the plugin first. The server runs from `.simulator-busy/` in the checkout
+(ignored by git), made fresh on every run, and listens on localhost only; its log and the
+run's report go to `simulator/soak/reports/`.
+
+The samples' AIS data covers only part of a day, so a day-long run has traffic for that
+part only: Miami from its 14:00 departure to 19:00 UTC, five hours; the Saronic Gulf from
+11:00 to 07:00 the next morning, twenty hours; Queensland for the whole day. Use
+`--start-at` and `--hours` to run inside the busy part.
+
+### What It Does
+
+1. Starts the server with the plugin disabled, opens the subscribers and starts the
+   readers, and waits for the server to go quiet, so the counts start at a known point.
+2. Enables the plugin through the Admin UI's plugin config, as a user would.
+3. Once a minute of wall time, samples the server process from inside (event loop lag,
+   heap after a garbage collection, resident memory, CPU), times the Admin UI's plugin list
+   and the vessels tree, and prints a row.
+4. At the end, disables the plugin, waits for the subscribers to go quiet for two of the
+   server's 5-second statistics intervals (up to 12 minutes, the AIS status plugin's lost
+   and remove marks), and compares the counts.
+
+Each row shows:
+
+| Column         | Meaning                                                                               |
+| -------------- | ------------------------------------------------------------------------------------- |
+| scenario time  | the own boat's `navigation.datetime` at the end of the minute                         |
+| behind s       | how far the scenario clock fell behind wall time × the multiplier, at worst           |
+| own gap s      | the longest wait between two of the own boat's deltas, in wall seconds                |
+| server/s       | deltas a second the server handled, from its own statistics                           |
+| subscribers/s  | deltas a second each subscriber received, lowest to highest                           |
+| lag p99/max ms | the server's event loop delay                                                         |
+| heap/rss MiB   | the server's heap after a garbage collection, and its resident memory                 |
+| cpu            | the server's share of one core                                                        |
+| targets        | AIS targets in range in the plugin's status, and vessels in the tree besides the boat |
+| plugins ms     | the Admin UI's plugin list (`/skServer/plugins`)                                      |
+| tree ms        | the vessels tree (`/signalk/v1/api/vessels`)                                          |
+| readers ms     | the slowest of the readers' requests in the minute                                    |
+
+### When It Fails
+
+The run **fails** (exit code 1) if:
+
+- the scenario clock falls more than 60 s behind wall time × the multiplier;
+- any subscriber receives fewer or more deltas than the server handled, has deltas merged
+  by the server's backpressure, or is disconnected;
+- memory grows without levelling off: the heap's mean over the last quarter of the run is
+  more than 10 MiB and 10 % above its mean over the third;
+- any answer takes longer than a second, or any request fails.
+
+### Counting Deltas
+
+The server counts a delta as it arrives, before its input handlers, and a handler that drops
+a delta drops it after it is counted. The simulator plugin is one: it holds back the AIS
+status plugin's marks for targets it has dropped (see
+[the AIS README](../ais/README.md#5-losing-a-target)). So a subscriber receives the server's
+count less the deltas held back, which the plugin writes to the server log as it stops, and
+that is what each subscriber is held to, exactly. The server's statistics come every 5 s,
+which is why the counts are taken only once the server is quiet.
+
+### Runs So Far
+
+3 November 2026, on an Apple M3 Ultra (32 cores, 256 GiB) under macOS 27.0.1 with Node
+v26.12.1: each sample for a day of scenario time from its departure at x24, traffic on, 10
+subscribers and 3 readers. All three passed, and every subscriber received every delta the
+server sent.
+
+| Sample       | Deltas Handled | Held Back | Each Subscriber Received | Peak Deltas a Second | Targets in Range, Peak | Event Loop p99, Max | Heap           | Server CPU, Mean and Peak | Slowest Plugin List, Vessels Tree |
+| ------------ | -------------- | --------- | ------------------------ | -------------------- | ---------------------- | ------------------- | -------------- | ------------------------- | --------------------------------- |
+| Miami        | 110,914        | 28,468    | 82,446                   | 122                  | 508                    | 21 ms, 576 ms       | 178 to 180 MiB | 3 %, 10 %                 | 9 ms, 572 ms                      |
+| Saronic Gulf | 84,946         | 20,754    | 64,192                   | 50                   | 209                    | 13 ms, 74 ms        | 259 to 261 MiB | 2 %, 8 %                  | 12 ms, 53 ms                      |
+| Queensland   | 59,903         | 13,549    | 46,354                   | 54                   | 234                    | 15 ms, 291 ms       | 188 MiB        | 2 %, 9 %                  | 8 ms, 289 ms                      |
+
+The status count of targets in range agreed with the vessels tree in every minute of every
+run, none of the 32,286 reader requests failed, and the own boat never went more than a
+second between deltas. The resident memory peaked at 458 to 477 MiB and the heap did not
+grow.
+
+**The server did not give out.** At its busiest, Miami's afternoon with 508 targets in range,
+it handled 122 deltas a second for 10 subscribers on 10 % of one core, with the event loop's
+99th percentile at 21 ms and the slowest answer 103 ms. So there is no limit to report from this machine: no sample at x24 comes near one, and the busy run would need more subscribers, more readers or a faster clock to find it. A Raspberry Pi, the server's usual
+hardware, has not been tried.
+
+**The one slow moment is the plugin's, at start.** Loading a sample's scenario (its route, the
+depth checks of every leg and the AIS tracks) blocks the server's event loop for 74 to 576
+ms, once, as the plugin starts; that is the event loop maximum and the slowest tree read in
+the table, all in the first minute. It is under the one-second limit and is not repeated.
+
+**The clock column of these runs includes up to one tick of measurement phase.** They printed
+how far the clock was behind at the moment each minute row was printed, against a delta up
+to a second old, which reads as up to 24 s at x24 (the figures were at most 24 s, 24 s and
+16 s). Separately measured, the plugin's own scenario time stays within 2 s of wall time ×
+24, the systems model's 2-second step, and reaches clients within a millisecond. The run now
+counts lag between deltas only past the tick.
+
+**Losing a target is where the busy run found a fault.** Its first full run on Miami showed the
+plugin's count of targets in range parting from the tree after nine minutes, and the tree
+filling with bare vessels, each with nothing but an MMSI and an AIS status. The server's AIS
+status plugin was marking targets the simulator had already dropped, on its own wall-clock
+timers, and each mark brought the vessel back. The plugin now holds those marks back (see
+[the AIS README](../ais/README.md#5-losing-a-target)); the held-back column counts them, and
+the subscribers are held to the server's count less them.

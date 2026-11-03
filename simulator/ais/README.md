@@ -120,6 +120,18 @@ count agrees with it. A target heard again comes back as a new one, its static d
 its first report, as when it was first heard. Stopping the plugin drops every target it was
 sending.
 
+The server's own AIS status plugin (`sk-ais-status-plugin`, on by default) keeps its own
+watch on each target, on wall-clock timers: it marks a target `lost` six minutes after its
+last position and `remove` three minutes later. Each mark is a delta for the target, and
+would put a target the simulator had already dropped back into `vessels.*`, with nothing
+but its MMSI and that status, until the server's hour-long prune. So the plugin holds back
+any delta from another source for a target it has dropped, until the boat hears it again,
+and its status says how many it has held back. While a target is heard the status plugin
+works as it would with a real receiver, and its `unconfirmed` and `confirmed` marks go
+through. Once the simulator plugin is stopped nothing holds them back, and the status
+plugin's marks for the targets it was tracking bring them back as bare entries for the
+server to prune.
+
 ## What Each Target Carries
 
 Each target goes to the server the way a real AIS receiver puts it there, in the shapes the

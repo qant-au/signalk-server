@@ -123,8 +123,11 @@ draught, destination and ETA where the source has them. What the source lacks is
 The [AIS README](../ais/README.md#what-each-target-carries) has the whole list. A target not
 heard for long enough is lost: the plugin stops sending it and drops it from the server
 there and then, rather than leaving it for the server's hour-long prune, so the status
-line's "AIS targets in range" is the number of targets in `vessels.*` at that moment. A
-target heard again comes back. Sources that do not publish MMSIs (Piraeus, AMSA) get a
+line's "AIS targets in range" is the number of targets in `vessels.*` at that moment. The
+server's AIS status plugin would bring a dropped target back with its `lost` and `remove`
+marks, so the plugin holds back deltas from other sources for a dropped target, and the
+status line counts them ("deltas for lost targets held back"). A target heard again comes
+back. Sources that do not publish MMSIs (Piraeus, AMSA) get a
 stable `urn:mrn:signalk:uuid` identity, never an invented MMSI.
 
 **NMEA 0183 out.** The server sends NMEA 0183 on its TCP port (10110, `NMEA0183PORT`) from
@@ -163,6 +166,10 @@ persist there between runs; delete `.simulator/` to start over. To build the plu
 ```shell
 npx tsc -p simulator/plugin      # writes simulator/plugin/dist
 ```
+
+To see whether the server keeps up with the plugin at x24 with its traffic and a crowd of
+clients, run the [busy run](../soak/README.md#busy-run), `bin/simulator-busy <sample>`; the
+two soaks beside it test the server in real time and the simulated boats over days.
 
 The plugin uses only Node's own modules. It finds the samples next to its source
 (`simulator/samples`), or wherever `SIGNALK_SIMULATOR_SAMPLES` points, and the vessel
