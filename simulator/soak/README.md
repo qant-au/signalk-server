@@ -159,6 +159,15 @@ checks. The faults have their own tests, which run every one through its course.
   bank is above its ceiling, on both diesels above it, the bank charging from them on
   passage, its generator starting only below its charge floor, and solar carrying its hotel
   load whenever the sun is above 30°.
+- **The notifications** a case raises are the ones its day should, and nothing else: with
+  no fault on board, only a tank running low or a holding tank filling, a bank run down,
+  and shallow water may raise one. Each notification matches its zone: a raised one
+  carries a zone's state and message for the value its path had just sent (within the
+  zone's margin, as a held alarm may be), with method `["visual"]` for a warning and
+  `["visual", "sound"]` for an alarm, and a `normal` one comes with the value out of
+  every zone or no longer sent. Across the cases at least one tank's alarm is raised. The
+  run ends with a table of every notification raised, case by case: the path, how many
+  times, its states, its message and when it first came.
 - **The heading** stays on the course over the ground, off it only by what a knot of
   current across the track and a few degrees of yaw allow, and the speed through the
   water differs from the speed over the ground by at most a knot.

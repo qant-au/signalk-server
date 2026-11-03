@@ -9,17 +9,18 @@ surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 
-| Setting                                | Default   | What It Does                                                                    |
-| -------------------------------------- | --------- | ------------------------------------------------------------------------------- |
-| Sample                                 | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`) |
-| Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300       |
-| Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this       |
-| Show traffic                           | on        | send the AIS targets the boat would hear                                        |
-| Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly       |
-| Faults a day                           | 0         | faults the seed throws on its own, on average, per day of scenario time         |
-| Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears               |
-| Start this many minutes into the route | 0         | where a new run starts                                                          |
-| Resume where the last run reached      | on        | carry on from the saved scenario time and the boat's systems                    |
+| Setting                                | Default   | What It Does                                                                                    |
+| -------------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| Sample                                 | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                 |
+| Time multiplier                        | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                       |
+| Minimum depth under keel               | 1 m       | the route is moved out of water shallower than the boat's draft plus this                       |
+| Shallow water alarm                    | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper |
+| Show traffic                           | on        | send the AIS targets the boat would hear                                                        |
+| Seed                                   | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                       |
+| Faults a day                           | 0         | faults the seed throws on its own, on average, per day of scenario time                         |
+| Own AIS antenna height                 | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                               |
+| Start this many minutes into the route | 0         | where a new run starts                                                                          |
+| Resume where the last run reached      | on        | carry on from the saved scenario time and the boat's systems                                    |
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
@@ -40,8 +41,18 @@ the server log, and the run starts fresh rather than failing.
 
 The status line on the plugin page shows whether the run is under way, paused or arrived,
 the scenario time, the multiplier, the boat's speed, the depth under it, how many AIS
-targets it currently hears, the faults on board, and anything that limits the run (a leg
-that could not be cleared of shallow water, or AIS not available on this machine).
+targets it currently hears, the faults on board, the alarms on board with their state
+("alarms: Shallow water (alarm), Grey water tank nearly full (warn)"), and anything that
+limits the run (a leg that could not be cleared of shallow water, or AIS not available on
+this machine).
+
+**Shallow water alarm** is the depth sounder's own alarm, raised as
+`notifications.environment.depth.belowKeel` when the depth under the keel is below it and
+cleared once the water is 0.3 m deeper. It is separate from the **minimum depth under
+keel**, which only moves the route, so a passage kept a metre off the bottom can still
+sound it, as a real one does. The default, 1.5 m, throws it a few times on the Miami
+sample's passage; where is in [the vessels README](../vessels/README.md#alarms), with the
+zones every other alarm comes from.
 
 **Faults a day** has the seed throw faults on its own at that average rate, each a random
 fault on a random target, the same ones at the same times for the same seed and start.

@@ -7,7 +7,9 @@ carry the fault the way a real sensor would: the value goes wrong, not a label. 
 boat's own alarm panel would sound, the plugin raises the specification's notification for
 that path, `notifications.<path>`, with its state and method, and sends it again as
 `normal` when it clears, so the server's notification manager, an alarm plugin and the
-Admin UI see it come and go.
+Admin UI see it come and go. A value that goes out of its [zones](#alarms) is judged by the
+boat's alarm panel from those zones, as on a normal day; a fault raises only what no zone
+can know.
 
 Faults are raised and cleared by hand through the plugin's
 [REST surface or its page](../plugin/README.md#controlling-the-run), or thrown by the seed
@@ -35,12 +37,25 @@ picks its length within the range when it is raised.
 | [`staleSensor`](#stale-sensor-value)              | a path (see below)                       | after 10 to 20 minutes                                  | none                                                                                         |
 
 A **warn** goes out with method `["visual"]`, an **alarm** with `["visual", "sound"]`, and
-a cleared notification as `normal` with no method, keeping its message. An alarm on a value
-holds until the value is back past its threshold by a margin (2 °C, 0.3 bar, 0.2 V per
-12 V), as a real panel's does, so a value wandering about the threshold does not flicker
-it. Faults with no notification are those a panel cannot notice: a stuck gauge, a frozen
-instrument and a stale value all keep sending believable numbers, which is the point of
-testing them.
+a cleared notification as `normal` with no method, keeping its message. Faults with no
+notification are those a panel cannot notice: a stuck gauge, a frozen instrument and a
+stale value all keep sending believable numbers, which is the point of testing them.
+
+## Alarms
+
+The alarms on the coolant, the oil pressure and a bank's voltage come from those values'
+zones, the same zones the boat sends in its metadata and a display colours its gauges by
+(see [the vessels README](../vessels/README.md#alarms)): the boat's alarm panel raises
+them whenever a value is in a zone, fault or no fault, and holds each until the value is
+back out of its zone by the zone's margin (2 °C, 0.3 bar, 0.2 V per 12 V). A profile that
+gives its own zones for a path moves that alarm with them. The thresholds below are the
+defaults.
+
+The rest a fault raises itself, since no zone can know them: a generator that would not
+start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
+lost fix. A silent sounder never raises the shallow water alarm: no depth is not shallow
+depth, and a shallow alarm already raised clears once the sounder has been quiet for a few
+seconds.
 
 ### Engine Overheating
 
@@ -51,12 +66,13 @@ its pressure falls, by up to 85 % at 120 °C. A stopped engine does not heat.
 
 - **Paths:** `propulsion.<id>.coolantTemperature`, `oilTemperature` follows the engine's
   load as before, `oilPressure` falls.
-- **Notifications:** `notifications.propulsion.<id>.coolantTemperature` warn at 95 °C
-  ("coolant temperature high") and alarm at 100 °C ("overheating");
+- **Notifications:** from the zones: `notifications.propulsion.<id>.coolantTemperature`
+  warn at 95 °C ("coolant temperature high") and alarm at 100 °C ("overheating");
   `notifications.propulsion.<id>.oilPressure` alarm below 1 bar while the engine runs.
 - **Clears:** when the crew clears the intake, the coolant cools back towards its running
-  temperature over a few minutes; the alarms go to `normal` as it passes the thresholds,
-  and the fault is gone below 90 °C.
+  temperature over a few minutes; the alarms step down and go to `normal` as it passes
+  back out of each zone by the margin (the alarm to a warning below 98 °C, `normal` below
+  93 °C), and the fault is gone below 90 °C.
 
 ### Generator Fails to Start
 
@@ -81,9 +97,10 @@ while it charges, so the sag shows when the bank discharges.
 
 - **Paths:** `electrical.batteries.<id>.voltage`, `current`, `capacity.stateOfCharge`,
   `capacity.timeRemaining`.
-- **Notifications:** `notifications.electrical.batteries.<id>.voltage` warn below 11.8 V
-  ("voltage low") and alarm below 11.0 V ("voltage very low"), per 12 V of the bank's
-  nominal voltage.
+- **Notifications:** from the zones: `notifications.electrical.batteries.<id>.voltage` warn
+  ("voltage low") and alarm ("voltage very low") below the bank's bands: for lead-acid
+  11.8 V and 11.0 V, for lithium 12.0 V and 11.6 V, per 12 V of the bank's nominal voltage.
+  As the bank runs down faster, its state of charge raises its own "charge low" in time.
 - **Clears:** by hand only, as replacing the cell; the bank is whole again at once. While a
   cell is failing, the bank's energy books (which the systems soak checks) do not balance,
   because the bank holds less than its profile says.
@@ -147,7 +164,7 @@ boat goes on.
 - **Paths:** `environment.depth.*` from that sounder's source.
 - **Notifications:** `notifications.environment.depth.belowTransducer` warn, "No depth:
   sounder not sending", only when no sounder on the boat is sending, as a display with
-  another sounder still has depth.
+  another sounder still has depth. Never the shallow water alarm (see [Alarms](#alarms)).
 - **Clears:** it sends again.
 
 ### GNSS Fix Lost
@@ -208,7 +225,8 @@ come on top.
 
 Faults are saved with the run every ten seconds and resume with it, mid-course: a fault
 developing carries on developing, one winding down carries on winding down, and after a
-restart every notification still raised is sent again, for a server that no longer has it.
+restart every notification still raised is sent again, for a server that no longer has it
+(the alarm panel saves what it has raised alongside the faults).
 A fault's course runs in the systems model's own two-second steps of scenario time, so it
 tells the same story at any time multiplier. Jumping forward along the route runs every
 fault through to the new time, as if the boat had sailed it; jumping back starts the
