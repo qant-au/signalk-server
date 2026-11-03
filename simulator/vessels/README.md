@@ -252,9 +252,10 @@ running low, a grey or black water tank filling before it is pumped out, a bank 
 and shallow water, and, from the AIS targets it hears, a target coming too close (see
 [Collision Avoidance](../ais/README.md#collision-avoidance), raised in the target's own
 context). The [systems soak](../soak/README.md#what-it-checks) checks that a day out raises
-the first four and nothing else; it sails without traffic. What no zone can know, a fault raises itself: a
-generator that will not start, a charger tripped, an alternator not charging, the bilge
-filling, a silent sounder, a lost fix (see [the faults](../faults/README.md#alarms)).
+the first four and nothing else; it sails without traffic. What no zone can know, a fault
+raises itself: a generator that will not start, a charger tripped, an alternator not
+charging, the bilge filling, a silent sounder, a lost fix (see
+[the faults](../faults/README.md#alarms)).
 An anchor dragging waits for the anchorage round.
 
 **One notification per path.** The server raises a notification itself from any zones in

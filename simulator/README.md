@@ -9,7 +9,7 @@ prepare their data. The simulator itself is described in [SIMULATOR.md](../SIMUL
 simulator/
   README.md                 this file
   tools/                    TypeScript tools: fetch and prepare data, routes, AIS coverage
-  ais/                      the AIS reception model (what a boat would actually hear)
+  ais/                      the AIS reception model (what a boat would actually hear) and collision avoidance
   depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
   engine/                   the simulation: scenario loading, traffic, own boat, depth
   systems/                  the boat's systems model (engines, generators, electrics, tanks, inside) and its navigation suite
