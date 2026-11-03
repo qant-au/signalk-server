@@ -17,6 +17,7 @@ import {
   routeLegs
 } from '../routes/route'
 import { VariationGrid, loadVariation } from '../systems/magnetic'
+import { Environment, loadEnvironment } from '../weather/environment'
 import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
@@ -56,6 +57,10 @@ interface SoakCase {
   hours: number
   /** the sample's magnetic variation, which the day out from its berth shares */
   variation?: VariationGrid
+  /** the sample's weather and water level, which the day out from its berth shares too */
+  environment?: Environment
+  /** the sample it sails in */
+  sample: string
 }
 
 interface Tick {
@@ -245,7 +250,9 @@ async function cases(): Promise<SoakCase[]> {
       route,
       startMs: Date.parse(route.departure),
       hours: 24,
-      variation: loadVariation(path.join(SAMPLES, sample))
+      variation: loadVariation(path.join(SAMPLES, sample)),
+      environment: loadEnvironment(path.join(SAMPLES, sample)),
+      sample
     })
   }
   for (const [sample, { hours, leadHours }] of Object.entries(PASSAGES)) {
@@ -257,7 +264,9 @@ async function cases(): Promise<SoakCase[]> {
       route,
       startMs: Date.parse(route.departure) - leadHours * HOUR_MS,
       hours,
-      variation: loadVariation(path.join(SAMPLES, sample))
+      variation: loadVariation(path.join(SAMPLES, sample)),
+      environment: loadEnvironment(path.join(SAMPLES, sample)),
+      sample
     })
   }
   for (const other of OTHER_PASSAGES) {
@@ -281,7 +290,9 @@ async function cases(): Promise<SoakCase[]> {
       route,
       startMs: Date.parse(route.departure) - other.leadHours * HOUR_MS,
       hours: other.hours,
-      variation: loadVariation(path.join(SAMPLES, other.sample))
+      variation: loadVariation(path.join(SAMPLES, other.sample)),
+      environment: loadEnvironment(path.join(SAMPLES, other.sample)),
+      sample: other.sample
     })
   }
   return out
@@ -316,6 +327,7 @@ function run(soak: SoakCase): CaseResult {
     adjustments: [],
     depth: SEABED,
     variation: soak.variation,
+    environment: soak.environment,
     profile: soak.profile,
     notes: []
   }
@@ -598,6 +610,12 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     'environment.outside.temperature': [KELVIN - 10, KELVIN + 50],
     'environment.outside.pressure': [95000, 106000],
     'environment.water.temperature': [KELVIN - 2, KELVIN + 35],
+    'environment.outside.relativeHumidity': [0, 1],
+    'environment.tide.heightNow': [-1.5, 3],
+    'environment.tide.heightHigh': [-1.5, 3],
+    'environment.tide.heightLow': [-1.5, 3],
+    'environment.tide.timeHigh': 'string',
+    'environment.tide.timeLow': 'string',
     // the water speed is the ground speed less a current of at most a knot
     'navigation.speedThroughWater': [0, (p.maxSpeedKn + 1) * KNOT_MS * 1.01],
     'navigation.speedOverGround': [0, p.maxSpeedKn * KNOT_MS * 1.01],
@@ -1433,6 +1451,46 @@ describe('Simulator systems soak', function () {
     })
   )
 
+  it('follows the tide on the Miami depth through the day', () => {
+    const miami = [...results.values()].filter(
+      (r) => r.soak.sample === 'miami-icw-2024-03-16'
+    )
+    expect(miami.length).to.be.above(0)
+    for (const r of miami) {
+      const env = r.soak.environment!
+      const pairs = r.ticks
+        .map((t) => {
+          const sounder = r.soak.profile.sounders[0]
+          const depth = num(t, `${sounder.id}:environment.depth.belowSurface`)
+          const grid = SEABED.depth(t.lat, t.lon)
+          const level = env.value('waterLevelM', t.lat, t.lon, t.ms)
+          return depth === undefined ||
+            grid === undefined ||
+            level === undefined
+            ? undefined
+            : { offset: depth - grid, level }
+        })
+        .filter((p): p is { offset: number; level: number } => p !== undefined)
+      expect(pairs.length, r.soak.name).to.be.above(1000)
+      // what the sounder reads over the seabed is the water level, give or take its own
+      // bias, drift and its offset across the boat
+      for (const p of pairs)
+        expect(p.offset, r.soak.name).to.be.closeTo(p.level, 0.25)
+      const levels = pairs.map((p) => p.level)
+      expect(
+        Math.max(...levels) - Math.min(...levels),
+        r.soak.name
+      ).to.be.above(0.4)
+      expect(
+        spearman(
+          pairs.map((p) => p.level),
+          pairs.map((p) => p.offset)
+        ),
+        r.soak.name
+      ).to.be.above(0.9)
+    }
+  })
+
   it(
     'lies to her anchor at every anchorage, inside its radius, and weighs it',
     each((r) => {
@@ -1483,7 +1541,11 @@ describe('Simulator systems soak', function () {
     'charges from the wind turbine as the wind blows',
     each((r) => {
       if (!r.soak.profile.windTurbines.length) return
-      const charging = r.ticks.filter((t) => (t.summary.houseSoc ?? 1) < 0.95)
+      // below its cut-in it gives nothing, checked tick by tick here; above it, it follows the
+      // apparent wind while the bank takes what it gives
+      const charging = r.ticks.filter(
+        (t) => (t.summary.houseSoc ?? 1) < 0.95 && t.summary.apparentWindMs >= 3
+      )
       for (const t of r.ticks) {
         if (t.summary.apparentWindMs < 3) expect(t.summary.turbineW).to.equal(0)
       }
