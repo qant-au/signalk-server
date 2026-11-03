@@ -14,6 +14,7 @@ simulator/
   engine/                   the simulation: scenario loading, traffic, own boat, depth
   systems/                  the boat's systems model (engines, generators, electrics, tanks, inside), its navigation suite, and the boat at anchor
   faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
+  weather/                  each sample's weather and water level, read from its files and interpolated (see weather/README.md)
   alarms/                   the alarm zones every watched value carries, and the panel that raises notifications from them (see vessels/README.md#alarms)
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
@@ -23,7 +24,7 @@ simulator/
   downloads/                (git-ignored) files the user downloads from licensed sources
   samples/<sample>/
     README.md               the sample: when, where, every dataset, its source and licence
-    sample.json             what the tools fetch and prepare, and how its AIS columns map
+    sample.json             what the tools fetch and prepare, how its AIS columns map, and its weather sources
     route.json              the own boat's passage (see routes/README.md)
     magnetic-variation.json the magnetic variation over the route on its date (see vessels/README.md)
     open/                   openly licensed data, committed to the repository

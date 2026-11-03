@@ -65,6 +65,8 @@ gusts, waves where measured, pressure, air and water temperature.
 
 - **Source:** https://www.ndbc.noaa.gov/data/historical/stdmet/ (`<station>h2024.txt.gz`,
   cut to 16 March).
+- **Used for:** the air temperature (VAKF1, PEGF1), the water temperature (VAKF1, 41122) and
+  the waves (41122); see [the weather README](../../weather/README.md).
 - **Licence:** US government work, public domain.
 
 ### Tides and Water Level: `open/weather/coops_*.csv`
@@ -72,6 +74,11 @@ gusts, waves where measured, pressure, air and water temperature.
 NOAA CO-OPS 6-minute data for 16 and 17 March (UTC), metric, water levels relative to MLLW:
 observed water level, tide predictions, wind and air pressure, for Virginia Key (8723214)
 and Port Everglades (8722956).
+
+- **Used for:** the wind, the pressure, the tide height and the water level on the depth
+  grid. NAVD88, the depth grid's datum, is 0.614 m above MLLW at Virginia Key and 0.676 m at
+  South Port Everglades (CO-OPS datums, epoch 1983 to 2001); see
+  [the weather README](../../weather/README.md#the-tide-on-the-depth).
 
 - **Source:** https://api.tidesandcurrents.noaa.gov/api/prod/datagetter, for example
   `?begin_date=20240316&end_date=20240317&station=8723214&product=water_level&datum=MLLW&time_zone=gmt&units=metric&format=csv`.

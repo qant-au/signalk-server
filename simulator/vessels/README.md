@@ -153,8 +153,9 @@ seconds, as a real gateway sends slow-changing data less often.
 | Wind turbine       | `electrical.alternators.<id>.revolutions`, `voltage`, `current`, `chargingMode`                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Tanks              | `tanks.<fuel, freshWater, wasteWater or blackWater>.<id>.capacity`, `currentLevel`, `currentVolume`                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Depth sounders     | `environment.depth.belowSurface`, `belowTransducer`, `belowKeel`, `surfaceToTransducer`, `transducerToKeel`, one update per sounder with its own source; `sensors.<id>.fromCenter`                                                                                                                                                                                                                                                                                                                                           |
-| Wind               | `environment.wind.speedTrue`, `directionTrue`, `angleTrueWater`, `speedApparent`, `angleApparent`                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Inside and outside | `environment.inside.<zone>.temperature`, `relativeHumidity`; `environment.outside.temperature`, `pressure`; `environment.water.temperature`                                                                                                                                                                                                                                                                                                                                                                                  |
+| Wind               | `environment.wind.speedTrue`, `directionTrue`, `angleTrueWater`, `speedApparent`, `angleApparent`: the sample's wind with the seed's gusts and shifts on it ([weather](../weather/README.md#what-the-wind-feeds))                                                                                                                                                                                                                                                                                                            |
+| Tide               | `environment.tide.heightNow`, `heightHigh`, `timeHigh`, `heightLow`, `timeLow`, above chart datum, where the sample has a tide (Miami); see [weather](../weather/README.md#the-tide-on-the-depth)                                                                                                                                                                                                                                                                                                                            |
+| Inside and outside | `environment.inside.<zone>.temperature`, `relativeHumidity`; `environment.outside.temperature`, `pressure`, `relativeHumidity` (where the sample has it); `environment.water.temperature`, from the sample's weather where it has them ([weather](../weather/README.md))                                                                                                                                                                                                                                                     |
 | Identity           | name and `mmsi` (at the vessel's root), `design.length` (`overall`), `design.beam`, `design.draft` (`current`, and `maximum` where the profile gives one), `design.airHeight`, `design.displacement`, `design.aisShipType`, `sensors.ais.fromBow`, `fromCenter` and `class`, once at the start; see [Identity](#identity)                                                                                                                                                                                                    |
 | Navigation state   | `navigation.state`: `moored`, `anchored`, `sailing` or `motoring`                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Heading and course | `navigation.headingTrue`, `headingMagnetic`, `magneticVariation`, `courseOverGroundTrue`, `courseOverGroundMagnetic`                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -178,8 +179,10 @@ each sounder sends them under its own source: `simulator.portSounder` and
 `simulator.starboardSounder`, which the server keeps apart and source priorities can choose
 between. This is how two sounders arrive from an NMEA 2000 network. Each reads the depth
 grid at its own place under the hull (its offset from the centreline, across the boat's
-heading), so on a sloping bottom they disagree the way real ones do. With a profile, the
-sounders replace the single grid depth a route without one sends.
+heading), so on a sloping bottom they disagree the way real ones do, with the sample's
+water level on the grid's datum (the tide), so the depth rises and falls with it (see
+[the tide on the depth](../weather/README.md#the-tide-on-the-depth)). With a profile, the sounders
+replace the single grid depth a route without one sends.
 
 **Radars** are counted in the profile and send nothing: radar data does not go through the
 Signal K data model.
@@ -285,14 +288,17 @@ schema. The metadata also carries the panel's method for each state (`warnMethod
 setting, 1.5 m under the keel by default, and cleared 0.3 m deeper. It is a separate
 setting from the route planner's minimum depth (1 m by default), so the passage the
 planner keeps out of the shallowest water can still throw it. The Miami sample, sailed
-from its departure at seed 1, throws it leaving Rickenbacker Marina and on the way out to
-the bay (14:00 to 14:25, down to 0.3 m in the marina, which the planner's minimum does not
-cover), then on the passage itself: in Biscayne Bay at 14:45 (25.797 N, 80.180 W, leg 12,
-down to 1.15 m), in north Biscayne Bay at 15:29 and from 15:30 to 15:33 (25.895 N,
-80.137 W, leg 22, down to 1.27 m), behind Sunny Isles Beach at 15:52 (25.937 N, 80.131 W,
-leg 28, 1.44 m) and in the waterway near Dania Beach at 16:54 (26.045 N, 80.116 W, leg 44,
-1.05 m). The times shift by seconds with a different start or seed, which moves the boat a
-little across her track.
+from its departure at seed 1, with the day's tide on the depth (the water stands 0.36 m
+below the grid's datum leaving Virginia Key, rising to about level with it at Pier 66),
+throws it leaving Rickenbacker Marina and on the way out to the bay (14:00 to 14:05, down to
+-0.03 m in the marina, where the planner keeps no minimum and the tide is near its lowest
+of the passage, then 14:08 to 14:25, down to 0.66 m), then on the passage itself: in
+Biscayne Bay at 14:45 (25.796 N, 80.180 W, leg 12, down to 0.88 m), in north Biscayne Bay
+at 15:29 and from 15:30 to 15:33 (25.894 N, 80.137 W, leg 22, down to 1.11 m), at 15:37
+(25.908 N, 80.127 W, leg 24, 1.35 m), behind Sunny Isles Beach at 15:52 (25.937 N,
+80.131 W, leg 28, 1.33 m) and in the waterway near Dania Beach at 16:54 (26.045 N, 80.116 W,
+leg 44, 1.07 m). The times shift by seconds with a different start or seed, which moves the
+boat a little across her track.
 
 ## Generators
 
@@ -372,10 +378,12 @@ with what the engines are doing and with each other.
   heading differs from both by the angle the helm holds against the current. The bearing
   and distance to the next point, time to go and arrival time all follow from the position
   and the speed over the ground.
-- **Attitude.** The sea is worked out from the wind, fetch-limited as a coastal sea is,
-  and sheltered alongside and at anchor. Roll grows with the sea and falls with the beam;
-  pitch grows with the sea and falls with the length; both wander irregularly with the
-  boat's own periods. A sailing yacht heels to leeward under sail, up to 20 degrees with a
+- **Attitude.** The sea is the sample's measured significant wave height where it has one
+  (Miami's Hollywood Beach buoy; Queensland's buoys and wave model), and otherwise is worked
+  out from the wind, fetch-limited as a coastal sea is; either way it is sheltered alongside
+  and at anchor. Roll grows with the sea and falls with the beam; pitch grows with the sea
+  and falls with the length, never past 8 degrees; both wander irregularly with the boat's
+  own periods. A sailing yacht heels to leeward under sail, up to 20 degrees with a
   fresh breeze across it, and a motor boat trims bow up a little with speed.
 - **Logs.** `navigation.log` counts the distance through the water from a seeded total
   of a few thousand miles. `navigation.trip.log` counts it from `trip.lastReset`, which is
@@ -462,8 +470,12 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
 - **Inside**: living spaces go to their setpoint while the air conditioning runs and towards
   the outside temperature (plus the sun) when it does not; the engine room heats with the
   engines; fridges and freezers cycle their compressors in a band around the setpoint.
-- **Weather**: air and water temperature from latitude, season and time of day; wind with a
-  daily sea breeze; apparent wind from the true wind and the boat's own motion.
+- **Weather**: from the sample's own data at the boat's position and the scenario time:
+  the true wind, with the seed's gusts and shifts on it, the air pressure, the air and water
+  temperature and the humidity (see [Weather and Tides](../weather/README.md)). Where a sample has
+  none of one, the model's own: air and water temperature from latitude, season and time of
+  day, and a seeded wind with a daily sea breeze. The apparent wind is worked out from the
+  true wind and the boat's own motion.
 
 Every drift comes from the run's **seed** (a plugin setting), one stream per system, so
 the same seed, sample and start time give exactly the same data, and another seed gives a

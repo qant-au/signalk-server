@@ -20,23 +20,32 @@
 Hourly data for 20 to 24 August 2026 (UTC) at nine points along the route, in Open-Meteo's
 JSON format (one object per point, in route order from Moreton Bay to the Whitsundays).
 
-| File                        | Contents                                                                                    | Model and Licence          |
-| --------------------------- | ------------------------------------------------------------------------------------------- | -------------------------- |
-| `open-meteo-gfs.json`       | wind speed (kn), direction and gusts, pressure, temperature, humidity, cloud, precipitation | NOAA GFS, public domain    |
-| `open-meteo-ecmwf-ifs.json` | the same variables                                                                          | ECMWF IFS 0.25°, CC BY 4.0 |
-| `open-meteo-ecmwf-wam.json` | wave height, direction and period, swell, ocean current speed and direction, sea level      | ECMWF WAM 0.25°, CC BY 4.0 |
+| File                        | Contents                                                                                                             | Model and Licence                                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `open-meteo-gfs.json`       | wind speed (kn), direction and gusts, pressure, temperature, humidity, cloud, precipitation                          | NOAA GFS, public domain                                                                                                            |
+| `open-meteo-ecmwf-ifs.json` | the same variables                                                                                                   | ECMWF IFS 0.25°, CC BY 4.0                                                                                                         |
+| `open-meteo-ecmwf-wam.json` | wave height, direction and period (its swell, current and sea level columns are empty: the model does not give them) | ECMWF WAM 0.25°, CC BY 4.0                                                                                                         |
+| `open-meteo-marine.json`    | sea level height above mean sea level, tides and the inverted barometer included; sea surface temperature            | Open-Meteo marine best match (MeteoFrance SMOC and sea surface temperature, E.U. Copernicus Marine Service Information), CC BY 4.0 |
 
 - **Source:** Open-Meteo historical forecast and marine APIs, for example
   https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=-27.35,-26.6,-25.5,-24.7,-24.0,-23.3,-22.4,-21.4,-20.4&longitude=153.25,153.25,153.35,153.35,152.3,151.4,150.6,149.6,148.95&start_date=2026-08-20&end_date=2026-08-24&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,temperature_2m,relative_humidity_2m,cloud_cover,precipitation&models=gfs_seamless&wind_speed_unit=kn&timezone=GMT
   (`models=ecmwf_ifs025` for the second file;
-  https://marine-api.open-meteo.com/v1/marine with `models=ecmwf_wam025` for the third).
+  https://marine-api.open-meteo.com/v1/marine with `models=ecmwf_wam025` for the third;
+  https://marine-api.open-meteo.com/v1/marine?latitude=-27.35,-26.6,-25.5,-24.7,-24.0,-23.3,-22.4,-21.4,-20.4&longitude=153.25,153.25,153.35,153.35,152.3,151.4,150.6,149.6,148.95&start_date=2026-08-20&end_date=2026-08-24&hourly=sea_level_height_msl,sea_surface_temperature&timezone=GMT
+  for the fourth, fetched on 4 November 2026).
+- **Used for:** the wind, pressure, air temperature and humidity from the ECMWF IFS; the wave
+  height from the WAM; the sea level, onto the mean sea level depth grid, and the sea
+  temperature from the marine file; the GFS file is left unread. See
+  [the weather README](../../weather/README.md).
 - **Licence:** Open-Meteo's data is CC BY 4.0, and each model's own licence is listed above.
 
 ### Wave Buoys: `open/weather/buoys/*.csv`
 
 Queensland Government Coastal Data System wave buoys, 30-minute records, 20 to 24 August
 2026: `Date/Time (AEST)`, `Hs` and `Hmax` (m), `Tz` and `Tp` (s), peak direction (degrees),
-sea surface temperature (°C). Stations: Brisbane, Mooloolaba, Emu Park and Mackay.
+sea surface temperature (°C). Stations: Brisbane, Mooloolaba, Emu Park and Mackay, at the
+positions in [the weather README](../../weather/README.md#the-stations); their wave height and
+sea temperature are used.
 
 - **Source:** Queensland Government open data, for example
   https://www.data.qld.gov.au/dataset/coastal-data-system-waves-mackay (the 2026 "Wave data"

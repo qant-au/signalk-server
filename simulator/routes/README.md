@@ -167,6 +167,13 @@ to the next point, true wherever she lies, go out as they are.
 
 ## Depth and Route Adjustment
 
+**Datums.** Each grid gives depth below its own datum: Miami's BlueTopo below NAVD88, the
+Saronic's EMODnet DTM below Lowest Astronomical Tide, Queensland's GBR 30 m below mean sea
+level. The route is planned and adjusted against the grid's depth alone; what the boat's
+sounders then read adds the sample's water level above the grid's datum, where the sample
+has one, so they follow the tide. How each sample's water level is brought onto its grid's
+datum is in [the weather README](../weather/README.md#the-tide-on-the-depth).
+
 `route.json` is the **planned** route. The simulator sails an **adjusted** one, worked out
 each time a run starts (`routes/adjust.ts`):
 

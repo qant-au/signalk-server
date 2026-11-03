@@ -38,6 +38,10 @@ JSON format (one object per point).
   Climate Change Service information, used under the Copernicus licence, which allows
   redistribution with attribution.
 - **Not available:** Open-Meteo's marine archive has no wave data for the gulf in 2018.
+- **Used for:** the wind, the pressure, the air temperature and the humidity; the
+  dataset's own GFS fields join them when they have been downloaded. The sample has no
+  water temperature, waves or water level, so the depth is the grid's, at LAT, and no tide
+  is sent. See [the weather README](../../weather/README.md).
 
 ### AIS and Dataset Weather: `restricted/` (downloaded by the user)
 
