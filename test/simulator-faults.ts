@@ -212,9 +212,10 @@ describe('Simulator faults', () => {
     expect(alarm.message).to.match(/overheating/)
     const oil = values(later, 'propulsion.port.oilPressure') as number[]
     expect(oil.at(-1)!).to.be.below(oil[0])
-    expect(notes(later, 'propulsion.port.oilPressure').at(-1)).to.include({
-      state: 'alarm'
-    })
+    // raised once and held, however the pressure wanders about the threshold
+    expect(
+      notes(later, 'propulsion.port.oilPressure').map((n) => n.state)
+    ).to.deep.equal(['alarm'])
     // the other engine is untouched
     expect(
       (last(later, 'propulsion.starboard.coolantTemperature') as number) -

@@ -51,6 +51,13 @@ const CELL_FAILURE_MIN = 60
 /** a battery monitor's low voltage warning and alarm, per 12 V */
 const BATTERY_WARN_V = 11.8
 const BATTERY_ALARM_V = 11
+/**
+ * An alarm, once raised, holds until its value is back past its threshold by this much,
+ * as a real panel's does, so a value wandering about the threshold does not flicker it.
+ */
+const COOLANT_HYSTERESIS_C = 2
+const OIL_PRESSURE_HYSTERESIS_BAR = 0.3
+const BATTERY_HYSTERESIS_V = 0.2
 /** bilge sump litres per (length in metres)^1.5, and pump litres an hour */
 const SUMP_L_PER_M15 = 2
 const PUMP_L_PER_H = 1000
@@ -699,6 +706,28 @@ export class Faults implements SystemFaults {
     }
     const raise = (path: string, state: 'warn' | 'alarm', message: string) =>
       out.set(`notifications.${path}`, { state, message })
+    /** the alarm state for a value past (or, falling, below) its thresholds, with hysteresis */
+    const level = (
+      path: string,
+      value: number,
+      warnAt: number,
+      alarmAt: number,
+      hysteresis: number
+    ): 'warn' | 'alarm' | undefined => {
+      const held = this.notified.get(`notifications.${path}`)?.state
+      // thresholds on a falling value are given negated, so one comparison serves both
+      if (
+        value >= alarmAt ||
+        (held === 'alarm' && value >= alarmAt - hysteresis)
+      )
+        return 'alarm'
+      if (
+        value >= warnAt ||
+        (held !== undefined && value >= warnAt - hysteresis)
+      )
+        return 'warn'
+      return undefined
+    }
     const name = (id: string) =>
       [...this.profile.engines, ...this.profile.generators].find(
         (u) => u.id === id
@@ -707,27 +736,39 @@ export class Faults implements SystemFaults {
       const t = f.target
       switch (f.kind) {
         case 'engineOverheat': {
-          const c = num(`propulsion.${t}.coolantTemperature`)
-          if (c !== undefined && c - KELVIN >= COOLANT_WARN_C) {
-            const hot = c - KELVIN >= COOLANT_ALARM_C
+          const coolantPath = `propulsion.${t}.coolantTemperature`
+          const c = num(coolantPath)
+          const hot =
+            c === undefined
+              ? undefined
+              : level(
+                  coolantPath,
+                  c - KELVIN,
+                  COOLANT_WARN_C,
+                  COOLANT_ALARM_C,
+                  COOLANT_HYSTERESIS_C
+                )
+          if (hot) {
             raise(
-              `propulsion.${t}.coolantTemperature`,
-              hot ? 'alarm' : 'warn',
-              `${name(t)} coolant ${Math.round(c - KELVIN)} °C${hot ? ': overheating' : ', high'}`
+              coolantPath,
+              hot,
+              `${name(t)} ${hot === 'alarm' ? 'overheating' : 'coolant temperature high'}`
             )
           }
-          const p = num(`propulsion.${t}.oilPressure`)
-          if (
-            this.lastSent.get(`propulsion.${t}.state`) === 'started' &&
-            p !== undefined &&
-            p < OIL_PRESSURE_ALARM_BAR * PASCALS_PER_BAR
-          ) {
-            raise(
-              `propulsion.${t}.oilPressure`,
-              'alarm',
-              `${name(t)} oil pressure low: ${(p / PASCALS_PER_BAR).toFixed(1)} bar`
-            )
-          }
+          const oilPath = `propulsion.${t}.oilPressure`
+          const p = num(oilPath)
+          const low =
+            p === undefined ||
+            this.lastSent.get(`propulsion.${t}.state`) !== 'started'
+              ? undefined
+              : level(
+                  oilPath,
+                  -p / PASCALS_PER_BAR,
+                  -OIL_PRESSURE_ALARM_BAR,
+                  -OIL_PRESSURE_ALARM_BAR,
+                  OIL_PRESSURE_HYSTERESIS_BAR
+                )
+          if (low) raise(oilPath, 'alarm', `${name(t)} oil pressure low`)
           break
         }
         case 'generatorNoStart':
@@ -741,13 +782,24 @@ export class Faults implements SystemFaults {
           break
         case 'batteryCellFailure': {
           const bank = this.profile.banks.find((b) => b.id === t)!
-          const v = num(`electrical.batteries.${t}.voltage`)
+          const voltagePath = `electrical.batteries.${t}.voltage`
+          const v = num(voltagePath)
           const scale = bank.nominalVoltage / 12
-          if (v !== undefined && v < BATTERY_WARN_V * scale) {
+          const sag =
+            v === undefined
+              ? undefined
+              : level(
+                  voltagePath,
+                  -v,
+                  -BATTERY_WARN_V * scale,
+                  -BATTERY_ALARM_V * scale,
+                  BATTERY_HYSTERESIS_V * scale
+                )
+          if (sag) {
             raise(
-              `electrical.batteries.${t}.voltage`,
-              v < BATTERY_ALARM_V * scale ? 'alarm' : 'warn',
-              `${bank.displayName} voltage low: ${v.toFixed(1)} V`
+              voltagePath,
+              sag,
+              `${bank.displayName} voltage ${sag === 'alarm' ? 'very low' : 'low'}`
             )
           }
           break
@@ -788,7 +840,7 @@ export class Faults implements SystemFaults {
             raise(
               'electrical.switches.bilgePump.state',
               'warn',
-              `Bilge pump running for ${Math.floor(this.bilge.pumpRunS / 60)} min`
+              'Bilge pump running continuously'
             )
           }
           break
