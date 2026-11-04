@@ -27,6 +27,12 @@ import {
   vesselIdentity
 } from '../soak/deltas'
 import { StaleStateError, SystemsState } from '../systems/model'
+import {
+  Autopilot,
+  PilotError,
+  PilotSaved,
+  PilotUpdate
+} from '../autopilot/pilot'
 
 /**
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
@@ -62,6 +68,8 @@ interface SavedState {
   faults?: FaultsState
   /** the alarms raised, which belong to the systems saved with them */
   alarms?: AlarmsState
+  /** the autopilot, which belongs to the systems saved with it */
+  pilot?: PilotSaved
 }
 
 /** a delta as the server hands it to an input handler, as far as this plugin reads it */
@@ -90,6 +98,9 @@ interface App {
     ): Promise<void>
   }
   activateRoute(route: { href: string; pointIndex: number }): Promise<void>
+  /** the server's Autopilot API: the provider it calls, and the updates it sends on */
+  registerAutopilotProvider?(provider: object, devices: string[]): void
+  autopilotUpdate?(deviceId: string, apInfo: PilotUpdate): void
   clearDestination(): Promise<void>
   /**
    * The server's configuration. The plugin API has no reader for the owner's vessel
@@ -415,6 +426,8 @@ export = function simulatorPlugin(app: App) {
           faultsState: systemsState ? saved?.faults : undefined,
           shallowM: options.shallowAlarmM,
           alarmsState: systemsState ? saved?.alarms : undefined,
+          pilotState: systemsState ? saved?.pilot : undefined,
+          autopilotUpdate: (u) => app.autopilotUpdate?.(PILOT_ID, u),
           collision: {
             distanceM: options.collisionDistanceM,
             timeS: options.collisionTimeMin * 60
@@ -471,7 +484,10 @@ export = function simulatorPlugin(app: App) {
 
     // the course is set for where the boat is before its first position goes out
     const course = courseKeeper(scenario, published)
-    await course.at(simulation.systems?.scenarioMs ?? scenarioStartMs)
+    await course.at(
+      simulation.routeMs(simulation.systems?.scenarioMs ?? scenarioStartMs)
+    )
+    if (simulation.pilot) registerPilot()
     if (stopped) return
 
     let ticks = 0
@@ -484,7 +500,8 @@ export = function simulatorPlugin(app: App) {
         scenarioMs,
         systems: simulation?.systems?.save(),
         faults: simulation?.faults?.save(),
-        alarms: simulation?.alarms?.save()
+        alarms: simulation?.alarms?.save(),
+        pilot: simulation?.pilot?.save()
       })
     current = {
       options,
@@ -504,7 +521,7 @@ export = function simulatorPlugin(app: App) {
       busy = true
       const now = Date.now()
       const sentMs = simulation.advance(now)
-      await course.at(sentMs)
+      await course.at(simulation.routeMs(sentMs))
       if (!simulation) return
       const result = simulation.send(now)
       busy = false
@@ -545,6 +562,8 @@ export = function simulatorPlugin(app: App) {
       const anchored = anchor
         ? `, at anchor ${anchor.currentRadiusM.toFixed(0)} m from it, swinging in ${anchor.maxRadiusM.toFixed(0)} m, watch ${anchor.watchRadiusM.toFixed(0)} m`
         : ''
+      const pilot = simulation.pilot
+      const piloted = pilot ? pilotWords(pilot) : ''
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -557,7 +576,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -569,6 +588,51 @@ export = function simulatorPlugin(app: App) {
     timer = undefined
     simulation?.forgetAll()
     simulation = undefined
+  }
+
+  /**
+   * The run's autopilot to the server's Autopilot API, as one device, `simulator`. The API
+   * reports a provider's error with its `statusCode` and `message`.
+   */
+  let pilotRegistered = false
+  function registerPilot() {
+    if (pilotRegistered || !app.registerAutopilotProvider) return
+    const pilot = (): Autopilot => {
+      const p = simulation?.pilot
+      if (!p)
+        throw refused('this boat has no autopilot, or the run has not started')
+      return p
+    }
+    const act = async <T>(fn: (p: Autopilot) => T): Promise<T> => {
+      try {
+        return fn(pilot())
+      } catch (error) {
+        throw error instanceof PilotError ? refused(error.message) : error
+      }
+    }
+    const provider = {
+      getData: () => act((p) => p.data()),
+      getState: () => act((p) => p.state),
+      setState: (state: string) => act((p) => p.setState(state)),
+      getMode: () => act((p) => p.mode),
+      setMode: (mode: string) => act((p) => p.setMode(mode)),
+      getTarget: () => act((p) => p.target),
+      setTarget: (value: number) => act((p) => p.setTarget(value)),
+      adjustTarget: (value: number) => act((p) => p.adjustTarget(value)),
+      engage: () => act((p) => p.engage()),
+      disengage: () => act((p) => p.disengage()),
+      courseCurrentPoint: () => act((p) => p.courseCurrentPoint()),
+      courseNextPoint: () => act((p) => p.courseNextPoint()),
+      tack: (direction: 'port' | 'starboard') => act((p) => p.tack(direction)),
+      gybe: (direction: 'port' | 'starboard') => act((p) => p.gybe(direction)),
+      dodge: (value: number | null) => act((p) => p.dodge(value))
+    }
+    try {
+      app.registerAutopilotProvider(provider, [PILOT_ID])
+      pilotRegistered = true
+    } catch (error) {
+      app.error(`autopilot: ${(error as Error).message}`)
+    }
   }
 
   /** what the REST surface and the page can read and do */
@@ -731,6 +795,7 @@ export = function simulatorPlugin(app: App) {
 
     stop() {
       stopped = true
+      pilotRegistered = false
       returnIdentity()
       stopRun()
       current = undefined
@@ -740,4 +805,37 @@ export = function simulatorPlugin(app: App) {
       )
     }
   }
+}
+
+/** the device the run's autopilot is to the server's Autopilot API */
+const PILOT_ID = 'simulator'
+
+/** an error the Autopilot API answers with a 400 and its message */
+function refused(
+  message: string
+): Error & { statusCode: number; state: string } {
+  return Object.assign(new Error(message), { statusCode: 400, state: 'FAILED' })
+}
+
+/** what the status line says of the pilot */
+function pilotWords(p: Autopilot): string {
+  const deg = (x: number) =>
+    String(Math.round(((x % 360) + 360) % 360)).padStart(3, '0')
+  const held = p.heldTargetDeg
+  let words = ''
+  if (p.engaged) {
+    words =
+      p.mode === 'route'
+        ? ', on autopilot, route'
+        : p.mode === 'compass'
+          ? `, on autopilot, holding ${deg(held.headingDeg!)}°`
+          : p.mode === 'wind'
+            ? `, on autopilot, wind ${Math.abs(Math.round(held.awaDeg!))}° ${held.awaDeg! < 0 ? 'to port' : 'to starboard'}`
+            : `, on autopilot, dodging ${Math.abs(Math.round(held.rudderDeg!))}° ${held.rudderDeg! < 0 ? 'to port' : 'to starboard'}`
+  }
+  const rejoin = p.rejoin
+  if (rejoin)
+    words += `, rejoining the route ${(rejoin.distanceM / 1852).toFixed(2)} nm ahead`
+  else if (!p.onRoute) words += ', off the route'
+  return words
 }

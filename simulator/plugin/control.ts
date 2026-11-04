@@ -178,8 +178,13 @@ export function runView(control: Control) {
   const vessel = scenario.route.vessel
   const summary = simulation.systems?.summary()
   const anchor = simulation.systems?.anchor
+  // the route at its own time, which the pilot holds back while she is off it
+  const routeMs =
+    scenarioMs !== undefined ? simulation.routeMs(scenarioMs) : undefined
   const nextPoint =
-    scenarioMs !== undefined ? nextPointIndex(legs, scenarioMs) : undefined
+    routeMs !== undefined ? nextPointIndex(legs, routeMs) : undefined
+  const pilot = simulation.pilot
+  const rejoin = pilot?.rejoin
   const targets = position
     ? [...simulation.targets.values()]
         .map((t) => ({
@@ -217,6 +222,11 @@ export function runView(control: Control) {
       minutesIntoRoute:
         scenarioMs !== undefined
           ? round((scenarioMs - departMs) / 60000, 1)
+          : undefined,
+      /** where the route's own timing has reached, behind the clock by her time off it */
+      routeMinutesReached:
+        routeMs !== undefined
+          ? round((routeMs - departMs) / 60000, 1)
           : undefined,
       routeMinutes: round((arriveMs - departMs) / 60000, 1)
     },
@@ -277,6 +287,31 @@ export function runView(control: Control) {
       shown: options.showTraffic,
       inRange: simulation.trafficCount,
       targets
+    },
+    autopilot: pilot && {
+      state: pilot.state,
+      mode: pilot.mode,
+      engaged: pilot.engaged,
+      modes: pilot.modes,
+      /** degrees: a heading true, an apparent wind angle, or the dodge's rudder */
+      target: pilot.heldTargetDeg,
+      routeTargetDeg:
+        pilot.mode === 'route' && pilot.target !== null
+          ? Math.round((pilot.target * 180) / Math.PI)
+          : undefined,
+      onRoute: pilot.onRoute,
+      rejoin: rejoin && {
+        latitude: rejoin.lat,
+        longitude: rejoin.lon,
+        distanceM: Math.round(rejoin.distanceM)
+      },
+      behindRouteMinutes:
+        scenarioMs !== undefined && routeMs !== undefined
+          ? round((scenarioMs - routeMs) / 60000, 1)
+          : undefined,
+      /** why it cannot be engaged now, as the page and the faults list show it */
+      refusal: pilot.refusal(),
+      alarms: pilot.alarms
     },
     faults: simulation.faults?.active() ?? [],
     alarms: [
