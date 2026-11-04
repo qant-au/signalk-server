@@ -223,6 +223,29 @@ checks. The faults have their own tests, which run every one through its course.
   it is then. It prints what it found (both a third: the 34 m's on for 391 of its 1,440
   ticks, the 45 m's, at anchor too, for 1,019).
 - **Each radar transmits only under way**, on standby alongside and at anchor.
+- **Every switch the profile has is sent**, at every tick, by its name and on its switch
+  bank channel with the same value, with its name in the metadata on both and on their
+  `state` paths (the bilge pump is sent only with water in the bilge, which a day without
+  faults never gives it). The PUT handlers are the plugin's, which the soak does not
+  start; the fast tests check them.
+- **The bank numbering holds through a restart**: each case is carried on from its systems
+  saved halfway, and every channel carries the same switch, with the same name.
+- **A PUT the boat must refuse stays refused**: at every tick under way the windlass is
+  switched on, and at every tick alongside each radar is switched to transmitting; none is
+  taken, and the values then sent are the ones checked above.
+- **The fridges and freezers warm while switched off and come back switched on**: each
+  boat with one is run again from halfway, switched off for three hours and on for four;
+  each warms more than 8 °C past its setpoint and ends within 3 °C of it.
+- **The inverter follows the generators and the shore**, on every boat with one, and on
+  no other: `standby` alongside and whenever a generator runs, `inverting` or `idle`
+  otherwise. What it put out over the day is what the books took from its bank, less its
+  10 % of losses, to within 5 %. It prints both.
+- **A person overboard raises MOB at emergency and nothing else**: each case is run for
+  twenty minutes twice from an hour in, once with a person overboard at the third minute
+  and recovered at the fifteenth, through the server's own notification manager; the
+  manager raises `notifications.mob.<id>` at `emergency` and resolves it to `normal`, and
+  the boat's own notifications are the same as in the run without one.
+- **The books still balance** with the new loads in them (see above).
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also
@@ -262,6 +285,11 @@ water maker, fresh water from the dock and the pump-out station at a berth, and 
 going overboard away from a berth.
 
 ### Runs So Far
+
+5 November 2026, with switching, the inverters and a person overboard: 39 checks passing in
+12 minutes, 83,012 deltas validated, every bank's books balancing to 0.000 %, each
+inverter's AC within 0.3 % of 90 % of what it drew (39.26 kWh for 43.59 kWh on the
+catamaran's day out, 151.69 for 168.58 on her passage).
 
 2 November 2026: 19 checks passing in 8 minutes, 73,466 deltas validated, every bank's books
 balancing to 0.000 %. A thruster runs in each manoeuvre for as long as the boat takes to

@@ -131,7 +131,9 @@ view's next point and the status line say which bridge and why, against her air 
 | `notifications.navigation.lights`       | while the lights have failed, and `normal` as it clears | any boat, from dusk            |
 
 Each switch's `displayName` and a `description` go in the metadata sent when a run
-starts.
+starts. The lights are switches too, `navLights` and `anchorLight`, which this rule
+drives; every switch here takes a PUT from a display, and is sent again on a switch bank
+channel (see [switching](../switching/README.md)).
 
 **The schema.** Signal K schema 1.8.2 takes `drive.trimState`. It has no place for the
 rest, so the schema checks leave them out, as they do the sails inventory and the tide's

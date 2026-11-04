@@ -38,6 +38,8 @@ picks its length within the range when it is raised.
 | [`anchorDragging`](#anchor-dragging)              | `anchor`, only while the boat lies at anchor    | the crew re-anchors after 10 to 20 minutes              | `navigation.anchor` emergency, from the anchor watch, once she is past its radius            |
 | [`autopilotFailure`](#autopilot-failure)          | `autopilot`, on a boat with one, only under way | after 10 to 30 minutes                                  | `steering.autopilot.heading` alarm, through the Autopilot API                                |
 | [`navLightsFailure`](#navigation-lights-failure)  | `lights`, only from dusk                        | after 10 to 60 minutes                                  | `navigation.lights` alarm, until they are back                                               |
+| [`inverterFailure`](#inverter-failure)            | `inverter`, on a boat with one                  | after 10 to 60 minutes                                  | `electrical.inverters.inverter.inverterMode` alarm, until it is reset                        |
+| [`personOverboard`](#person-overboard)            | `crew`, by hand only                            | no: cleared by hand, recovered                          | `notifications.mob.<id>` emergency, raised and resolved by the server's Notifications API    |
 
 A **warn** goes out with method `["visual"]`, an **alarm** with `["visual", "sound"]`, and
 a cleared notification as `normal` with no method, keeping its message. Faults with no
@@ -56,7 +58,7 @@ defaults.
 
 The rest a fault raises itself, since no zone can know them: a generator that would not
 start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
-lost fix, an autopilot dropping out; and the anchor watch raises the anchor alarm. A silent sounder never raises
+lost fix, an autopilot dropping out, an inverter faulted; and the anchor watch raises the anchor alarm. A person overboard is the server's own alarm, raised through its Notifications API. A silent sounder never raises
 the shallow water alarm: no depth is not shallow
 depth, and a shallow alarm already raised clears once the sounder has been quiet for a few
 seconds.
@@ -253,6 +255,34 @@ must.
 - **Notification:** `notifications.navigation.lights`, alarm, `["visual", "sound"]`,
   "Navigation lights failure: showing no lights", sent as `normal` once the fault clears
   and the lights are back as they were.
+
+### Inverter Failure
+
+The inverter trips to faulted, on a boat with one (see [the
+inverter](../switching/README.md#the-inverter)). It clears after 10 to 60 minutes, as the
+crew resets it, or by hand.
+
+- **Paths:** `electrical.inverters.inverter.inverterMode` goes to `faulted`, its AC
+  voltage, frequency, current and power to 0, and the loads on it are shed: a small boat's
+  sockets, and a hybrid's whole hotel load and her water maker. Its draw on its bank stops.
+- **Notification:** `notifications.electrical.inverters.inverter.inverterMode`, alarm,
+  `["visual", "sound"]`, "Inverter failure: no AC from the batteries", sent as `normal`
+  once it clears.
+
+### Person Overboard
+
+Someone goes over the side. It is raised by hand only, anywhere (the seed never throws it),
+once her position is known; it clears only by hand, when they are recovered.
+
+- **Notification:** the server's own, through its Notifications API
+  (`app.notifications.mob`, what `POST /signalk/v2/api/notifications/mob` calls):
+  `notifications.mob.<id>` at `emergency`, with the position she was at and "Person
+  overboard at hh:mm:ss UTC" in scenario time. Clearing the fault resolves the
+  notification through the same API. The boat's own alarm panel raises nothing for it.
+- **What else:** the autopilot stands by if it was engaged, and the run view and the
+  status line follow her bearing and distance from the person (see [a person
+  overboard](../switching/README.md#a-person-overboard)).
+- **Course:** `in the water`, then `recovered`.
 
 ## Raising and Clearing
 
