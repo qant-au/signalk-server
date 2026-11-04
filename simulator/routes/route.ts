@@ -39,6 +39,17 @@ export interface RouteVessel {
   profile?: string
 }
 
+/**
+ * A bridge the boat waits at, one for each opening hold: the waypoint holding for it, and
+ * its vertical clearance closed, at the centre of the span, as the Coast Pilot or the chart
+ * gives it
+ */
+export interface Bridge {
+  waypoint: number
+  name: string
+  closedClearanceM: number
+}
+
 export interface Route {
   name: string
   /** departure from the first waypoint, ISO 8601 UTC */
@@ -47,6 +58,8 @@ export interface Route {
   /** how the waypoints were made, so the route can be reproduced */
   source: string
   waypoints: Waypoint[]
+  /** the bridges the holds wait for, where the route waits at any */
+  bridges?: Bridge[]
 }
 
 /**
@@ -435,6 +448,51 @@ export function stopNearM(legs: Leg[], p: RoutePosition): number | undefined {
   return distances.length ? Math.min(...distances) : undefined
 }
 
+/** a hold for a bridge, and how she stands to it */
+export interface BridgeHold {
+  bridge: Bridge
+  /** her air height against the bridge's closed clearance */
+  airHeightM: number
+  clearsClosed: boolean
+}
+
+/**
+ * The bridge she is holding for at this time on the route, while she holds for one. The
+ * bridges name waypoints of the planned route, and a depth adjustment may add waypoints
+ * to the legs sailed, so the hold is found among the legs by where it is.
+ */
+export function bridgeHoldAt(
+  planned: Route,
+  legs: Leg[],
+  timeMs: number,
+  airHeightM: number
+): BridgeHold | undefined {
+  for (const bridge of planned.bridges ?? []) {
+    const hold = planned.waypoints[bridge.waypoint]
+    const w = legs.findIndex(
+      (l) => l.from.lat === hold.lat && l.from.lon === hold.lon
+    )
+    const arrived = legs[w - 1]?.arriveMs
+    const leaves = legs[w]?.departMs
+    if (arrived !== undefined && timeMs >= arrived && timeMs < leaves) {
+      return {
+        bridge,
+        airHeightM,
+        clearsClosed: airHeightM < bridge.closedClearanceM
+      }
+    }
+  }
+  return undefined
+}
+
+/** what she is holding for, in a few words, as the status line and the page give it */
+export function bridgeWords(hold: BridgeHold): string {
+  const heights = `${hold.airHeightM.toFixed(1)} m air height against ${hold.bridge.closedClearanceM.toFixed(1)} m closed clearance`
+  return hold.clearsClosed
+    ? `holding at the ${hold.bridge.name}, though she clears it closed: ${heights}`
+    : `holding for the ${hold.bridge.name} to open: ${heights}`
+}
+
 /** a position moved `metres` across its course, to starboard positive */
 export function offTrack(p: RoutePosition, metres: number): RoutePosition {
   if (!metres) return p
@@ -474,6 +532,14 @@ export async function loadRoute(sampleDir: string): Promise<Route> {
       typeCode: profile.typeCode,
       profile: id
     }
+  }
+  for (const b of route.bridges ?? []) {
+    if (!route.waypoints[b.waypoint]?.holdS)
+      throw new Error(
+        `${route.name}: the ${b.name} is at waypoint ${b.waypoint}, which has no hold`
+      )
+    if (!(b.closedClearanceM > 0))
+      throw new Error(`${route.name}: the ${b.name} needs its closed clearance`)
   }
   return route
 }

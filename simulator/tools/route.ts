@@ -47,6 +47,8 @@ interface RouteSection {
   toBerth?: Waypoint[]
   /** speed from the end of the derived passage onto the first toBerth waypoint */
   toBerthSpeedKn?: number
+  /** the bridges the passage's holds wait for, in the order she comes to them */
+  bridges?: { name: string; closedClearanceM: number }[]
   derive: DeriveConfig
 }
 
@@ -99,12 +101,20 @@ async function derive(sample: string): Promise<void> {
     ...passage,
     ...(section.toBerth ?? [])
   ]
+  // each bridge goes to a hold, in the order she comes to them
+  const holds = waypoints.flatMap((w, i) => (w.holdS ? [i] : []))
+  if (section.bridges && section.bridges.length !== holds.length) {
+    throw new Error(
+      `${sample}: sample.json names ${section.bridges.length} bridges for ${holds.length} holds`
+    )
+  }
   const route: Route = {
     name: section.name,
     departure: section.departure,
     vessel: section.vessel,
     source: section.sourceDescription,
-    waypoints
+    waypoints,
+    bridges: section.bridges?.map((b, i) => ({ waypoint: holds[i], ...b }))
   }
   await writeFile(
     path.join(dir, 'route.json'),

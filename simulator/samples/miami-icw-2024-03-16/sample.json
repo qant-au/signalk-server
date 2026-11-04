@@ -295,6 +295,24 @@
         "note": "arrival; the way in is found against the depth grid"
       }
     ],
+    "bridges": [
+      {
+        "name": "79th Street Causeway bridge",
+        "closedClearanceM": 7.6
+      },
+      {
+        "name": "Broad Causeway bridge",
+        "closedClearanceM": 4.9
+      },
+      {
+        "name": "Hollywood Boulevard bridge",
+        "closedClearanceM": 7.6
+      },
+      {
+        "name": "Dania Beach Boulevard bridge",
+        "closedClearanceM": 6.7
+      }
+    ],
     "derive": {
       "startBox": [-80.2, 25.75, -80.17, 25.765],
       "endBox": [-80.13, 26.08, -80.1, 26.13],
