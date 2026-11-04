@@ -106,7 +106,8 @@ export interface PilotOptions {
 export class PilotError extends Error {}
 
 const RADIANS = Math.PI / 180
-const METRES_PER_DEG = (6371000 * Math.PI) / 180
+const EARTH_RADIUS_M = 6371000
+const METRES_PER_DEG = (EARTH_RADIUS_M * Math.PI) / 180
 const KNOT_MS = 1852 / 3600
 /** the waypoint advance alarm comes this long before the turn at a waypoint, or the stop */
 export const ADVANCE_LEAD_MS = 30000
@@ -547,6 +548,7 @@ export class Autopilot {
     this.watch(ms, motion, ctx)
     const target = this.target
     if (
+      this.s.state === 'auto' &&
       target !== null &&
       (this.sentTargetDeg === null ||
         Math.abs(wrap180(target / RADIANS - this.sentTargetDeg)) >=
@@ -866,19 +868,40 @@ export class Autopilot {
     }
   }
 
-  /** metres off the route's track, from the leg she is on or left it from */
+  /**
+   * Metres off the route's track, from the leg she is on or left it from: the cross track
+   * error on the great circle between its points, as the Course API measures it
+   */
   private crossTrackM(m: PilotMotion): number {
     const legs = this.options.legs
     const leg = legs[Math.min(m.route.legIndex, legs.length - 1)]
-    const bearing = initialCourseDeg(
+    const angular = (a: { lat: number; lon: number }, b: typeof a) => {
+      const dLat = (b.lat - a.lat) * RADIANS
+      const dLon = (b.lon - a.lon) * RADIANS
+      return (
+        2 *
+        Math.asin(
+          Math.sqrt(
+            Math.sin(dLat / 2) ** 2 +
+              Math.cos(a.lat * RADIANS) *
+                Math.cos(b.lat * RADIANS) *
+                Math.sin(dLon / 2) ** 2
+          )
+        )
+      )
+    }
+    const along = initialCourseDeg(
       leg.from.lat,
       leg.from.lon,
       leg.to.lat,
       leg.to.lon
     )
-    const [e, n] = metresFrom(leg.from, m)
-    const b = bearing * RADIANS
-    return e * Math.cos(b) - n * Math.sin(b)
+    const to = initialCourseDeg(leg.from.lat, leg.from.lon, m.lat, m.lon)
+    return (
+      Math.asin(
+        Math.sin(angular(leg.from, m)) * Math.sin((to - along) * RADIANS)
+      ) * EARTH_RADIUS_M
+    )
   }
 
   private changed(): void {

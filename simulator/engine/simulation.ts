@@ -241,7 +241,8 @@ export class Simulation {
     lat: number
     lon: number
   }): { path: string; value: number }[] {
-    const target = this.pilot?.target
+    // a pilot standing by steers nothing, so it gives no target
+    const target = this.pilot?.engaged ? this.pilot.target : undefined
     if (target === null || target === undefined) return []
     if (this.pilot!.mode === 'wind') {
       return [
@@ -252,16 +253,17 @@ export class Simulation {
       ]
     }
     const values = [
-      { path: 'steering.autopilot.target.headingTrue', value: round4(target) }
+      {
+        path: 'steering.autopilot.target.headingTrue',
+        value: roundHeading(target)
+      }
     ]
     const variation = this.scenario.variation?.at(at.lat, at.lon)
     if (variation !== undefined) {
       const magnetic = target - (variation * Math.PI) / 180
       values.push({
         path: 'steering.autopilot.target.headingMagnetic',
-        value: round4(
-          ((magnetic % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-        )
+        value: roundHeading(magnetic)
       })
     }
     return values
@@ -586,3 +588,8 @@ function routeMotion(p: RoutePosition): PilotMotion {
 }
 
 const round4 = (x: number) => Math.round(x * 10000) / 10000
+/** a heading in radians, rounded and kept inside 0 to 2 pi, which rounding can step past */
+const roundHeading = (x: number) => {
+  const r = round4(((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI))
+  return r >= round4(2 * Math.PI) ? 0 : r
+}
