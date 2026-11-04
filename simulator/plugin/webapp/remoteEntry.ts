@@ -85,6 +85,20 @@ interface RunView {
   }
   faults: Fault[]
   alarms: { path: string; state: string; message: string }[]
+  water?: {
+    currentKn: number
+    currentSetDeg: number
+    currentFrom: 'sample' | 'seeded'
+    speedThroughWaterKn: number
+    leewayDeg: number
+  }
+  sails?: {
+    propulsion: 'sailing' | 'motor-sailing' | 'motoring' | null
+    set: string[]
+    activeAreaM2: number
+    totalAreaM2: number
+    polar?: { speedKn: number; ratio: number }
+  }
   weather?: {
     windKn: number
     windDeg: number
@@ -364,6 +378,37 @@ interface RunView {
             run.weather?.tideM === undefined
               ? undefined
               : `${run.weather.tideM} m above chart datum`
+          ],
+          [
+            'Current',
+            run.water &&
+              `${run.water.currentKn} kn setting ${run.water.currentSetDeg}°${run.water.currentFrom === 'seeded' ? ' (seeded: the sample has none)' : ''}`
+          ],
+          [
+            'Speed through the water',
+            run.water && `${run.water.speedThroughWaterKn} kn`
+          ],
+          ['Leeway', run.water && `${run.water.leewayDeg}°`],
+          [
+            'Sails',
+            run.sails &&
+              [
+                run.sails.propulsion === 'sailing'
+                  ? 'under sail'
+                  : run.sails.propulsion === 'motor-sailing'
+                    ? 'motor-sailing'
+                    : run.sails.propulsion === 'motoring'
+                      ? 'motoring, sails down'
+                      : 'sails stowed',
+                run.sails.set.length
+                  ? `${run.sails.set.join(', ')} (${run.sails.activeAreaM2} of ${run.sails.totalAreaM2} m²)`
+                  : '',
+                run.sails.polar
+                  ? `polar ${run.sails.polar.speedKn} kn, ${Math.round(run.sails.polar.ratio * 100)} % of it`
+                  : ''
+              ]
+                .filter(Boolean)
+                .join('; ')
           ]
         ])
       )

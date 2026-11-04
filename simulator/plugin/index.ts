@@ -26,7 +26,7 @@ import {
   identityValues,
   vesselIdentity
 } from '../soak/deltas'
-import { StaleStateError, SystemsState } from '../systems/model'
+import { StaleStateError, SystemsState, SystemsSummary } from '../systems/model'
 import {
   Autopilot,
   PilotError,
@@ -567,6 +567,9 @@ export = function simulatorPlugin(app: App) {
         : ''
       const pilot = simulation.pilot
       const piloted = pilot ? pilotWords(pilot) : ''
+      const water = onBoard
+        ? waterWords(onBoard, !result.finished && !result.position.anchored)
+        : ''
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -579,7 +582,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${water}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -818,6 +821,30 @@ function refused(
   message: string
 ): Error & { statusCode: number; state: string } {
   return Object.assign(new Error(message), { statusCode: 400, state: 'FAILED' })
+}
+
+/**
+ * What the status line says of the water: under sail or motor-sailing and with which sails
+ * on a sailing boat, her speed through the water under way, and the current
+ */
+function waterWords(s: SystemsSummary, underWay: boolean): string {
+  const w = s.water
+  const current = `, current ${w.currentKn.toFixed(1)} kn setting ${String(Math.round(w.currentToDeg) % 360).padStart(3, '0')}°`
+  if (!underWay) return current
+  const sails = s.sails
+  const set = sails?.set.map((x) => x.name.toLowerCase()) ?? []
+  const named = set.length
+    ? `, ${set.length > 1 ? set.slice(0, -1).join(', ') + ' and ' + set[set.length - 1] : set[0]}`
+    : ''
+  const how =
+    sails?.propulsion === 'sailing'
+      ? `, under sail${named}`
+      : sails?.propulsion === 'motor-sailing'
+        ? `, motor-sailing${named}`
+        : sails?.propulsion === 'motoring'
+          ? ', motoring'
+          : ''
+  return `${how}, ${w.stwKn.toFixed(1)} kn through the water${current}`
 }
 
 /** what the status line says of the pilot */

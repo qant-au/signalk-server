@@ -271,6 +271,32 @@ export function runView(control: Control) {
           ? undefined
           : round(summary.weather.tideM, 2)
     },
+    water: summary && {
+      currentKn: round(summary.water.currentKn, 2),
+      currentSetDeg: Math.round(summary.water.currentToDeg) % 360,
+      currentFrom: summary.water.sampled ? 'sample' : 'seeded',
+      speedThroughWaterKn: round(summary.water.stwKn, 2),
+      leewayDeg: round(summary.water.leewayDeg, 1)
+    },
+    sails: summary?.sails && {
+      propulsion: summary.sails.propulsion,
+      set: summary.sails.set.map((s) => s.name),
+      activeAreaM2: summary.sails.activeAreaM2,
+      totalAreaM2: summary.sails.totalAreaM2,
+      polar: summary.sails.performance && {
+        trueWindAngleDeg: Math.round(summary.sails.performance.twaDeg),
+        speedKn: round(summary.sails.performance.polarKn, 2),
+        ratio: round(summary.sails.performance.ratio, 2),
+        velocityMadeGoodKn: round(summary.sails.performance.vmgKn, 2),
+        beatAngleDeg: round(summary.sails.performance.beat.twaDeg, 1),
+        beatTargetSpeedKn: round(summary.sails.performance.beat.speedKn, 2),
+        gybeAngleDeg: round(summary.sails.performance.gybe.twaDeg, 1),
+        gybeTargetSpeedKn: round(summary.sails.performance.gybe.speedKn, 2),
+        targetAngleDeg: round(summary.sails.performance.target.twaDeg, 1),
+        targetSpeedKn: round(summary.sails.performance.target.speedKn, 2),
+        tackDeg: Math.round(summary.sails.performance.tackDeg) % 360
+      }
+    },
     systems: summary && {
       enginesRunning: summary.enginesRunning,
       generatorsRunning: summary.generatorsRunning,
