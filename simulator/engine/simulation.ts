@@ -526,6 +526,8 @@ export class Simulation {
   /** The second half of a tick: sends the boat as it was at the time `advance` gave. */
   send(wallMs: number): TickResult {
     this.lastWallMs = wallMs
+    // before her new position goes out, so the server's alarm has where she went over
+    this.followOverboard()
     const scenarioMs = this.pendingMs
     const legs = this.scenario.legs
     const sentMs = this.systems ? this.systems.scenarioMs : scenarioMs
@@ -594,7 +596,6 @@ export class Simulation {
       )
       this.notifyAll = false
       if (notes) this.emit(notes)
-      this.followOverboard()
     }
     this.ticks++
 
