@@ -123,6 +123,16 @@ describe('Simulator REST surface', () => {
     expect(body.water.speedThroughWaterKn).to.be.above(0)
     expect(body.water.leewayDeg).to.equal(0)
     expect(body.sails).to.equal(undefined)
+    // the deck: under way by day, her one radar transmitting, the anchor up
+    expect(body.deck).to.deep.include({
+      lights: 'off',
+      chainM: 0,
+      windlass: false,
+      trim: {},
+      radars: { Radar: true }
+    })
+    expect(body.deck.stabilisers).to.equal(undefined)
+    expect(body.nextPoint.bridge).to.equal(undefined)
   })
 
   it('pauses, sets the multiplier and jumps, and refuses a bad change', async () => {
