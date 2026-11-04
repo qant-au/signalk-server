@@ -459,8 +459,20 @@ function run(soak: SoakCase): CaseResult {
 
 type Band = [number, number]
 
+/** the most a currents gives: Miami's harbour entrance and Queensland's ocean, about 2 kn */
+const CURRENT_MAX_KN = 2.5
+/** leeway, as the model limits it */
+const LEEWAY_MAX = 10 * RAD
+
+/** the fastest the polar has her, knots */
+const polarMaxKn = (p: VesselProfile) =>
+  p.polar ? Math.max(...p.polar.speedKn.flat()) : 0
+
 /** the band a value of this path must stay in, or undefined for a path with no band */
-function band(p: VesselProfile, key: string): Band | 'string' | undefined {
+function band(
+  p: VesselProfile,
+  key: string
+): Band | 'string' | 'boolean' | undefined {
   const pathOnly = key.includes(':') ? key.split(':')[1] : key
   const m = (re: RegExp) => re.exec(pathOnly)
   const unit = (id: string) =>
@@ -621,6 +633,45 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     if (r[1] === 'transducerToKeel') return [-p.draftM, p.draftM]
     return undefined
   }
+  if ((r = m(/^sails\.inventory\.(\w+)\.(\w+)$/))) {
+    const sail = p.sails?.find((x) => x.id === r![1])
+    if (!sail) return undefined
+    if (r[2] === 'name' || r[2] === 'type') return 'string'
+    if (r[2] === 'active') return 'boolean'
+    if (r[2] === 'area') return [sail.areaM2, sail.areaM2]
+    if (r[2] === 'minimumWind' || r[2] === 'maximumWind')
+      return [0, 40 * KNOT_MS]
+    return undefined
+  }
+  if (p.sails && (r = m(/^sails\.area\.(total|active)$/))) {
+    const total = p.sails.reduce(
+      (most, s) => (s.type === 'main' ? most : most + s.areaM2),
+      Math.max(...p.sails.filter((s) => s.type === 'main').map((s) => s.areaM2))
+    )
+    return r[1] === 'total' ? [total, total] : [0, total]
+  }
+  if (p.polar && (r = m(/^performance\.(\w+)$/))) {
+    const most = (polarMaxKn(p) + 0.01) * KNOT_MS
+    const water = (p.maxSpeedKn + CURRENT_MAX_KN) * KNOT_MS * 1.01
+    const bands: Record<string, Band> = {
+      polarSpeed: [0, most],
+      // through the water she makes at most her top speed, over at least a knot of polar
+      polarSpeedRatio: [0, water / KNOT_MS],
+      velocityMadeGood: [-water, water],
+      beatAngle: [25 * RAD, 90 * RAD],
+      beatAngleTargetSpeed: [0, most],
+      beatAngleVelocityMadeGood: [0, most],
+      gybeAngle: [90 * RAD, Math.PI],
+      gybeAngleTargetSpeed: [0, most],
+      gybeAngleVelocityMadeGood: [-most, 0],
+      targetAngle: [25 * RAD, Math.PI],
+      targetSpeed: [0, most],
+      leeway: [-LEEWAY_MAX, LEEWAY_MAX],
+      tackTrue: [0, 2 * Math.PI],
+      tackMagnetic: [0, 2 * Math.PI]
+    }
+    return bands[r[1]]
+  }
   if (pathOnly === 'sensors.ais.fromBow') return [0, p.lengthM]
   if (pathOnly === 'sensors.ais.fromCenter') return [-p.beamM / 2, p.beamM / 2]
   if ((r = m(/^sensors\.(\w+)\.fromCenter$/))) {
@@ -645,8 +696,23 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     'environment.tide.heightLow': [-1.5, 3],
     'environment.tide.timeHigh': 'string',
     'environment.tide.timeLow': 'string',
-    // the water speed is the ground speed less a current of at most a knot
-    'navigation.speedThroughWater': [0, (p.maxSpeedKn + 1) * KNOT_MS * 1.01],
+    // the water speed is the ground speed less the current
+    'navigation.speedThroughWater': [
+      0,
+      (p.maxSpeedKn + CURRENT_MAX_KN) * KNOT_MS * 1.01
+    ],
+    'navigation.speedThroughWaterLongitudinal': [
+      0,
+      (p.maxSpeedKn + CURRENT_MAX_KN) * KNOT_MS * 1.01
+    ],
+    'navigation.speedThroughWaterTransverse': [
+      -(p.maxSpeedKn + CURRENT_MAX_KN) * KNOT_MS * Math.sin(LEEWAY_MAX),
+      (p.maxSpeedKn + CURRENT_MAX_KN) * KNOT_MS * Math.sin(LEEWAY_MAX)
+    ],
+    'navigation.leewayAngle': p.polar ? [-LEEWAY_MAX, LEEWAY_MAX] : [0, 0],
+    'environment.current.drift': [0, CURRENT_MAX_KN * KNOT_MS],
+    'environment.current.setTrue': [0, 2 * Math.PI],
+    'environment.current.setMagnetic': [0, 2 * Math.PI],
     'navigation.speedOverGround': [0, p.maxSpeedKn * KNOT_MS * 1.01],
     'navigation.courseOverGroundTrue': [0, 2 * Math.PI],
     'navigation.courseOverGroundMagnetic': [0, 2 * Math.PI],
@@ -822,18 +888,27 @@ describe('Simulator systems soak', function () {
             key.startsWith('notifications.')
           )
             continue
-          if (key === 'navigation.attitude') {
-            for (const [axis, angle] of Object.entries(
-              value as Record<string, number>
+          // an object value: each of its fields in its own band
+          if (
+            key === 'navigation.attitude' ||
+            key === 'environment.current' ||
+            key.startsWith('sails.inventory.')
+          ) {
+            for (const [field, v] of Object.entries(
+              value as Record<string, unknown>
             )) {
-              const b = band(r.soak.profile, `${key}.${axis}`)
-              if (
-                !Array.isArray(b) ||
-                !Number.isFinite(angle) ||
-                angle < b[0] ||
-                angle > b[1]
-              )
-                report(`${key}.${axis} = ${angle}`)
+              const b = band(r.soak.profile, `${key}.${field}`)
+              const fits =
+                b === 'string'
+                  ? typeof v === 'string' && v !== ''
+                  : b === 'boolean'
+                    ? typeof v === 'boolean'
+                    : Array.isArray(b) &&
+                      typeof v === 'number' &&
+                      Number.isFinite(v) &&
+                      v >= b[0] - 1e-9 &&
+                      v <= b[1] + 1e-9
+              if (!fits) report(`${key}.${field} = ${v}`)
             }
             continue
           }
@@ -856,6 +931,8 @@ describe('Simulator systems soak', function () {
             report(`${key}: no band for this path`)
           } else if (b === 'string') {
             if (typeof value !== 'string' || !value) report(`${key}: ${value}`)
+          } else if (b === 'boolean') {
+            if (typeof value !== 'boolean') report(`${key}: ${value}`)
           } else if (typeof value !== 'number' || !Number.isFinite(value)) {
             report(`${key}: ${value}`)
           } else if (value < b[0] - 1e-9 || value > b[1] + 1e-9) {
@@ -1508,6 +1585,106 @@ describe('Simulator systems soak', function () {
         expect(raised(off), `${r.soak.name} ${off}`).to.deep.equal([])
     })
   )
+
+  it(
+    'agrees the speed through the water with the speed over the ground less the current',
+    each((r) => {
+      let checked = 0
+      const off: string[] = []
+      for (const t of r.ticks) {
+        const state = t.values.get('navigation.state')
+        const stw = num(t, 'navigation.speedThroughWater')
+        const sog = num(t, 'navigation.speedOverGround')
+        const cog = num(t, 'navigation.courseOverGroundTrue')
+        if (
+          (state !== 'motoring' && state !== 'sailing') ||
+          stw === undefined ||
+          sog === undefined ||
+          cog === undefined ||
+          sog < 0.5 * KNOT_MS
+        )
+          continue
+        const c = t.summary.water
+        const set = c.currentToDeg * RAD
+        const e = sog * Math.sin(cog) - c.currentKn * KNOT_MS * Math.sin(set)
+        const n = sog * Math.cos(cog) - c.currentKn * KNOT_MS * Math.cos(set)
+        checked++
+        // the speeds are sent to the millimetre a second, the course to a ten-thousandth
+        if (Math.abs(Math.hypot(e, n) - stw) > 0.01 && off.length < 5)
+          off.push(
+            `${new Date(t.ms).toISOString()}: through the water ${stw}, over the ground less the current ${Math.hypot(e, n).toFixed(3)}`
+          )
+      }
+      expect(checked, r.soak.name).to.be.above(60)
+      expect(off, r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it(
+    'sets sails only on a sailing boat, and only under way',
+    each((r) => {
+      const sailing = r.soak.profile.rig === 'sail'
+      let set = 0
+      let state: unknown
+      for (const t of r.ticks) {
+        state = t.values.get('navigation.state') ?? state
+        for (const key of t.values.keys()) {
+          if (!sailing && /^(sails|performance)\./.test(key))
+            expect.fail(`${r.soak.name}: ${key} from a motor boat`)
+        }
+        const active = num(t, 'sails.area.active')
+        if (active === undefined || active === 0) continue
+        set++
+        expect(
+          state,
+          `${r.soak.name} at ${new Date(t.ms).toISOString()}`
+        ).to.be.oneOf(['sailing', 'motoring'])
+      }
+      if (sailing) expect(set, r.soak.name).to.be.above(0)
+    })
+  )
+
+  it("sails the Saronic passage's afternoon and motors its morning", () => {
+    const r = [...results.values()].find(
+      (x) =>
+        x.soak.sample === 'saronic-gulf-2018-07-13' && x.soak.pilot === 'route'
+    )
+    if (!r) return
+    const start = r.ticks[0].ms
+    const underWay = (t: Tick) =>
+      t.summary.sails?.propulsion !== null &&
+      t.summary.sails?.propulsion !== undefined
+    // by local solar time: the first afternoon, and the next morning
+    const afternoon = r.ticks.filter(
+      (t) =>
+        underWay(t) &&
+        t.hour >= 12.5 &&
+        t.hour < 15 &&
+        t.ms < start + 12 * HOUR_MS
+    )
+    const morning = r.ticks.filter(
+      (t) =>
+        underWay(t) &&
+        t.hour >= 3.5 &&
+        t.hour < 7.5 &&
+        t.ms > start + 12 * HOUR_MS
+    )
+    const share = (ts: Tick[], p: string[]) =>
+      ts.filter((t) => p.includes(t.summary.sails!.propulsion!)).length /
+      ts.length
+    console.log(
+      `Saronic passage: the afternoon ${(100 * share(afternoon, ['sailing'])).toFixed(0)} % under sail and ${(100 * share(afternoon, ['motor-sailing'])).toFixed(0)} % motor-sailing; the morning ${(100 * share(morning, ['motoring', 'motor-sailing'])).toFixed(0)} % with the engine on`
+    )
+    expect(afternoon.length).to.be.above(30)
+    expect(morning.length).to.be.above(30)
+    // the afternoon's northerly is light, 4 to 7 kn: her sails are set for most of it, and
+    // she sails on them alone some of the time; the morning's legs run dead to windward
+    expect(share(afternoon, ['sailing', 'motor-sailing'])).to.be.above(0.5)
+    expect(share(afternoon, ['sailing'])).to.be.above(
+      share(morning, ['sailing']) + 0.1
+    )
+    expect(share(morning, ['motoring', 'motor-sailing'])).to.be.above(0.9)
+  })
 
   it('follows the tide on the Miami depth through the day', () => {
     const miami = [...results.values()].filter(
