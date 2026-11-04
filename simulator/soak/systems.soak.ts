@@ -19,7 +19,12 @@ import {
 import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { Environment, loadEnvironment } from '../weather/environment'
 import { PilotUpdate } from '../autopilot/pilot'
-import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
+import {
+  EnergyBooks,
+  STEP_S,
+  SystemsState,
+  SystemsSummary
+} from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
 import { Delta, forSchema } from './deltas'
@@ -27,6 +32,15 @@ import { NotificationValue } from '../alarms/panel'
 import { AlarmBand } from '../alarms/zones'
 import { FaultError } from '../faults/faults'
 import { SCOPE } from '../systems/anchor'
+import {
+  bankChannels,
+  bankPath,
+  switchList,
+  switchPath
+} from '../switching/switches'
+import { hasInverter } from '../switching/inverters'
+import { NotificationManager } from '../../src/api/notifications/notificationManager'
+import type { NotificationApplication } from '../../src/api/notifications'
 
 // The server pins signalk-schema 1.0; free names under environment.inside need 1.1 or
 // later, so the deltas are validated against the newer copy the streams package uses.
@@ -103,6 +117,12 @@ interface CaseResult {
   engagedTicks: number
   /** the sun's elevation, degrees, at each try at failing the lights, and whether it took */
   lightsTries: { sunDeg: number; raised: boolean }[]
+  /** the metadata sent as the run started, by path */
+  meta: Map<string, { displayName?: string }>
+  /** the systems saved halfway, to carry on from as a restart would */
+  half: { ms: number; systems: SystemsState }
+  /** PUTs the boat must refuse, tried each tick: how many, and any she took */
+  refusals: { tried: number; taken: string[] }
 }
 
 interface Note {
@@ -340,13 +360,13 @@ function validationProblems(delta: Delta, mmsi: string): string[] {
   return problems
 }
 
-function run(soak: SoakCase): CaseResult {
-  const legs = routeLegs(soak.route)
-  const scenario: Scenario = {
+/** the case's scenario as the soak runs it */
+function scenarioOf(soak: SoakCase): Scenario {
+  return {
     sampleId: soak.name,
     route: soak.route,
     plannedRoute: soak.route,
-    legs,
+    legs: routeLegs(soak.route),
     adjustments: [],
     depth: SEABED,
     variation: soak.variation,
@@ -354,6 +374,49 @@ function run(soak: SoakCase): CaseResult {
     profile: soak.profile,
     notes: []
   }
+}
+
+/**
+ * A short run of the case from a scenario time, a tick a minute, doing `act` before each
+ * tick; gives each tick's values and the deltas sent
+ */
+function shortRun(
+  soak: SoakCase,
+  fromMs: number,
+  minutes: number,
+  options: Partial<ConstructorParameters<typeof Simulation>[1]> = {},
+  act: (sim: Simulation, minute: number) => void = () => undefined
+): { sim: Simulation; ticks: Map<string, unknown>[]; sent: Delta[] } {
+  const sent: Delta[] = []
+  const sim = new Simulation(
+    scenarioOf(soak),
+    {
+      timeMultiplier: TIME_MULTIPLIER,
+      showTraffic: false,
+      scenarioStartMs: fromMs,
+      seed: SEED,
+      ...options
+    },
+    (d) => sent.push(d),
+    0
+  )
+  const ticks: Map<string, unknown>[] = []
+  for (let i = 1; i <= minutes; i++) {
+    act(sim, i)
+    const from = sent.length
+    sim.tick(i * TICK_MS)
+    const values = new Map<string, unknown>()
+    for (const d of sent.slice(from))
+      for (const u of d.updates)
+        for (const v of u.values) values.set(v.path, v.value)
+    ticks.push(values)
+  }
+  return { sim, ticks, sent }
+}
+
+function run(soak: SoakCase): CaseResult {
+  const scenario = scenarioOf(soak)
+  const legs = scenario.legs
   const ticks: Tick[] = []
   const invalid: string[] = []
   let deltas = 0
@@ -378,6 +441,13 @@ function run(soak: SoakCase): CaseResult {
   let underWayTicks = 0
   let engagedTicks = 0
   const lightsTries: CaseResult['lightsTries'] = []
+  const meta: CaseResult['meta'] = new Map()
+  for (const d of pending)
+    for (const u of d.updates)
+      for (const m of u.meta ?? []) meta.set(m.path, m.value)
+  let half: CaseResult['half'] | undefined
+  const refusals: CaseResult['refusals'] = { tried: 0, taken: [] }
+  const radarIds = soak.profile.radars.map((r) => r.id)
   const latest = new Map<string, unknown>()
   const check = (batch: Delta[]) => {
     for (const d of batch) {
@@ -428,6 +498,24 @@ function run(soak: SoakCase): CaseResult {
       }
     }
     pending = []
+    // a windlass under way and a radar alongside are refused, and refusing changes nothing
+    const navState = latest.get('navigation.state')
+    const refuse = (id: string) => {
+      refusals.tried++
+      const answer = sim.systems!.putSwitch(id, true)
+      if (answer.ok)
+        refusals.taken.push(
+          `${id} at ${new Date(result.scenarioMs).toISOString()}`
+        )
+    }
+    if (
+      soak.profile.windlass &&
+      (navState === 'motoring' || navState === 'sailing')
+    )
+      refuse('windlass')
+    if (navState === 'moored') for (const id of radarIds) refuse(id)
+    if (i === Math.round(tickCount / 2))
+      half = { ms: result.scenarioMs, systems: sim.systems!.save() }
     if (sim.faults!.active().some((f) => f.kind === 'anchorDragging'))
       dragged = true
     const p = result.position
@@ -486,7 +574,10 @@ function run(soak: SoakCase): CaseResult {
     pilotUpdates,
     underWayTicks,
     engagedTicks,
-    lightsTries
+    lightsTries,
+    meta,
+    half: half!,
+    refusals
   }
 }
 
@@ -576,11 +667,38 @@ function band(
   }
   if ((r = m(/^electrical\.switches\.(\w+)\.state$/))) {
     const id = r[1]
-    const fitted =
-      (id === 'windlass' && p.windlass) ||
-      (id === 'stabilisers' && p.stabilisers !== undefined) ||
-      p.radars.some((x) => x.id === id)
-    return fitted ? [0, 1] : undefined
+    return switchList(p).some((x) => x.id === id) ? [0, 1] : undefined
+  }
+  if ((r = m(/^electrical\.switches\.bank\.0\.(\d+)\.state$/))) {
+    const n = Number(r[1])
+    return [...bankChannels(p).values()].includes(n) ? [0, 1] : undefined
+  }
+  if ((r = m(/^electrical\.inverters\.inverter\.(.+)$/))) {
+    if (!hasInverter(p)) return undefined
+    const bank =
+      p.banks.find((b) => b.role === (p.hybrid ? 'propulsion' : 'house')) ??
+      p.banks[0]
+    // the hotel load at its most, and a hybrid's water maker, which it carries too
+    const peakW = (2 * p.hotelKw + 0.025 * p.watermakerLph) * 1000
+    switch (r[1]) {
+      case 'inverterMode':
+        return 'string'
+      case 'dc.voltage':
+        return [bank.nominalVoltage * 0.85, bank.nominalVoltage * 1.25]
+      case 'dc.current':
+        return [0, peakW / (0.85 * bank.nominalVoltage)]
+      case 'ac.lineNeutralVoltage':
+        return [0, p.acVoltage]
+      case 'ac.frequency':
+        return [0, p.acFrequency]
+      case 'ac.current':
+        return [0, peakW / p.acVoltage / 0.9]
+      case 'ac.realPower':
+        return [0, peakW]
+      case 'ac.apparentPower':
+        return [0, peakW / 0.9]
+    }
+    return undefined
   }
   if ((r = m(/^electrical\.chargers\.(\w+)\.(.+)$/))) {
     const b = p.banks.find((x) => x.id === r![1])
@@ -2014,6 +2132,204 @@ describe('Simulator systems soak', function () {
         charging.map((t) => t.summary.turbineW)
       )
       expect(rho, `${r.soak.name} turbine against wind`).to.be.above(0.9)
+    })
+  )
+  it(
+    'sends every switch the profile has, by name and on its bank channel, named in metadata',
+    each((r) => {
+      const p = r.soak.profile
+      const channels = bankChannels(p)
+      const list = switchList(p).filter((x) => x.id !== 'bilgePump')
+      for (const t of r.ticks) {
+        for (const sw of list) {
+          const v = num(t, switchPath(sw.id))
+          const at = `${r.soak.name} ${sw.id} ${new Date(t.ms).toISOString()}`
+          expect(v, at).to.be.oneOf([0, 1])
+          expect(num(t, bankPath(channels.get(sw.id)!)), at).to.equal(v)
+        }
+      }
+      for (const sw of switchList(p)) {
+        const n = channels.get(sw.id)!
+        for (const at of [
+          `electrical.switches.${sw.id}`,
+          switchPath(sw.id),
+          `electrical.switches.bank.0.${n}`,
+          bankPath(n)
+        ])
+          expect(r.meta.get(at)?.displayName, `${r.soak.name} ${at}`).to.equal(
+            sw.displayName
+          )
+      }
+    })
+  )
+
+  it(
+    'keeps the bank numbering through a restart from the saved systems',
+    each((r) => {
+      const p = r.soak.profile
+      const channels = bankChannels(p)
+      const again = shortRun(r.soak, r.half.ms, 3, {
+        systemsState: r.half.systems
+      })
+      const meta = new Map(
+        again.sent
+          .flatMap((d) => d.updates.flatMap((u) => u.meta ?? []))
+          .map((m) => [m.path, m.value.displayName])
+      )
+      for (const [id, n] of channels) {
+        expect(meta.get(bankPath(n)), `${r.soak.name} ${id}`).to.equal(
+          r.meta.get(bankPath(n))?.displayName
+        )
+        if (id === 'bilgePump') continue
+        for (const values of again.ticks)
+          expect(values.get(bankPath(n)), `${r.soak.name} ${id}`).to.equal(
+            values.get(switchPath(id))
+          )
+      }
+    })
+  )
+
+  it(
+    'refuses the windlass under way and a radar alongside, every time',
+    each((r) => {
+      const p = r.soak.profile
+      expect(r.refusals.taken, r.soak.name).to.deep.equal([])
+      if (p.windlass || p.radars.length)
+        expect(r.refusals.tried, r.soak.name).to.be.above(10)
+    })
+  )
+
+  it(
+    'lets the fridges and freezers warm while switched off, and brings them back switched on',
+    each((r) => {
+      const p = r.soak.profile
+      const kinds = (['fridge', 'freezer'] as const).filter((k) =>
+        p.zones.some((z) => z.kind === k)
+      )
+      if (!kinds.length) return
+      const OFF_MIN = 180
+      const ON_MIN = 240
+      const short = shortRun(
+        r.soak,
+        r.half.ms,
+        OFF_MIN + ON_MIN,
+        {},
+        (sim, minute) => {
+          for (const k of kinds) {
+            if (minute === 1) sim.systems!.putSwitch(k, false)
+            if (minute === OFF_MIN + 1) sim.systems!.putSwitch(k, true)
+          }
+        }
+      )
+      const tempAt = (id: string, minute: number) => {
+        for (let i = minute - 1; i >= 0; i--) {
+          const v = short.ticks[i].get(`environment.inside.${id}.temperature`)
+          if (typeof v === 'number') return v - KELVIN
+        }
+        return NaN
+      }
+      for (const z of p.zones.filter((x) => kinds.includes(x.kind as never))) {
+        const at = `${r.soak.name} ${z.id}`
+        const warmest = tempAt(z.id, OFF_MIN)
+        const coldest = tempAt(z.id, OFF_MIN + ON_MIN)
+        expect(short.ticks[OFF_MIN - 1].get(switchPath(z.kind)), at).to.equal(0)
+        expect(
+          short.ticks[OFF_MIN + ON_MIN - 1].get(switchPath(z.kind)),
+          at
+        ).to.equal(1)
+        expect(warmest, at).to.be.above(z.setpointC + 8)
+        expect(coldest, at).to.be.below(z.setpointC + 3)
+      }
+    })
+  )
+
+  it(
+    "stands the inverter by with a generator running or on shore power, and its AC is the books' inverter output",
+    each((r) => {
+      const p = r.soak.profile
+      if (!hasInverter(p)) {
+        expect(
+          r.ticks.some((t) => t.summary.inverter !== undefined),
+          r.soak.name
+        ).to.equal(false)
+        return
+      }
+      let state: unknown
+      let acJ = 0
+      const modes = new Set<unknown>()
+      for (const t of r.ticks) {
+        state = t.values.get('navigation.state') ?? state
+        const mode = t.values.get('electrical.inverters.inverter.inverterMode')
+        modes.add(mode)
+        const at = `${r.soak.name} ${new Date(t.ms).toISOString()}`
+        if (state === 'moored' || t.summary.generatorsRunning > 0)
+          expect(mode, at).to.equal('standby')
+        else expect(mode, at).to.be.oneOf(['inverting', 'idle'])
+        acJ += (t.summary.inverter!.acW * (TICK_MS * TIME_MULTIPLIER)) / 1000
+      }
+      expect(modes.has('standby'), r.soak.name).to.equal(true)
+      expect(modes.has('inverting'), r.soak.name).to.equal(true)
+      const bank = r.books.banks.find(
+        (b) => b.id === r.ticks[0].summary.inverter!.bank
+      )!
+      const drawnJ = bank.outJ.inverter ?? 0
+      console.log(
+        `${r.soak.name}: inverter carried ${(acJ / 3.6e6).toFixed(2)} kWh AC for ${(drawnJ / 3.6e6).toFixed(2)} kWh off the ${bank.id} bank`
+      )
+      expect(acJ, r.soak.name).to.be.closeTo(0.9 * drawnJ, 0.05 * drawnJ)
+    })
+  )
+
+  it(
+    'raises a person overboard through the Notifications API at emergency, and nothing else',
+    each((r) => {
+      const emitted: Delta[] = []
+      let position: unknown
+      let sim: Simulation | undefined
+      const manager = new NotificationManager({
+        // the manager sends its alarm object itself, which it changes as it clears
+        handleMessage: (_id: string, d: Delta) =>
+          emitted.push(structuredClone(d)),
+        get signalk() {
+          return { self: { navigation: { position: { value: position } } } }
+        }
+      } as unknown as NotificationApplication)
+      const from = r.ticks[60].ms
+      const boatNotes = (sent: Delta[]) =>
+        sent
+          .flatMap((d) => d.updates.flatMap((u) => u.values))
+          .filter((v) => v.path.startsWith('notifications.'))
+          .map((v) => JSON.stringify(v))
+      const plain = shortRun(r.soak, from, 20)
+      const overboard = shortRun(
+        r.soak,
+        from,
+        20,
+        {
+          mob: {
+            raise: (message) => manager.mob(message),
+            resolve: (id) => manager.clear(id as never)
+          }
+        },
+        (s, minute) => {
+          sim = s
+          const p = s.last?.position
+          if (p) position = { latitude: p.lat, longitude: p.lon }
+          if (minute === 3) s.faults!.raise('personOverboard')
+          if (minute === 15) s.faults!.clear('personOverboard', 'crew')
+        }
+      )
+      expect(boatNotes(overboard.sent), r.soak.name).to.deep.equal(
+        boatNotes(plain.sent)
+      )
+      const mob = emitted
+        .flatMap((d) => d.updates.flatMap((u) => u.values))
+        .filter((v) => v.path.startsWith('notifications.mob.'))
+      expect(mob.length, r.soak.name).to.equal(2)
+      expect((mob[0].value as { state: string }).state).to.equal('emergency')
+      expect((mob[1].value as { state: string }).state).to.equal('normal')
+      expect(Object.keys(manager.list).length, r.soak.name).to.equal(1)
+      expect(sim!.mobs(), r.soak.name).to.deep.equal([])
     })
   )
 })
