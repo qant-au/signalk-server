@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import path from 'path'
 import { routeResource, routeResourceId } from '../routes/resource'
-import { nextPointIndex } from '../routes/route'
+import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 import {
   DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
   DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
@@ -540,10 +540,18 @@ export = function simulatorPlugin(app: App) {
         ? `, ${simulation.trafficCount} AIS targets in range${heldBackNote()}`
         : ', traffic off'
       const legs = scenario.legs.length
+      const hold = scenario.profile
+        ? bridgeHoldAt(
+            scenario.plannedRoute,
+            scenario.legs,
+            simulation.routeMs(result.scenarioMs),
+            scenario.profile.airHeightM
+          )
+        : undefined
       const next =
-        course.pointIndex !== undefined
+        (course.pointIndex !== undefined
           ? `, next point ${course.pointIndex} of ${legs}`
-          : ''
+          : '') + (hold ? `, ${bridgeWords(hold)}` : '')
       const onBoard = simulation.systems?.summary()
       const systems = onBoard
         ? `, ${onBoard.enginesRunning} engines and ${onBoard.generatorsRunning} generators running`
@@ -563,13 +571,17 @@ export = function simulatorPlugin(app: App) {
       ]
       const anchor = simulation.systems?.anchor
       const anchored = anchor
-        ? `, at anchor ${anchor.currentRadiusM.toFixed(0)} m from it, swinging in ${anchor.maxRadiusM.toFixed(0)} m, watch ${anchor.watchRadiusM.toFixed(0)} m`
+        ? `, at anchor on ${onBoard?.deck.chainM.toFixed(0)} m of chain in ${anchor.depthM.toFixed(1)} m, ${anchor.currentRadiusM.toFixed(0)} m from it, swinging in ${anchor.maxRadiusM.toFixed(0)} m, watch ${anchor.watchRadiusM.toFixed(0)} m`
         : ''
       const pilot = simulation.pilot
       const piloted = pilot ? pilotWords(pilot) : ''
       const water = onBoard
         ? waterWords(onBoard, !result.finished && !result.position.anchored)
         : ''
+      const lights =
+        onBoard?.deck.night && onBoard.deck.lights !== 'off'
+          ? `, lights: ${onBoard.deck.lights}`
+          : ''
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -582,7 +594,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${water}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${water}${lights}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)

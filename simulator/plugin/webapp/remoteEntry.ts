@@ -53,7 +53,17 @@ interface RunView {
     cogDeg: number
     state: string
   }
-  nextPoint?: { index: number; of: number }
+  nextPoint?: { index: number; of: number; bridge?: { words: string } }
+  deck?: {
+    lights: string
+    night: boolean
+    chainM: number
+    scope?: number
+    windlass?: boolean
+    trim: Record<string, number>
+    stabilisers?: boolean
+    radars: Record<string, boolean>
+  }
   anchor?: {
     latitude: number
     longitude: number
@@ -438,6 +448,54 @@ interface RunView {
           ])
         )
 
+      const d = run.deck
+      const onOff = (on: boolean | undefined, yes: string, no: string) =>
+        on === undefined ? undefined : on ? yes : no
+      const trims = Object.entries(d?.trim ?? {})
+      const radars = Object.entries(d?.radars ?? {})
+      const deck =
+        d &&
+        card(
+          'Deck',
+          facts([
+            [
+              'Navigation lights',
+              `${d.lights}${d.night ? ', sun down' : ', by day'}`
+            ],
+            [
+              'Chain out',
+              d.chainM > 0
+                ? `${d.chainM} m${d.scope ? `, a scope of ${d.scope} to 1` : ''}`
+                : d.windlass === undefined
+                  ? undefined
+                  : 'none, the anchor is up'
+            ],
+            ['Windlass', onOff(d.windlass, 'running', 'off')],
+            [
+              'Outboard trim',
+              trims.length
+                ? trims
+                    .map(([, t]) =>
+                      t >= 0.99 ? 'tilted up' : `${Math.round(t * 100)} % up`
+                    )
+                    .join(', ')
+                : undefined
+            ],
+            ['Stabilisers', onOff(d.stabilisers, 'working', 'off')],
+            [
+              'Radars',
+              radars.length
+                ? radars
+                    .map(
+                      ([id, on]) => `${id} ${on ? 'transmitting' : 'standby'}`
+                    )
+                    .join(', ')
+                : undefined
+            ],
+            ['Bridge', run.nextPoint?.bridge?.words]
+          ])
+        )
+
       const faults = card(
         'Faults',
         run.faults.length
@@ -796,7 +854,15 @@ interface RunView {
         h(
           'div',
           { className: 'row' },
-          h('div', { className: 'col-lg-6' }, clock, where, pilotCard, systems),
+          h(
+            'div',
+            { className: 'col-lg-6' },
+            clock,
+            where,
+            pilotCard,
+            systems,
+            deck
+          ),
           h('div', { className: 'col-lg-6' }, faults, traffic)
         )
       )

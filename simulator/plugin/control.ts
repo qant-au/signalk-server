@@ -4,7 +4,7 @@ import { CollisionLimits } from '../ais/collision'
 import { Scenario } from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
 import { FaultError, Faults } from '../faults/faults'
-import { nextPointIndex } from '../routes/route'
+import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 
 /**
  * The plugin's REST surface, under /plugins/signalk-simulator: the run (where the boat
@@ -183,6 +183,15 @@ export function runView(control: Control) {
     scenarioMs !== undefined ? simulation.routeMs(scenarioMs) : undefined
   const nextPoint =
     routeMs !== undefined ? nextPointIndex(legs, routeMs) : undefined
+  const hold =
+    routeMs !== undefined && scenario.profile
+      ? bridgeHoldAt(
+          scenario.plannedRoute,
+          legs,
+          routeMs,
+          scenario.profile.airHeightM
+        )
+      : undefined
   const pilot = simulation.pilot
   const rejoin = pilot?.rejoin
   const targets = position
@@ -246,7 +255,18 @@ export function runView(control: Control) {
     nextPoint:
       nextPoint === undefined
         ? undefined
-        : { index: nextPoint, of: legs.length },
+        : {
+            index: nextPoint,
+            of: legs.length,
+            /** the bridge she is holding for, and why */
+            bridge: hold && {
+              name: hold.bridge.name,
+              closedClearanceM: hold.bridge.closedClearanceM,
+              airHeightM: hold.airHeightM,
+              clearsClosed: hold.clearsClosed,
+              words: bridgeWords(hold)
+            }
+          },
     anchor: anchor && {
       latitude: anchor.lat,
       longitude: anchor.lon,
@@ -296,6 +316,26 @@ export function runView(control: Control) {
         targetSpeedKn: round(summary.sails.performance.target.speedKn, 2),
         tackDeg: Math.round(summary.sails.performance.tackDeg) % 360
       }
+    },
+    deck: summary && {
+      lights: summary.deck.lights,
+      night: summary.deck.night,
+      chainM: round(summary.deck.chainM, 1),
+      /** the scope she is lying to: the chain out over the depth at the anchor */
+      scope:
+        anchor && summary.deck.chainM > 0
+          ? round(summary.deck.chainM / anchor.depthM, 1)
+          : undefined,
+      windlass: summary.deck.windlass,
+      trim: summary.deck.trim,
+      stabilisers: summary.deck.stabilisers,
+      /** each radar by its name: transmitting, or standing by */
+      radars: Object.fromEntries(
+        (scenario.profile?.radars ?? []).map((r) => [
+          r.displayName,
+          summary.deck.radars[r.id]
+        ])
+      )
     },
     systems: summary && {
       enginesRunning: summary.enginesRunning,
