@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from 'fs'
 import path from 'path'
 import { DEFAULT_SHALLOW_M, alarmBands } from '../alarms/zones'
+import { Polar, PolarTable } from '../sailing/polar'
+import { SailProfile } from '../sailing/sailing'
 
 /**
  * A vessel profile: what is on board, from which the systems model produces data. Counts
@@ -189,6 +191,10 @@ export interface VesselProfile {
   wind: boolean
   /** an autopilot, which the server's Autopilot API drives (simulator/autopilot) */
   autopilot: boolean
+  /** a sailing boat's sails, a reef as an entry of its own (simulator/sailing) */
+  sails?: SailProfile[]
+  /** a sailing boat's polar: her speed at each true wind speed and angle (simulator/sailing) */
+  polar?: PolarTable
   zones: ZoneProfile[]
   /**
    * The boat's own alarm bands, by path, where they differ from the defaults for her kind
@@ -574,6 +580,30 @@ export function validateProfile(p: VesselProfile): void {
   }
   for (const type of Object.keys(p.tanks) as TankType[]) {
     for (const t of p.tanks[type]) unique(`tank ${type}`, t.id)
+  }
+  validateSails(p)
+}
+
+/** a sailing boat has sails and a polar, and a motor boat neither */
+function validateSails(p: VesselProfile): void {
+  if (p.rig === 'motor') {
+    if (p.sails || p.polar)
+      throw new Error(`${p.id}: a motor boat has no sails or polar`)
+    return
+  }
+  if (!p.sails?.length || !p.polar)
+    throw new Error(`${p.id}: a sailing boat needs her sails and a polar`)
+  for (const sail of p.sails) {
+    unique(sail.id)
+    if (!/^[a-zA-Z0-9]+$/.test(sail.id))
+      throw new Error(`${p.id}: sail id ${sail.id} must be letters and digits`)
+    if (!(sail.areaM2 > 0) || !(sail.maxWindKn > sail.minWindKn))
+      throw new Error(`${p.id}: sail ${sail.id} needs an area and a wind range`)
+  }
+  new Polar(p.polar)
+  function unique(id: string): void {
+    if (p.sails!.filter((s) => s.id === id).length > 1)
+      throw new Error(`${p.id}: duplicate sail id ${id}`)
   }
 }
 

@@ -50,8 +50,9 @@ export interface Delta {
  * metadata, which this server reads (src/zones.ts) and the specification does not have;
  * without the null that clears the anchor's values once it is weighed, which the anchor
  * alarm plugin sends and displays read, but for which the schema has no null position;
- * and without the times of the next high and low water, which schema 1.8.2 defines as a
- * bare string rather than a value, so no delta can satisfy it.
+ * without the times of the next high and low water, which schema 1.8.2 defines as a
+ * bare string rather than a value, so no delta can satisfy it; and without the sails in
+ * `sails.inventory`, each of which it defines as a bare object for the same reason.
  */
 const BARE_STRINGS = new Set([
   'environment.tide.timeHigh',
@@ -65,7 +66,8 @@ export function forSchema(delta: Delta): Delta {
       const values = u.values.filter(
         (v) =>
           !(v.value === null && v.path.startsWith('navigation.anchor.')) &&
-          !BARE_STRINGS.has(v.path)
+          !BARE_STRINGS.has(v.path) &&
+          !v.path.startsWith('sails.inventory.')
       )
       const meta = u.meta?.map((m) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars

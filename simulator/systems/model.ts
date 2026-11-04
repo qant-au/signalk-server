@@ -19,7 +19,9 @@ import {
   anchorWatch,
   watchRadiusM
 } from './anchor'
-import { Navigation, NavigationState } from './navigation'
+import { Current, Navigation, NavigationState } from './navigation'
+import { NEAR_STOP_M, Sailing, SailingSaved } from '../sailing/sailing'
+import { OptimumAngle } from '../sailing/polar'
 import type { Conditions, TideNow } from '../weather/environment'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
@@ -51,6 +53,8 @@ export interface Motion {
   leavesInS?: number
   /** under way, metres from the berth the boat left or is coming to */
   nearBerthM?: number
+  /** under way, metres from the stop she left or is coming to: a berth, anchorage or hold */
+  nearStopM?: number
 }
 
 export interface SystemsOptions {
@@ -128,12 +132,14 @@ export interface SystemsState {
   sounders: UnitState[]
   navigation: NavigationState
   anchorage: AnchorageState
+  /** a sailing boat's sail plan, null on a motor boat */
+  sailing: SailingSaved | null
   /** holding tanks being pumped out, as `type.id` */
   pumping: string[]
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 6
+export const SYSTEMS_STATE_VERSION = 7
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -198,8 +204,6 @@ const CHARGER_EFFICIENCY = 0.9
 const POWER_FACTOR = 0.9
 /** a generator is loaded to at most this share before another is started */
 const GENERATOR_SHARE = 0.8
-const SAIL_MIN_WIND_KN = 6
-const SAIL_MIN_SPEED_KN = 3.5
 /** grey water as a share of fresh water used */
 const GREY_SHARE = 0.7
 const BLACK_L_PER_PERSON_DAY = 8
@@ -486,7 +490,14 @@ export class SystemsModel {
   private shoreWaterL = 0
   private readonly pumping = new Set<TankState>()
   private readonly pumpOuts = new Map<string, number>()
+  /** under sail alone, the engines stopped */
   private sailing = false
+  /** a sailing boat's sails and polar (simulator/sailing) */
+  private readonly sail: Sailing | undefined
+  /** the sample's current at the latest step, where it has one */
+  private sampledCurrent: Current | undefined
+  /** the polar's optimum angles, worked out again only when the true wind changes */
+  private optimum?: { twsKn: number; beat: OptimumAngle; gybe: OptimumAngle }
   private readonly anchorage: Anchorage
   /** the anchor watch's alarm is raised */
   private anchorAlarmed = false
@@ -630,6 +641,10 @@ export class SystemsModel {
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
     this.navigation = new Navigation(profile, seed, options.startMs)
     this.anchorage = new Anchorage(profile.lengthM, seed, options.depthAt)
+    this.sail =
+      profile.sails && profile.polar
+        ? new Sailing(profile.sails, profile.polar)
+        : undefined
     if (options.state) this.restore(options.state)
     this.openBooks()
   }
@@ -760,6 +775,7 @@ export class SystemsModel {
       ),
       navigation: this.navigation.save(),
       anchorage: this.anchorage.save(),
+      sailing: this.sail?.save() ?? null,
       pumping: [...this.pumping].map(tankKey),
       pumpOuts: Object.fromEntries(this.pumpOuts)
     }
@@ -868,6 +884,12 @@ export class SystemsModel {
       if (!ok)
         throw new StaleStateError(`saved systems state has a bad ${what}`)
     })
+    if (this.sail) {
+      this.sail.restore(state.sailing!, (ok, what) => {
+        if (!ok)
+          throw new StaleStateError(`saved systems state has a bad ${what}`)
+      })
+    }
     this.stepped = true
     const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
     const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
@@ -972,7 +994,8 @@ export class SystemsModel {
             : at?.headDeg
       },
       { kn: this.windKn, deg: this.windDeg, waveHeightM: this.waveHeightM },
-      this.sailing
+      { sailing: this.sailing, areaShare: this.sail?.areaShare ?? 0 },
+      this.sampledCurrent
     )
     this.stepAc(dt)
     this.stepZones(dt)
@@ -1003,11 +1026,13 @@ export class SystemsModel {
     windDeg: number
     currentKn: number
     currentToDeg: number
+    leewayDeg: number
     failed: boolean
   } {
     const current = this.navigation.current
     return {
       headingDeg: this.navigation.heading,
+      leewayDeg: this.navigation.leeway,
       windKn: this.windKn,
       windDeg: this.windDeg,
       currentKn: current.kn,
@@ -1062,6 +1087,10 @@ export class SystemsModel {
     this.humidity = c.humidity
     this.waveHeightM = c.waveHeightM
     this.tide = c.tide
+    this.sampledCurrent =
+      c.currentKn === undefined || c.currentToDeg === undefined
+        ? undefined
+        : { kn: c.currentKn, toDeg: c.currentToDeg }
     // the sample's wind with the seed's gusts and shifts on it; without one, a sea breeze
     // that freshens through the afternoon
     this.windKn = Math.max(
@@ -1071,16 +1100,47 @@ export class SystemsModel {
     this.windDeg = ((c.windDeg ?? this.windBaseDeg) + shifts + 360) % 360
   }
 
+  /**
+   * A sailing boat's sail plan for the leg she is on: sets `sailing`, and gives the speed
+   * the sails make through the water, knots, nothing with them down
+   */
+  private stepSails(dt: number, stopped: boolean): number {
+    const sail = this.sail
+    if (!sail) {
+      this.sailing = false
+      return 0
+    }
+    const { sogKn, cogDeg } = this.motion
+    const c = this.sampledCurrent ?? this.navigation.current
+    const cog = cogDeg * RADIANS
+    const set = c.toDeg * RADIANS
+    const waterE = sogKn * Math.sin(cog) - c.kn * Math.sin(set)
+    const waterN = sogKn * Math.cos(cog) - c.kn * Math.cos(set)
+    const waterTrackDeg = Math.atan2(waterE, waterN) / RADIANS
+    sail.step(dt, {
+      underWay: !stopped,
+      nearStop: (this.motion.nearStopM ?? Infinity) < NEAR_STOP_M,
+      twsKn: this.windKn,
+      twdDeg: this.windDeg,
+      stwKn: Math.hypot(waterE, waterN),
+      waterTrackDeg
+    })
+    const propulsion = sail.plan.propulsion
+    this.sailing = propulsion === 'sailing'
+    return propulsion === 'sailing' || propulsion === 'motor-sailing'
+      ? sail.polar.speedKn(this.windKn, this.windDeg - waterTrackDeg)
+      : 0
+  }
+
   private stepPropulsion(dt: number): void {
     const p = this.profile
     const { sogKn, atBerth } = this.motion
     const stopped = atBerth || this.motion.anchored === true
-    const speedShare = Math.min(1, sogKn / p.maxSpeedKn)
-    this.sailing =
-      p.rig === 'sail' &&
-      !stopped &&
-      sogKn >= SAIL_MIN_SPEED_KN &&
-      this.windKn >= SAIL_MIN_WIND_KN
+    // motor-sailing, the sails give some of the speed and the engine the rest: power goes
+    // with the cube of speed, so the engine makes up the cube the sails leave
+    const sailKn = this.stepSails(dt, stopped)
+    const engineKn = Math.cbrt(Math.max(0, sogKn ** 3 - sailKn ** 3))
+    const speedShare = Math.min(1, engineKn / p.maxSpeedKn)
     const underway = !stopped && !this.sailing
     const ratedKw = p.engines.reduce((sum, e) => sum + e.powerKw, 0)
     // propeller law: power goes with the cube of speed
@@ -1935,7 +1995,9 @@ export class SystemsModel {
     for (const g of this.generators) this.putGenerator(g, put)
     if (this.profile.wind) this.putWind(put)
     const { lat, lon } = this.motion
-    this.navigation.put(put, this.options.variationAt?.(lat, lon))
+    const variationDeg = this.options.variationAt?.(lat, lon)
+    this.navigation.put(put, variationDeg)
+    this.putPerformance(put, variationDeg)
     this.putAnchor(put)
     if (!slow) {
       // a battery monitor reports every second: a thruster burst is over in a few
@@ -1965,6 +2027,8 @@ export class SystemsModel {
       if (this.humidity !== undefined)
         put('environment.outside.relativeHumidity', round3(this.humidity))
       this.putTide(put)
+      this.navigation.putCurrent(put, variationDeg)
+      this.putSails(put)
     }
 
     const deltas: Delta[] = [
@@ -2004,6 +2068,89 @@ export class SystemsModel {
       deltas.push({ context: 'vessels.self', updates: sounderUpdates })
     }
     return deltas
+  }
+
+  /** the polar's beat and gybe at the true wind now */
+  private optimumAngles(): { beat: OptimumAngle; gybe: OptimumAngle } {
+    const polar = this.sail!.polar
+    if (this.optimum?.twsKn !== this.windKn) {
+      this.optimum = {
+        twsKn: this.windKn,
+        beat: polar.beat(this.windKn),
+        gybe: polar.gybe(this.windKn)
+      }
+    }
+    return this.optimum
+  }
+
+  /** what the polar makes of her sailing now, for the performance paths and the run view */
+  performance(): PerformanceNow | undefined {
+    if (!this.sail || !this.profile.wind) return undefined
+    const heading = this.navigation.heading
+    const twaDeg = wrap180(this.windDeg - heading)
+    const stwKn = this.navigation.speedThroughWaterKn
+    const polarKn = this.sail.polar.speedKn(this.windKn, twaDeg)
+    const { beat, gybe } = this.optimumAngles()
+    return {
+      twaDeg,
+      polarKn,
+      ratio: polarKn > 0 ? stwKn / polarKn : 0,
+      vmgKn: stwKn * Math.cos(twaDeg * RADIANS),
+      beat,
+      gybe,
+      target: Math.abs(twaDeg) < 90 ? beat : gybe,
+      // the same angle to the wind on her other side
+      tackDeg: norm360(2 * this.windDeg - heading)
+    }
+  }
+
+  /** the performance paths, from the polar, on a sailing boat with a wind instrument */
+  private putPerformance(
+    put: (path: string, value: unknown) => void,
+    variationDeg: number | undefined
+  ): void {
+    const perf = this.performance()
+    if (!perf) return
+    const ms = (kn: number) => round3(kn * METRES_PER_SECOND_PER_KNOT)
+    const rad = (deg: number) => round4(deg * RADIANS)
+    put('performance.polarSpeed', ms(perf.polarKn))
+    put('performance.polarSpeedRatio', round3(perf.ratio))
+    put('performance.velocityMadeGood', ms(perf.vmgKn))
+    put('performance.beatAngle', rad(perf.beat.twaDeg))
+    put('performance.beatAngleTargetSpeed', ms(perf.beat.speedKn))
+    put('performance.beatAngleVelocityMadeGood', ms(perf.beat.vmgKn))
+    put('performance.gybeAngle', rad(perf.gybe.twaDeg))
+    put('performance.gybeAngleTargetSpeed', ms(perf.gybe.speedKn))
+    put('performance.gybeAngleVelocityMadeGood', ms(perf.gybe.vmgKn))
+    put('performance.targetAngle', rad(perf.target.twaDeg))
+    put('performance.targetSpeed', ms(perf.target.speedKn))
+    put('performance.leeway', round4(this.navigation.leeway * RADIANS))
+    put('performance.tackTrue', rad(perf.tackDeg) % round4(2 * Math.PI))
+    if (variationDeg !== undefined) {
+      put(
+        'performance.tackMagnetic',
+        rad(norm360(perf.tackDeg - variationDeg)) % round4(2 * Math.PI)
+      )
+    }
+  }
+
+  /** a sailing boat's sails: each one set or not, and the area of all and of those set */
+  private putSails(put: (path: string, value: unknown) => void): void {
+    const sail = this.sail
+    if (!sail) return
+    const set = new Set(sail.plan.sails)
+    for (const s of sail.sails) {
+      put(`sails.inventory.${s.id}`, {
+        name: s.name,
+        type: s.type,
+        active: set.has(s.id),
+        area: s.areaM2,
+        minimumWind: round2(s.minWindKn * METRES_PER_SECOND_PER_KNOT),
+        maximumWind: round2(s.maxWindKn * METRES_PER_SECOND_PER_KNOT)
+      })
+    }
+    put('sails.area.total', sail.fullAreaM2)
+    put('sails.area.active', sail.activeAreaM2)
   }
 
   /** the tide as a tide table and gauge give it, above chart datum, where the sample has one */
@@ -2269,6 +2416,22 @@ export class SystemsModel {
         humidity: this.humidity,
         tideM: this.tide?.heightM
       },
+      water: {
+        currentKn: this.navigation.current.kn,
+        currentToDeg: this.navigation.current.toDeg,
+        sampled: this.sampledCurrent !== undefined,
+        stwKn: this.navigation.speedThroughWaterKn,
+        leewayDeg: this.navigation.leeway
+      },
+      sails: this.sail && {
+        propulsion: this.sail.plan.propulsion,
+        set: this.sail.sails
+          .filter((s) => this.sail!.plan.sails.includes(s.id))
+          .map((s) => ({ id: s.id, name: s.name })),
+        activeAreaM2: this.sail.activeAreaM2,
+        totalAreaM2: this.sail.fullAreaM2,
+        performance: this.performance()
+      },
       hotelKw: this.hotelKw,
       hvacKw: this.hvacKw,
       watermakerRunning: this.watermakerRunning,
@@ -2289,6 +2452,23 @@ export class SystemsModel {
   }
 }
 
+/** what the polar makes of her sailing now, degrees and knots */
+export interface PerformanceNow {
+  /** the true wind angle off the bow, positive to starboard */
+  twaDeg: number
+  polarKn: number
+  /** her speed through the water over the polar's */
+  ratio: number
+  /** towards the wind, negative running away from it */
+  vmgKn: number
+  beat: OptimumAngle
+  gybe: OptimumAngle
+  /** the beat upwind, the gybe downwind */
+  target: OptimumAngle
+  /** her heading on the other tack, or gybe, at the same angle to the wind */
+  tackDeg: number
+}
+
 export interface SystemsSummary {
   enginesRunning: number
   generatorsRunning: number
@@ -2306,6 +2486,23 @@ export interface SystemsSummary {
     waterC: number
     humidity?: number
     tideM?: number
+  }
+  /** the water she moves through: the current, her speed through it and her leeway */
+  water: {
+    currentKn: number
+    currentToDeg: number
+    /** the current is the sample's, not the seeded one */
+    sampled: boolean
+    stwKn: number
+    leewayDeg: number
+  }
+  /** a sailing boat's sails and what the polar makes of her sailing */
+  sails?: {
+    propulsion: 'sailing' | 'motor-sailing' | 'motoring' | null
+    set: { id: string; name: string }[]
+    activeAreaM2: number
+    totalAreaM2: number
+    performance?: PerformanceNow
   }
   hotelKw: number
   /** air conditioning load being carried */
@@ -2490,6 +2687,9 @@ function wrapPi(angle: number): number {
 
 const round2 = (x: number) => Math.round(x * 100) / 100
 const round3 = (x: number) => Math.round(x * 1000) / 1000
+const round4 = (x: number) => Math.round(x * 10000) / 10000
+const wrap180 = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180
+const norm360 = (deg: number) => ((deg % 360) + 360) % 360
 /** rounded, and kept inside -pi to pi, which rounding alone can step outside */
 const roundAngle = (x: number) => clamp(round3(x), -Math.PI, Math.PI)
 const iso = (ms: number) => new Date(ms).toISOString()

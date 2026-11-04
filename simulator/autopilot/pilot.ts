@@ -7,6 +7,7 @@ import {
   turnMiddleMs,
   turnRateDegS
 } from '../routes/route'
+import { Polar } from '../sailing/polar'
 
 /**
  * The boat's autopilot, as the server's Autopilot API sees one: a state (standby, or auto
@@ -55,6 +56,8 @@ export interface PilotContext {
   /** the current, the direction it runs towards */
   currentKn: number
   currentToDeg: number
+  /** the leeway she makes, degrees, positive sliding to starboard */
+  leewayDeg: number
   /** the pilot is out of action (simulator/faults) */
   failed: boolean
 }
@@ -97,6 +100,10 @@ export interface PilotSaved {
   turning?: 'port' | 'starboard' | null
   /** when the state, mode or target last changed, which the off-target alarms wait out */
   changedMs?: number | null
+  /** wind mode's target was inside the polar's beat angle, and is held at it */
+  beatHeld?: boolean
+  /** wind mode's target follows the polar's beat or gybe angle as the wind changes it */
+  follow?: 'beat' | 'gybe' | null
   bestErrorDeg: number | null
 }
 
@@ -104,6 +111,8 @@ export interface PilotOptions {
   lengthM: number
   /** a sailing boat's pilot steers to the wind, and tacks and gybes */
   sail: boolean
+  /** her polar, which wind mode keeps outside the beat angle and tacks and gybes onto */
+  polar?: Polar
   legs: Leg[]
 }
 
@@ -143,6 +152,10 @@ const WIND_MODE_DEFAULT_AWA_DEG = 45
 const WIND_SEARCH_STEP_DEG = 1
 /** a degree of turn costs this much of a degree off the target: in a calm she holds her heading */
 const WIND_TURN_COST = 0.05
+/** under this much true wind, knots, there is too little to steer by: wind mode is refused */
+export const CALM_KN = 3
+/** steering, a target is held at the beat once the beat has moved this far outside it */
+const BEAT_MARGIN_DEG = 3
 /** a target that turns with the route goes to the API each time it has turned this far */
 const TARGET_SENT_DEG = 0.5
 
@@ -178,6 +191,8 @@ export class Autopilot {
     offTargetSinceMs: null,
     turning: null,
     changedMs: null,
+    beatHeld: false,
+    follow: null,
     bestErrorDeg: null
   }
   private updates: PilotUpdate[] = []
@@ -407,9 +422,11 @@ export class Autopilot {
     }
     const m = mode as PilotMode
     if (m === this.s.mode) return
+    if (m === 'wind') this.refuseInCalm('steer to the wind')
     if (m === 'compass') this.s.targetHeadingDeg = Math.round(this.heading())
     if (m === 'wind') this.s.targetAwaDeg = Math.round(this.awaDeg())
     this.s.mode = m
+    if (m === 'wind') this.setOwnTarget()
     this.s.modeBeforeDodge = null
     if (m === 'route') this.startRejoin()
     this.changed()
@@ -422,6 +439,7 @@ export class Autopilot {
     else if (this.s.mode === 'wind') {
       if (Math.abs(wrap180(deg)) > 180) throw new PilotError('out of range')
       this.s.targetAwaDeg = wrap180(deg)
+      this.setOwnTarget()
     } else
       throw new PilotError(
         `in ${this.s.mode} mode the ${this.s.mode === 'route' ? 'route sets the target' : 'dodge sets the rudder'}; set compass or wind mode to give a target`
@@ -483,6 +501,7 @@ export class Autopilot {
       throw new PilotError(`a motor boat does not ${kind}`)
     if (this.s.state !== 'auto' || this.s.mode !== 'wind')
       throw new PilotError(`${kind} in wind mode, with the pilot engaged`)
+    this.refuseInCalm(kind)
     const awa = this.awaDeg()
     // turning to port the wind comes round from the port side to starboard, and the other
     // way to starboard; a tack is through the wind ahead, a gybe through it astern
@@ -499,9 +518,89 @@ export class Autopilot {
         `cannot ${kind} to ${direction} with the wind ${Math.abs(Math.round(awa))}° on the ${awa < 0 ? 'port' : 'starboard'} ${Math.abs(awa) < 90 ? 'bow' : 'quarter'}`
       )
     }
-    this.s.targetAwaDeg = -this.s.targetAwaDeg
+    // onto the polar's angle on her other side, or the same angle without a polar: turning
+    // to port a tack brings the wind to starboard and a gybe brings it to port
+    const side = (kind === 'tack') === (direction === 'port') ? 1 : -1
+    const angle = this.optimumAwaDeg(kind)
+    this.s.targetAwaDeg =
+      angle === undefined ? -this.s.targetAwaDeg : side * Math.round(angle)
+    this.clearBeatHeld()
+    this.s.follow =
+      angle === undefined ? null : kind === 'tack' ? 'beat' : 'gybe'
     this.s.turning = direction
     this.changed()
+  }
+
+  /** refuses to steer to the wind when there is too little of it */
+  private refuseInCalm(what: string): void {
+    const kn = this.ctx?.windKn
+    if (kn !== undefined && kn < CALM_KN) {
+      throw new PilotError(
+        `cannot ${what}: ${kn.toFixed(1)} kn of true wind is too little to steer by, under ${CALM_KN} kn`
+      )
+    }
+  }
+
+  /**
+   * The apparent wind angle of the polar's beat, or of its gybe, at the true wind now and
+   * her speed: what a tack or gybe comes out on, and the closest wind mode holds her
+   */
+  private optimumAwaDeg(kind: 'tack' | 'gybe'): number | undefined {
+    const polar = this.options.polar
+    const ctx = this.ctx
+    if (!polar || !ctx) return undefined
+    const twa = (
+      kind === 'tack' ? polar.beat(ctx.windKn) : polar.gybe(ctx.windKn)
+    ).twaDeg
+    return apparentAngleDeg(ctx.windKn, twa, this.speedKn())
+  }
+
+  /** her speed through the water: off the route the pilot's, on it the route's */
+  private speedKn(): number {
+    return this.s.free?.speedKn ?? this.last?.route.sogKn ?? 0
+  }
+
+  /**
+   * A wind mode target inside the polar's beat angle is held at the beat angle, the wind
+   * alarm saying why: closer to the wind the sails cannot drive her. A target on the beat,
+   * held there or put there by a tack, and one put on the gybe angle by a gybe, follows
+   * that angle as the wind changes it; a target the crew sets is held at the beat only once
+   * the beat has moved `marginDeg` outside it.
+   */
+  private holdOutsideBeat(marginDeg = 0): void {
+    const beat = this.optimumAwaDeg('tack')
+    const ctx = this.ctx
+    if (beat === undefined || !ctx) return
+    const sign = this.s.targetAwaDeg < 0 ? -1 : 1
+    if (this.s.follow) {
+      const angle =
+        this.s.follow === 'beat' ? beat : this.optimumAwaDeg('gybe')!
+      this.s.targetAwaDeg = sign * Math.round(angle)
+      return
+    }
+    if (Math.abs(this.s.targetAwaDeg) >= beat - marginDeg) return
+    this.s.targetAwaDeg = sign * Math.round(beat)
+    this.s.follow = 'beat'
+    this.s.beatHeld = true
+    const beatTrue = this.options.polar!.beat(ctx.windKn).twaDeg
+    this.raise('wind', {
+      state: 'warn',
+      method: ['visual', 'sound'],
+      message: `Inside the beat angle: holding ${Math.round(beat)}° apparent, the polar's beat of ${Math.round(beatTrue)}° true at ${Math.round(ctx.windKn)} kn`
+    })
+  }
+
+  /** a target the crew has set: no longer following an angle, held outside the beat */
+  private setOwnTarget(): void {
+    this.s.follow = null
+    this.clearBeatHeld()
+    this.holdOutsideBeat()
+  }
+
+  private clearBeatHeld(): void {
+    if (!this.s.beatHeld) return
+    this.s.beatHeld = false
+    this.clear('wind')
   }
 
   /** a dodge: the rudder held over by `rad` (radians, positive to starboard); null ends it */
@@ -662,7 +761,11 @@ export class Autopilot {
         Math.abs(wrap180(awa - this.s.targetAwaDeg)) < TURN_DONE_DEG
       )
         this.s.turning = null
+    } else if (this.s.mode === 'wind' && ctx.windKn < CALM_KN) {
+      // too little wind to steer by: she holds her heading until it fills in
+      toward(f.headingDeg)
     } else if (this.s.mode === 'wind') {
+      this.holdOutsideBeat(BEAT_MARGIN_DEG)
       toward(this.windHeadingDeg(f.headingDeg, f.speedKn, ctx))
     } else {
       // dodge: the rudder over, turning her as it would at her speed
@@ -673,7 +776,8 @@ export class Autopilot {
         RADIANS
     }
     f.headingDeg = norm360(f.headingDeg + rate * dt)
-    const h = f.headingDeg * RADIANS
+    // her track through the water is her heading and the leeway she makes
+    const h = (f.headingDeg + ctx.leewayDeg) * RADIANS
     const c = ctx.currentToDeg * RADIANS
     const e = f.speedKn * Math.sin(h) + ctx.currentKn * Math.sin(c)
     const n = f.speedKn * Math.cos(h) + ctx.currentKn * Math.cos(c)
@@ -809,6 +913,8 @@ export class Autopilot {
       if (ms >= at) this.clear(path)
     }
     if (this.s.state !== 'auto') {
+      this.s.beatHeld = false
+      this.s.follow = null
       for (const p of ['xte', 'wind'] as const) this.clear(p)
       if (this.s.raised.heading?.message !== FAILURE) this.clear('heading')
       this.s.offTargetSinceMs = null
@@ -892,9 +998,13 @@ export class Autopilot {
     if (!kind) {
       this.s.offTargetSinceMs = null
       if (this.s.raised.heading?.message !== FAILURE) this.clear('heading')
+      this.s.beatHeld = false
+      this.s.follow = null
       this.clear('wind')
       return
     }
+    // held at the beat, the wind alarm already says why
+    if (kind === 'wind' && this.s.beatHeld) return
     if (this.s.raised[kind]) {
       if (errorDeg < OFF_TARGET_CLEAR_DEG) this.clear(kind)
       return
@@ -1001,6 +1111,16 @@ export class Autopilot {
       engaged: this.s.state === 'auto'
     }
   }
+}
+
+/** the apparent wind angle off the bow for a true wind angle, at a true wind and boat speed */
+export function apparentAngleDeg(
+  twsKn: number,
+  twaDeg: number,
+  boatKn: number
+): number {
+  const r = twaDeg * RADIANS
+  return Math.atan2(twsKn * Math.sin(r), twsKn * Math.cos(r) + boatKn) / RADIANS
 }
 
 export const FAILURE =

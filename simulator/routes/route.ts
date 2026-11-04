@@ -419,6 +419,22 @@ export function berthApproachM(
   return distances.length ? Math.min(...distances) : undefined
 }
 
+/**
+ * Under way, metres to the stop she is coming to on this leg, or from the one she left at
+ * its start, whichever is nearer: a berth, an anchorage or a hold
+ */
+export function stopNearM(legs: Leg[], p: RoutePosition): number | undefined {
+  const leg = legs[p.legIndex]
+  if (!leg) return undefined
+  const metres = (w: Waypoint) =>
+    distanceNm(p.lat, p.lon, w.lat, w.lon) * METRES_PER_NM
+  const distances: number[] = []
+  if (p.legIndex === 0 || !legs[p.legIndex - 1].turn)
+    distances.push(metres(leg.from))
+  if (!leg.turn) distances.push(metres(leg.to))
+  return distances.length ? Math.min(...distances) : undefined
+}
+
 /** a position moved `metres` across its course, to starboard positive */
 export function offTrack(p: RoutePosition, metres: number): RoutePosition {
   if (!metres) return p

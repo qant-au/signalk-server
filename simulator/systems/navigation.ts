@@ -5,10 +5,12 @@ import { Drift, DriftState, Rng } from './random'
 /**
  * What the boat's navigation suite sends around the position: its state, heading true and
  * magnetic, speed through the water, rate of turn, rudder, roll and pitch, the logs and
- * the GNSS fix. The route gives the track over the ground; a small current sets the boat
- * off it, so the heading carries the angle the helm holds against the current, and the
- * speed through the water differs from the speed over the ground by it. Everything moves
- * in the systems model's fixed steps, from its own seeded streams.
+ * the GNSS fix. The route gives the track over the ground; the current sets the boat off
+ * it, so the heading carries the angle the helm holds against the current, and the speed
+ * through the water differs from the speed over the ground by it. Under sail she makes
+ * leeway too, growing with her heel, and the helm holds her up to windward by as much. The
+ * current is the sample's where it has one, and otherwise a small seeded one. Everything
+ * moves in the systems model's fixed steps, from its own seeded streams.
  */
 export interface NavigationMotion {
   lat: number
@@ -32,6 +34,18 @@ export interface TrueWind {
   waveHeightM?: number
 }
 
+/** the current: its speed and the direction it runs towards */
+export interface Current {
+  kn: number
+  toDeg: number
+}
+
+/** what the sails are doing: sailing (not motor-sailing), and the sails set as a share of her full plan */
+export interface SailsSet {
+  sailing: boolean
+  areaShare: number
+}
+
 export type NavigationStateValue =
   'moored' | 'anchored' | 'sailing' | 'motoring'
 
@@ -44,6 +58,9 @@ export interface NavigationState {
   rollDeg: number
   pitchDeg: number
   offsetM: number
+  leewayDeg: number
+  /** the sample's current at the latest step, or null where it has none */
+  sampledCurrent: Current | null
   logM: number
   tripM: number
   tripResetMs: number
@@ -92,10 +109,16 @@ const PITCH_MIN_PERIOD_S = 2
 const MOTION_TAU_SHARE = 0.25
 /** bow-up trim at full speed under power */
 const TRIM_AT_FULL_DEG = 1.5
-/** heel under sail in a fresh breeze across the boat */
+/** heel under sail: the most, reached by the full sail plan in this much apparent wind abeam */
 const HEEL_MAX_DEG = 20
-const HEEL_FROM_MS = 2
-const HEEL_RANGE_MS = 10
+const HEEL_FULL_MS = 8
+/** close-hauled the sails heel her nearly as hard as abeam: side force over its sine */
+const HEEL_CLOSE_GAIN = 1.6
+/** leeway, degrees, as this times the heel over the speed through the water squared */
+const LEEWAY_PER_HEEL_KN2 = 10
+const LEEWAY_MAX_DEG = 10
+/** the leeway's speed is never taken below this, where the formula would run away */
+const LEEWAY_MIN_KN = 2
 /** off-track error: a few metres from the helm, more in a current or a sea */
 const TRACK_ERROR_M = 1.5
 const TRACK_ERROR_M_PER_KN = 4
@@ -125,6 +148,9 @@ export class Navigation {
   private pitchDeg = 0
   /** how far the boat is off its track, to starboard positive */
   private offsetM = 0
+  /** to starboard positive: the way she slides through the water off her heading */
+  private leewayDeg = 0
+  private sampled: Current | undefined
   private logM: number
   private tripM = 0
   private tripResetMs: number
@@ -186,16 +212,27 @@ export class Navigation {
     return this.offsetM
   }
 
-  /** the current at the latest step: its speed and the direction it runs towards */
-  get current(): { kn: number; toDeg: number } {
-    return {
-      kn: clamp(
-        this.currentKn + this.drifts.currentSpeed.value,
-        0,
-        CURRENT_LIMIT_KN
-      ),
-      toDeg: norm360(this.currentSetDeg + this.drifts.currentSet.value)
-    }
+  /** the current at the latest step: the sample's, or the seeded one where it has none */
+  get current(): Current {
+    return (
+      this.sampled ?? {
+        kn: clamp(
+          this.currentKn + this.drifts.currentSpeed.value,
+          0,
+          CURRENT_LIMIT_KN
+        ),
+        toDeg: norm360(this.currentSetDeg + this.drifts.currentSet.value)
+      }
+    )
+  }
+
+  /** degrees, positive when she slides to starboard */
+  get leeway(): number {
+    return this.leewayDeg
+  }
+
+  get speedThroughWaterKn(): number {
+    return this.stwKn
   }
 
   get heading(): number {
@@ -211,17 +248,19 @@ export class Navigation {
     nowMs: number,
     m: NavigationMotion,
     wind: TrueWind,
-    sailing: boolean
+    sails: SailsSet,
+    sampledCurrent?: Current
   ): void {
     const p = this.profile
     for (const d of Object.values(this.drifts)) d.step(dt)
+    this.sampled = sampledCurrent
     this.cogDeg = m.cogDeg
 
     const state: NavigationStateValue = m.atBerth
       ? 'moored'
       : m.anchored
         ? 'anchored'
-        : sailing
+        : sails.sailing
           ? 'sailing'
           : 'motoring'
     if (this.state === 'moored' && state !== 'moored') {
@@ -231,12 +270,9 @@ export class Navigation {
     this.state = state
 
     // the water moving over the ground, and the boat's motion through it
-    const currentKn = clamp(
-      this.currentKn + this.drifts.currentSpeed.value,
-      0,
-      CURRENT_LIMIT_KN
-    )
-    const setRad = (this.currentSetDeg + this.drifts.currentSet.value) * RADIANS
+    const current = this.current
+    const currentKn = current.kn
+    const setRad = current.toDeg * RADIANS
     const cogRad = m.cogDeg * RADIANS
     const waterE = m.sogKn * Math.sin(cogRad) - currentKn * Math.sin(setRad)
     const waterN = m.sogKn * Math.cos(cogRad) - currentKn * Math.cos(setRad)
@@ -252,13 +288,13 @@ export class Navigation {
     } else if (m.sogKn < STEERAGE_KN) {
       // at anchor or holding: lying head to the current, which runs past the hull, until
       // the crew points her on the course she is about to leave on
-      targetDeg = m.leavingSoon
-        ? m.cogDeg
-        : this.currentSetDeg + this.drifts.currentSet.value + 180
+      targetDeg = m.leavingSoon ? m.cogDeg : current.toDeg + 180
       this.stwKn = currentKn
     } else {
-      targetDeg = Math.atan2(waterE, waterN) / RADIANS
+      // her track through the water, which she makes good with her heading up to windward
+      // of it by the leeway she makes
       this.stwKn = Math.hypot(waterE, waterN)
+      targetDeg = Math.atan2(waterE, waterN) / RADIANS - this.leewayDeg
     }
 
     const hs = this.seaHeightM(wind, m)
@@ -292,8 +328,17 @@ export class Navigation {
       PITCH_MAX_DEG,
       (PITCH_GAIN * hs) / p.lengthM / RADIANS
     )
-    this.rollDeg =
-      this.heelDeg(wind, m, sailing) + rollAmpDeg * this.drifts.roll.value
+    const heelDeg = this.heelDeg(wind, m, sails.areaShare)
+    this.leewayDeg =
+      steeringUnder(m) && heelDeg !== 0
+        ? clamp(
+            (LEEWAY_PER_HEEL_KN2 * heelDeg) /
+              Math.max(LEEWAY_MIN_KN, this.stwKn) ** 2,
+            -LEEWAY_MAX_DEG,
+            LEEWAY_MAX_DEG
+          )
+        : 0
+    this.rollDeg = heelDeg + rollAmpDeg * this.drifts.roll.value
     const powered = state === 'motoring' && p.rig === 'motor'
     // a short boat in a measured sea would otherwise pitch past what any boat does
     this.pitchDeg = clamp(
@@ -303,7 +348,7 @@ export class Navigation {
       PITCH_MAX_DEG
     )
 
-    const steering = !m.atBerth && !m.anchored && m.sogKn >= STEERAGE_KN
+    const steering = steeringUnder(m)
     const offTrackM = steering
       ? this.drifts.track.value *
         (TRACK_ERROR_M +
@@ -363,13 +408,17 @@ export class Navigation {
     return open * (m.atBerth ? BERTH_SHELTER : m.anchored ? ANCHOR_SHELTER : 1)
   }
 
-  /** heel to leeward under sail, growing with the breeze across the boat */
+  /**
+   * Heel to leeward with sails set, motor-sailing too: growing with the apparent wind's
+   * pressure, which goes with its square, and the area of sail set, so a reef takes some
+   * of it off; hardest abeam and close-hauled, least running.
+   */
   private heelDeg(
     wind: TrueWind,
     m: NavigationMotion,
-    sailing: boolean
+    areaShare: number
   ): number {
-    if (!sailing) return 0
+    if (areaShare <= 0) return 0
     const from = wind.deg * RADIANS
     const course = m.cogDeg * RADIANS
     const boatMs = m.sogKn * KNOT_MS
@@ -378,11 +427,34 @@ export class Navigation {
     const north = -windMs * Math.cos(from) - boatMs * Math.cos(course)
     const apparentMs = Math.hypot(east, north)
     const angle = wrapPi(Math.atan2(-east, -north) - this.heading * RADIANS)
-    const strength = clamp((apparentMs - HEEL_FROM_MS) / HEEL_RANGE_MS, 0, 1)
-    // wind over the port side heels her to starboard, which is positive roll
-    return (
-      -Math.sign(angle) * HEEL_MAX_DEG * strength * Math.abs(Math.sin(angle))
+    const across = Math.abs(Math.sin(angle))
+    const side =
+      Math.abs(angle) <= Math.PI / 2
+        ? Math.min(1, HEEL_CLOSE_GAIN * across)
+        : across * across
+    const strength = Math.min(
+      1,
+      (apparentMs / HEEL_FULL_MS) ** 2 * areaShare * side
     )
+    // wind over the port side heels her to starboard, which is positive roll
+    return -Math.sign(angle) * HEEL_MAX_DEG * strength
+  }
+
+  /** the current, as `environment.current`, magnetic too where the sample has the variation */
+  putCurrent(
+    put: (path: string, value: unknown) => void,
+    variationDeg: number | undefined
+  ): void {
+    const c = this.current
+    put('environment.current', {
+      drift: round3(c.kn * KNOT_MS),
+      setTrue: roundAngle(c.toDeg * RADIANS),
+      ...(variationDeg === undefined
+        ? {}
+        : {
+            setMagnetic: roundAngle(norm360(c.toDeg - variationDeg) * RADIANS)
+          })
+    })
   }
 
   /**
@@ -408,6 +480,16 @@ export class Navigation {
       )
     }
     put('navigation.speedThroughWater', round3(this.stwKn * KNOT_MS))
+    const leeway = this.leewayDeg * RADIANS
+    put(
+      'navigation.speedThroughWaterLongitudinal',
+      round3(this.stwKn * KNOT_MS * Math.cos(leeway))
+    )
+    put(
+      'navigation.speedThroughWaterTransverse',
+      round3(this.stwKn * KNOT_MS * Math.sin(leeway))
+    )
+    put('navigation.leewayAngle', round4(leeway))
     put('navigation.rateOfTurn', round5(this.rateOfTurnDegS * RADIANS))
     // rounding alone can carry hard over a hair past the stops
     const stops = RUDDER_MAX_DEG * RADIANS
@@ -439,6 +521,8 @@ export class Navigation {
       rollDeg: this.rollDeg,
       pitchDeg: this.pitchDeg,
       offsetM: this.offsetM,
+      leewayDeg: this.leewayDeg,
+      sampledCurrent: this.sampled ? { ...this.sampled } : null,
       logM: this.logM,
       tripM: this.tripM,
       tripResetMs: this.tripResetMs,
@@ -464,6 +548,7 @@ export class Navigation {
       'rollDeg',
       'pitchDeg',
       'offsetM',
+      'leewayDeg',
       'logM',
       'tripM',
       'tripResetMs',
@@ -480,6 +565,14 @@ export class Navigation {
         ['moored', 'anchored', 'sailing', 'motoring'].includes(s.state),
       'navigation state'
     )
+    const sc = s.sampledCurrent
+    check(
+      sc === null ||
+        (typeof sc === 'object' &&
+          Number.isFinite(sc?.kn) &&
+          Number.isFinite(sc?.toDeg)),
+      'navigation sampled current'
+    )
     const drifts = Object.entries(this.drifts).map(
       ([k, d]) => [d, checkDrift(s.drifts?.[k], `navigation ${k}`)] as const
     )
@@ -492,6 +585,8 @@ export class Navigation {
     this.rollDeg = s.rollDeg
     this.pitchDeg = s.pitchDeg
     this.offsetM = s.offsetM
+    this.leewayDeg = s.leewayDeg
+    this.sampled = sc ? { ...sc } : undefined
     this.logM = s.logM
     this.tripM = s.tripM
     this.tripResetMs = s.tripResetMs
@@ -499,6 +594,11 @@ export class Navigation {
     this.satellites = s.satellites
     this.hdop = s.hdop
   }
+}
+
+/** making way under her own steering: neither alongside, nor at anchor, nor stopped */
+function steeringUnder(m: NavigationMotion): boolean {
+  return !m.atBerth && !m.anchored && m.sogKn >= STEERAGE_KN
 }
 
 function clamp(x: number, low: number, high: number): number {

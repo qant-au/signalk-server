@@ -1,6 +1,7 @@
 import {
   RoutePosition,
   berthApproachM,
+  stopNearM,
   offTrack,
   positionAt
 } from '../routes/route'
@@ -21,6 +22,7 @@ import {
   PilotSaved,
   PilotUpdate
 } from '../autopilot/pilot'
+import { Polar } from '../sailing/polar'
 import { STEP_S } from '../systems/model'
 import { SystemsModel, SystemsState } from '../systems/model'
 import { Faults, FaultsState } from '../faults/faults'
@@ -187,6 +189,9 @@ export class Simulation {
           {
             lengthM: scenario.profile.lengthM,
             sail: scenario.profile.rig === 'sail' && scenario.profile.wind,
+            polar: scenario.profile.polar
+              ? new Polar(scenario.profile.polar)
+              : undefined,
             legs: scenario.legs
           },
           options.systemsState ? options.pilotState : undefined
@@ -381,6 +386,7 @@ export class Simulation {
           anchored: m.onRoute && p.anchored,
           nearBerthM:
             m.onRoute && p.sogKn > 0 ? berthApproachM(legs, p) : undefined,
+          nearStopM: m.onRoute && p.sogKn > 0 ? stopNearM(legs, p) : undefined,
           leavingSoon:
             m.onRoute &&
             p.sogKn === 0 &&
