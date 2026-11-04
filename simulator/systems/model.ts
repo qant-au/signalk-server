@@ -55,6 +55,8 @@ export interface Motion {
   nearBerthM?: number
   /** under way, metres from the stop she left or is coming to: a berth, anchorage or hold */
   nearStopM?: number
+  /** off the route, sailed by the autopilot or rejoining: her position is not the track's */
+  offRoute?: boolean
 }
 
 export interface SystemsOptions {
@@ -204,6 +206,8 @@ const CHARGER_EFFICIENCY = 0.9
 const POWER_FACTOR = 0.9
 /** a generator is loaded to at most this share before another is started */
 const GENERATOR_SHARE = 0.8
+/** under this polar speed, knots, she is not sailing to it, and the polar speed ratio is sent as 0 */
+const RATIO_MIN_POLAR_KN = 1
 /** grey water as a share of fresh water used */
 const GREY_SHARE = 0.7
 const BLACK_L_PER_PERSON_DAY = 8
@@ -1842,14 +1846,20 @@ export class SystemsModel {
   private stepSounders(dt: number): void {
     const depthAt = this.options.depthAt
     const { lat, lon, cogDeg } = this.motion
+    // on the route she is the helm's error off its track, where her position is sent
+    const offTrackM =
+      this.motion.offRoute || this.anchorage.position
+        ? 0
+        : this.navigation.trackOffsetM
     for (const s of this.sounders) {
       s.drift.step(dt)
       if (!depthAt) continue
       // offset athwartships: positive is to starboard of the heading
+      const across = s.offsetM + offTrackM
       const bearing = (cogDeg + 90) * RADIANS
-      const dLat = (s.offsetM * Math.cos(bearing)) / 111320
+      const dLat = (across * Math.cos(bearing)) / 111320
       const dLon =
-        (s.offsetM * Math.sin(bearing)) / (111320 * Math.cos(lat * RADIANS))
+        (across * Math.sin(bearing)) / (111320 * Math.cos(lat * RADIANS))
       const depth = depthAt(lat + dLat, lon + dLon, this.nowMs)
       s.reading =
         depth === undefined ? undefined : depth + s.bias + s.drift.value
@@ -2094,7 +2104,7 @@ export class SystemsModel {
     return {
       twaDeg,
       polarKn,
-      ratio: polarKn > 0 ? stwKn / polarKn : 0,
+      ratio: polarKn >= RATIO_MIN_POLAR_KN ? stwKn / polarKn : 0,
       vmgKn: stwKn * Math.cos(twaDeg * RADIANS),
       beat,
       gybe,
@@ -2112,7 +2122,8 @@ export class SystemsModel {
     const perf = this.performance()
     if (!perf) return
     const ms = (kn: number) => round3(kn * METRES_PER_SECOND_PER_KNOT)
-    const rad = (deg: number) => round4(deg * RADIANS)
+    // an angle to the wind, rounded and kept inside pi, which rounding alone can step past
+    const rad = (deg: number) => Math.min(round4(deg * RADIANS), Math.PI)
     put('performance.polarSpeed', ms(perf.polarKn))
     put('performance.polarSpeedRatio', round3(perf.ratio))
     put('performance.velocityMadeGood', ms(perf.vmgKn))
@@ -2125,11 +2136,13 @@ export class SystemsModel {
     put('performance.targetAngle', rad(perf.target.twaDeg))
     put('performance.targetSpeed', ms(perf.target.speedKn))
     put('performance.leeway', round4(this.navigation.leeway * RADIANS))
-    put('performance.tackTrue', rad(perf.tackDeg) % round4(2 * Math.PI))
+    // a heading, kept inside 0 to 2 pi, which rounding alone can step past
+    const heading = (deg: number) => round4(deg * RADIANS) % round4(2 * Math.PI)
+    put('performance.tackTrue', heading(perf.tackDeg))
     if (variationDeg !== undefined) {
       put(
         'performance.tackMagnetic',
-        rad(norm360(perf.tackDeg - variationDeg)) % round4(2 * Math.PI)
+        heading(norm360(perf.tackDeg - variationDeg))
       )
     }
   }

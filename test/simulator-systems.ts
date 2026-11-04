@@ -480,7 +480,9 @@ describe('Simulator systems model', () => {
       startMs: START,
       depthAt: (_lat, lon) => (lon < 23.6 ? 12 : 8)
     })
-    m.advance(START + 60 * MINUTE, dayOut(cat))
+    // her position exactly the motion's, without the helm's error off the track
+    const motion = dayOut(cat)
+    m.advance(START + 60 * MINUTE, (ms) => ({ ...motion(ms), offRoute: true }))
     const updates = m.deltas(START, false).flatMap((d) => d.updates)
     const reading = (src: string) =>
       updates

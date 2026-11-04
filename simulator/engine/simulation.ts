@@ -387,6 +387,7 @@ export class Simulation {
           nearBerthM:
             m.onRoute && p.sogKn > 0 ? berthApproachM(legs, p) : undefined,
           nearStopM: m.onRoute && p.sogKn > 0 ? stopNearM(legs, p) : undefined,
+          offRoute: !m.onRoute,
           leavingSoon:
             m.onRoute &&
             p.sogKn === 0 &&

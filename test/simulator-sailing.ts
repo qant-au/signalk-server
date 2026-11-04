@@ -457,6 +457,7 @@ describe('Simulator sailing', () => {
           polar.speedKn(tws, twa),
           0.01
         )
+        expect(polar.speedKn(tws, twa)).to.be.above(1)
         expect(num(t, 'performance.polarSpeedRatio')).to.be.closeTo(
           stw / polar.speedKn(tws, twa),
           0.01
