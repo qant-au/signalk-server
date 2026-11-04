@@ -104,7 +104,7 @@ checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 
-- **Every delta** the run produces (73,559 in all) validates
+- **Every delta** the run produces (82,988 in all) validates
   against `@signalk/signalk-schema` 1.8.2, envelope and full model.
 - **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0
   to 100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
