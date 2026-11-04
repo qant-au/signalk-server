@@ -1,7 +1,8 @@
 /**
  * The simulator's page in the Admin UI (Webapps, Signal K Simulator): the run, the boat's
  * systems, the targets in range and the faults on board, with the same controls as the
- * plugin's REST surface, which it uses.
+ * plugin's REST surface, which it uses, and the autopilot, which it drives through the
+ * server's Autopilot API as any autopilot display would.
  *
  * It is an embedded webapp: the Admin UI loads this file as a module federation
  * container and renders its `./AppPanel` inside its own frame, so the page takes the Admin
@@ -84,6 +85,28 @@ interface RunView {
   }
   faults: Fault[]
   alarms: { path: string; state: string; message: string }[]
+  weather?: {
+    windKn: number
+    windDeg: number
+    pressureHpa: number
+    airC: number
+    waterC: number
+    humidity?: number
+    tideM?: number
+  }
+  autopilot?: {
+    state: string
+    mode: string
+    engaged: boolean
+    modes: string[]
+    target: { headingDeg?: number; awaDeg?: number; rudderDeg?: number }
+    routeTargetDeg?: number
+    onRoute: boolean
+    rejoin?: { latitude: number; longitude: number; distanceM: number }
+    behindRouteMinutes?: number
+    refusal?: string
+    alarms: { path: string; value: { state: string; message: string } }[]
+  }
 }
 
 ;(() => {
@@ -108,17 +131,22 @@ interface RunView {
       path: string,
       body?: unknown
     ): Promise<T> {
-      const res = await fetch(API + path, {
-        method,
-        credentials: 'include',
-        headers:
-          body === undefined
-            ? undefined
-            : { 'Content-Type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body)
-      })
+      // the server's own APIs by their full path, the plugin's under its own
+      const res = await fetch(
+        path.startsWith('/signalk/') ? path : API + path,
+        {
+          method,
+          credentials: 'include',
+          headers:
+            body === undefined
+              ? undefined
+              : { 'Content-Type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body)
+        }
+      )
       const json = await res.json()
-      if (!res.ok) throw new Error(json?.error ?? `${res.status}`)
+      if (!res.ok)
+        throw new Error(json?.error ?? json?.message ?? `${res.status}`)
       return json as T
     }
 
@@ -162,6 +190,7 @@ interface RunView {
       const [kind, setKind] = React.useState('')
       const [target, setTarget] = React.useState('')
       const [minutes, setMinutes] = React.useState('')
+      const [pilotTarget, setPilotTarget] = React.useState('')
 
       // what can be raised changes with what the boat is doing: a dragging anchor only
       // at anchor, so it is read again with the run
@@ -313,7 +342,29 @@ interface RunView {
             run.anchor &&
               `${run.anchor.currentRadiusM} m, swinging in ${run.anchor.maxRadiusM} m, watch ${run.anchor.watchRadiusM} m`
           ],
-          ['Depth', run.depthM === undefined ? undefined : `${run.depthM} m`]
+          ['Depth', run.depthM === undefined ? undefined : `${run.depthM} m`],
+          [
+            'Wind',
+            run.weather &&
+              `${run.weather.windKn} kn from ${run.weather.windDeg}°`
+          ],
+          ['Pressure', run.weather && `${run.weather.pressureHpa} hPa`],
+          [
+            'Air and water',
+            run.weather && `${run.weather.airC} °C, ${run.weather.waterC} °C`
+          ],
+          [
+            'Humidity',
+            run.weather?.humidity === undefined
+              ? undefined
+              : `${Math.round(run.weather.humidity * 100)} %`
+          ],
+          [
+            'Tide',
+            run.weather?.tideM === undefined
+              ? undefined
+              : `${run.weather.tideM} m above chart datum`
+          ]
         ])
       )
 
@@ -528,6 +579,171 @@ interface RunView {
           : 'Traffic is off in the plugin settings.'
       )
 
+      // the autopilot, through the server's Autopilot API, as KIP and Freeboard drive it
+      const AP = '/signalk/v2/api/vessels/self/autopilots/_default'
+      const ap = run.autopilot
+      const button = (
+        label: string,
+        method: string,
+        path: string,
+        body?: unknown,
+        enabled = true
+      ) =>
+        h(
+          'button',
+          {
+            key: label,
+            type: 'button',
+            className: 'btn btn-sm btn-outline-primary',
+            disabled: !enabled,
+            onClick: () => act(method, AP + path, body)
+          },
+          label
+        )
+      const deg = (x: number) =>
+        String(Math.round(((x % 360) + 360) % 360)).padStart(3, '0')
+      const pilotCard =
+        ap &&
+        card(
+          'Autopilot',
+          facts([
+            ['State', ap.engaged ? `${ap.state}, engaged` : ap.state],
+            ['Mode', ap.mode],
+            [
+              'Target',
+              ap.target.headingDeg !== undefined
+                ? `heading ${deg(ap.target.headingDeg)}°`
+                : ap.target.awaDeg !== undefined
+                  ? `apparent wind ${Math.abs(Math.round(ap.target.awaDeg))}° ${ap.target.awaDeg < 0 ? 'to port' : 'to starboard'}`
+                  : ap.target.rudderDeg !== undefined
+                    ? `rudder ${Math.abs(Math.round(ap.target.rudderDeg))}° ${ap.target.rudderDeg < 0 ? 'to port' : 'to starboard'}`
+                    : ap.routeTargetDeg !== undefined
+                      ? `the route, ${deg(ap.routeTargetDeg)}°`
+                      : ''
+            ],
+            [
+              'The route',
+              ap.onRoute
+                ? ap.behindRouteMinutes
+                  ? `on it, ${ap.behindRouteMinutes} min behind its timing`
+                  : 'on it'
+                : ap.rejoin
+                  ? `rejoining it ${(ap.rejoin.distanceM / 1852).toFixed(2)} nm ahead`
+                  : 'off it'
+            ],
+            ['Cannot engage', ap.refusal],
+            [
+              'Alarms',
+              ap.alarms
+                .map((a) => `${a.value.message} (${a.value.state})`)
+                .join(', ')
+            ]
+          ]),
+          h(
+            'div',
+            { className: 'd-flex flex-wrap gap-2 mt-2' },
+            button('Engage', 'POST', '/engage', undefined, !ap.refusal),
+            button('Standby', 'POST', '/disengage'),
+            ...ap.modes.map((m) =>
+              button(
+                m[0].toUpperCase() + m.slice(1),
+                'PUT',
+                '/mode',
+                { value: m },
+                m !== ap.mode
+              )
+            )
+          ),
+          h(
+            'div',
+            { className: 'd-flex flex-wrap gap-2 mt-2' },
+            ...[-10, -1, 1, 10].map((d) =>
+              button(
+                `${d > 0 ? '+' : ''}${d}°`,
+                'PUT',
+                '/target/adjust',
+                { value: d, units: 'deg' },
+                ap.mode === 'compass' || ap.mode === 'wind'
+              )
+            ),
+            h('input', {
+              key: 'target',
+              className: 'form-control form-control-sm w-auto',
+              type: 'number',
+              placeholder: 'target °',
+              'aria-label': 'Target',
+              value: pilotTarget,
+              onChange: (e: { target: { value: string } }) =>
+                setPilotTarget(e.target.value)
+            }),
+            button(
+              'Set target',
+              'PUT',
+              '/target',
+              { value: Number(pilotTarget), units: 'deg' },
+              pilotTarget !== '' &&
+                (ap.mode === 'compass' || ap.mode === 'wind')
+            )
+          ),
+          h(
+            'div',
+            { className: 'd-flex flex-wrap gap-2 mt-2' },
+            ...(ap.modes.includes('wind')
+              ? [
+                  button(
+                    'Tack to port',
+                    'POST',
+                    '/tack/port',
+                    undefined,
+                    ap.mode === 'wind'
+                  ),
+                  button(
+                    'Tack to starboard',
+                    'POST',
+                    '/tack/starboard',
+                    undefined,
+                    ap.mode === 'wind'
+                  ),
+                  button(
+                    'Gybe to port',
+                    'POST',
+                    '/gybe/port',
+                    undefined,
+                    ap.mode === 'wind'
+                  ),
+                  button(
+                    'Gybe to starboard',
+                    'POST',
+                    '/gybe/starboard',
+                    undefined,
+                    ap.mode === 'wind'
+                  )
+                ]
+              : []),
+            button(
+              'Dodge 10° port',
+              'PUT',
+              '/dodge',
+              { value: -10, units: 'deg' },
+              ap.engaged
+            ),
+            button(
+              'Dodge 10° starboard',
+              'PUT',
+              '/dodge',
+              { value: 10, units: 'deg' },
+              ap.engaged
+            ),
+            button(
+              'End dodge',
+              'DELETE',
+              '/dodge',
+              undefined,
+              ap.mode === 'dodge'
+            )
+          )
+        )
+
       return h(
         'div',
         { className: 'animated fadeIn' },
@@ -535,7 +751,7 @@ interface RunView {
         h(
           'div',
           { className: 'row' },
-          h('div', { className: 'col-lg-6' }, clock, where, systems),
+          h('div', { className: 'col-lg-6' }, clock, where, pilotCard, systems),
           h('div', { className: 'col-lg-6' }, faults, traffic)
         )
       )
