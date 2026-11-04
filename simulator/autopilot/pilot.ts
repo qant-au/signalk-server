@@ -869,12 +869,17 @@ export class Autopilot {
   }
 
   /**
-   * Metres off the route's track, from the leg she is on or left it from: the cross track
+   * Metres off the route's track, from the leg she is on or rejoining it at: the cross track
    * error on the great circle between its points, as the Course API measures it
    */
   private crossTrackM(m: PilotMotion): number {
     const legs = this.options.legs
-    const leg = legs[Math.min(m.route.legIndex, legs.length - 1)]
+    // rejoining, the leg she is making for; past its end the leg she left runs off the track
+    const index =
+      this.s.free && this.s.rejoinRouteMs !== null
+        ? positionAt(legs, this.s.rejoinRouteMs).legIndex
+        : m.route.legIndex
+    const leg = legs[Math.min(index, legs.length - 1)]
     const angular = (a: { lat: number; lon: number }, b: typeof a) => {
       const dLat = (b.lat - a.lat) * RADIANS
       const dLon = (b.lon - a.lon) * RADIANS
