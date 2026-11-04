@@ -245,17 +245,25 @@ describe('Simulator switching', () => {
       expect(state(off, 'anchorLight')).to.equal(0)
     })
 
-    it('lights the navigation lights by day on a PUT, with their draw', () => {
+    it('lights the navigation lights by day on a PUT, with their draw, until she anchors', () => {
       const run = new Run(
         scenarioFor(profile('motor-yacht-20m'), viaAnchorage(1), MIDDAY),
-        MIDDAY + 10 * MINUTE
+        MIDDAY + 8 * MINUTE
       )
-      run.until(MIDDAY + 12 * MINUTE)
+      run.until(MIDDAY + 10 * MINUTE)
       expect(run.book('navigation lights')).to.equal(0)
       run.put('navLights', true)
-      const t = lastTick(run.until(MIDDAY + 15 * MINUTE))
-      expect(t.values.get('navigation.lights')).to.equal('motoring')
+      const lit = run.until(MIDDAY + 13 * MINUTE).slice(1)
+      expect(
+        lit.every((t) => t.values.get('navigation.lights') === 'motoring')
+      ).to.equal(true)
       expect(run.book('navigation lights')).to.be.greaterThan(0)
+      // she anchors: what she is doing changes, and the hand comes off
+      const anchoredAt = run.scenario.legs[1].departMs - HOUR
+      const t = lastTick(run.until(anchoredAt + 2 * MINUTE))
+      expect(t.values.get('navigation.state')).to.equal('anchored')
+      expect(t.values.get('navigation.lights')).to.equal('off')
+      expect(state(t, 'navLights')).to.equal(0)
     })
   })
 

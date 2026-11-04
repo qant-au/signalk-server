@@ -59,6 +59,14 @@ export function lightsShown(
   return !night || state === 'moored' ? 'off' : state
 }
 
+/** a hand on a light holds until she changes what she is doing, or the sun sets or rises */
+export function lightsHoldKey(
+  night: boolean,
+  state: NavigationStateValue
+): string {
+  return `${night ? 'night' : 'day'} ${state}`
+}
+
 export interface DeckInput {
   nowMs: number
   lat: number
@@ -120,11 +128,11 @@ export class Deck {
       shows === 'sailing' ||
       shows === 'motoring' ||
       (shows === 'anchored' && !this.hasAnchorLight)
-    // a hand on a light holds until the lights she should show change
-    this.navOn = this.board.state('navLights', navFollows, shows)
+    const held = lightsHoldKey(night, m.state)
+    this.navOn = this.board.state('navLights', navFollows, held)
     this.anchorOn =
       this.hasAnchorLight &&
-      this.board.state('anchorLight', shows === 'anchored', shows)
+      this.board.state('anchorLight', shows === 'anchored', held)
     this.lightsFailed = m.lightsFailed
     this.lightsValue = m.lightsFailed
       ? 'fault'

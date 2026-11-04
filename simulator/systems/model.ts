@@ -35,7 +35,7 @@ import {
   DeckState,
   LightsValue,
   isNight,
-  lightsShown
+  lightsHoldKey
 } from '../deck/deck'
 import {
   SwitchAnswer,
@@ -2349,9 +2349,9 @@ export class SystemsModel {
     switch (id) {
       case 'navLights':
       case 'anchorLight': {
-        // held until the lights she should show next change
+        // held until she changes what she is doing, or the sun sets or rises
         const night = isNight(this.nowMs, this.motion.lat, this.motion.lon)
-        b.hold(id, on, lightsShown(night, state))
+        b.hold(id, on, lightsHoldKey(night, state))
         return { ok: true }
       }
       case 'cabinLights': {
