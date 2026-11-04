@@ -6,6 +6,7 @@ import { Simulation } from '../engine/simulation'
 import { FaultError, Faults } from '../faults/faults'
 import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 import { BOW_HEIGHT_PER_LENGTH } from '../systems/anchor'
+import { bankChannels, switchList } from '../switching/switches'
 
 /**
  * The plugin's REST surface, under /plugins/signalk-simulator: the run (where the boat
@@ -344,6 +345,40 @@ export function runView(control: Control) {
         ])
       )
     },
+    /** each switch in its bank's order: on or off, and its channel on the bank */
+    switches:
+      summary && scenario.profile
+        ? switchList(scenario.profile).map((s) => ({
+            id: s.id,
+            name: s.displayName,
+            state: summary.switches[s.id] ? 1 : 0,
+            channel: bankChannels(scenario.profile!).get(s.id)
+          }))
+        : [],
+    inverters: summary?.inverter
+      ? [
+          {
+            id: summary.inverter.id,
+            name: 'Inverter',
+            mode: summary.inverter.mode,
+            acPowerW: Math.round(summary.inverter.acW),
+            dcPowerW: Math.round(summary.inverter.dcW),
+            bank: summary.inverter.bank
+          }
+        ]
+      : [],
+    /** each person overboard: where they went in, and her bearing and distance from them */
+    mob: simulation.mobs().map((m) => ({
+      by: m.by,
+      notificationId: m.notificationId,
+      latitude: m.at.lat,
+      longitude: m.at.lon,
+      since: m.since,
+      distanceM: m.fix && Math.round(m.fix.distanceM),
+      bearingDeg: m.fix && Math.round(m.fix.bearingDeg) % 360,
+      side: m.fix?.side,
+      words: m.words
+    })),
     systems: summary && {
       enginesRunning: summary.enginesRunning,
       generatorsRunning: summary.generatorsRunning,
