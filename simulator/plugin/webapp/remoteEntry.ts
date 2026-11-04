@@ -95,6 +95,22 @@ interface RunView {
   }
   faults: Fault[]
   alarms: { path: string; state: string; message: string }[]
+  switches: { id: string; name: string; state: number; channel?: number }[]
+  inverters: {
+    id: string
+    name: string
+    mode: string
+    acPowerW: number
+    dcPowerW: number
+    bank?: string
+  }[]
+  mob: {
+    by: 'fault' | 'notification'
+    latitude: number
+    longitude: number
+    since?: string
+    words?: string
+  }[]
   water?: {
     currentKn: number
     currentSetDeg: number
@@ -215,6 +231,7 @@ interface RunView {
       const [target, setTarget] = React.useState('')
       const [minutes, setMinutes] = React.useState('')
       const [pilotTarget, setPilotTarget] = React.useState('')
+      const [switchNote, setSwitchNote] = React.useState<string>()
 
       // what can be raised changes with what the boat is doing: a dragging anchor only
       // at anchor, so it is read again with the run
@@ -346,6 +363,23 @@ interface RunView {
       const where = card(
         'Where the Boat Is',
         facts([
+          ...run.mob.map((m, i): [string, El] => [
+            run.mob.length > 1
+              ? `Person overboard ${i + 1}`
+              : 'Person overboard',
+            h(
+              'span',
+              { className: 'text-danger fw-bold' },
+              [
+                m.words?.replace(/^person overboard, /, ''),
+                `went in at ${m.latitude.toFixed(5)}, ${m.longitude.toFixed(5)}`,
+                m.since ? time(m.since) : '',
+                m.by === 'notification' ? 'raised by another source' : ''
+              ]
+                .filter(Boolean)
+                .join(', ')
+            )
+          ]),
           [
             'Position',
             p && `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`
@@ -439,6 +473,10 @@ interface RunView {
                 : `${Math.round(s.houseStateOfCharge * 100)} %`
             ],
             ['Fuel', `${s.fuelL} l`],
+            ...run.inverters.map((i): [string, El] => [
+              i.name,
+              `${i.mode}${i.acPowerW > 0 ? `, ${i.acPowerW} W AC from ${i.dcPowerW} W off the ${i.bank} bank` : ''}`
+            ]),
             [
               'Fresh water',
               s.freshWaterLevel === undefined
@@ -494,6 +532,85 @@ interface RunView {
             ],
             ['Bridge', run.nextPoint?.bridge?.words]
           ])
+        )
+
+      // a switch is thrown as a display throws it: a PUT to its path on the server
+      const switchCard =
+        run.switches.length > 0 &&
+        card(
+          'Switches',
+          h(
+            'table',
+            { className: 'table table-sm mb-0' },
+            h(
+              'tbody',
+              null,
+              ...run.switches.map((sw) =>
+                h(
+                  'tr',
+                  { key: sw.id },
+                  h(
+                    'th',
+                    { scope: 'row', style: { width: '40%' } },
+                    sw.name,
+                    sw.channel === undefined
+                      ? null
+                      : h(
+                          'span',
+                          { className: 'text-muted small ms-2' },
+                          `bank 0.${sw.channel}`
+                        )
+                  ),
+                  h(
+                    'td',
+                    null,
+                    h(
+                      'span',
+                      {
+                        className: sw.state
+                          ? 'badge bg-success'
+                          : 'badge bg-secondary'
+                      },
+                      sw.state ? 'on' : 'off'
+                    )
+                  ),
+                  h(
+                    'td',
+                    { className: 'text-end' },
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'btn btn-sm btn-outline-primary',
+                        onClick: () =>
+                          call<{ message?: string }>(
+                            'PUT',
+                            `/signalk/v1/api/vessels/self/electrical/switches/${sw.id}/state`,
+                            { value: sw.state ? 0 : 1 }
+                          )
+                            .then((r) => {
+                              setSwitchNote(
+                                r?.message
+                                  ? `${sw.name}: ${r.message}`
+                                  : undefined
+                              )
+                              setError(undefined)
+                              refresh()
+                            })
+                            .catch((e: Error) => {
+                              setSwitchNote(undefined)
+                              setError(`${sw.name}: ${e.message}`)
+                            })
+                      },
+                      sw.state ? 'Switch off' : 'Switch on'
+                    )
+                  )
+                )
+              )
+            )
+          ),
+          switchNote &&
+            h('p', { className: 'text-muted small mt-2 mb-0' }, switchNote)
         )
 
       const faults = card(
@@ -863,7 +980,7 @@ interface RunView {
             systems,
             deck
           ),
-          h('div', { className: 'col-lg-6' }, faults, traffic)
+          h('div', { className: 'col-lg-6' }, switchCard, faults, traffic)
         )
       )
     }
