@@ -144,10 +144,11 @@ up is refused.
 ## What the Boat Sends
 
 Every value is on a path from the Signal K specification, in SI units, except the
-switches, as a digital switching system and an NMEA 2000 switch bank send them, and the windlass's chain counter, which the anchor alarm
-plugin reads; the specification has no path for either. Engine, wind
-and navigation data go every second; electrical, tanks and the spaces inside every five
-seconds, as a real gateway sends slow-changing data less often.
+switches, as a digital switching system and an NMEA 2000 switch bank send them, and the
+windlass's chain counter, which the anchor alarm plugin reads; the specification has no
+path for either. Engine, wind and navigation data go every second; electrical, tanks and
+the spaces inside every five seconds, as a real gateway sends slow-changing data less
+often.
 
 | System             | Paths                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

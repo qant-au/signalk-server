@@ -58,10 +58,11 @@ defaults.
 
 The rest a fault raises itself, since no zone can know them: a generator that would not
 start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
-lost fix, an autopilot dropping out, an inverter faulted; and the anchor watch raises the anchor alarm. A person overboard is the server's own alarm, raised through its Notifications API. A silent sounder never raises
-the shallow water alarm: no depth is not shallow
-depth, and a shallow alarm already raised clears once the sounder has been quiet for a few
-seconds.
+lost fix, an autopilot dropping out, an inverter faulted; and the anchor watch raises the
+anchor alarm. A person overboard is the server's own alarm, raised through its
+Notifications API. A silent sounder never raises the shallow water alarm: no depth is not
+shallow depth, and a shallow alarm already raised clears once the sounder has been quiet
+for a few seconds.
 
 ### Engine Overheating
 
