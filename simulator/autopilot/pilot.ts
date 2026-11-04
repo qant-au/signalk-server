@@ -202,6 +202,8 @@ export class Autopilot {
   private ctx: PilotContext | undefined
   private last: PilotMotion | undefined
   private nowMs = 0
+  /** the state goes to the API at the next step, as it stands */
+  private announcing = false
 
   constructor(
     readonly options: PilotOptions,
@@ -659,6 +661,10 @@ export class Autopilot {
       motion = this.freeStep(ms, dt, ctx)
     }
     this.last = motion
+    if (this.announcing) {
+      this.announcing = false
+      this.updates.push(this.stateUpdate())
+    }
     this.watch(ms, motion, ctx)
     const target = this.target
     if (
@@ -1090,10 +1096,11 @@ export class Autopilot {
   /**
    * The pilot's state, mode and target sent as they stand, without a change: the server's
    * API lists a device and picks its default only once a device has sent something, so a
-   * run sends this as it starts and after a restart.
+   * run sends this as it starts and after a restart, at the pilot's next step, once it
+   * knows the route's course to give as its target.
    */
   announce(): void {
-    this.updates.push(this.stateUpdate())
+    this.announcing = true
   }
 
   private changed(): void {
