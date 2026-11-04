@@ -216,6 +216,21 @@ describe('Simulator autopilot', () => {
       })
     })
 
+    it('sends its state, mode and target as it stands when announced, before any change', () => {
+      const run = new Run(scenarioFor('motor-yacht-20m'))
+      run.until(1)
+      expect(run.updates).to.deep.equal([])
+      run.pilot.announce()
+      run.until(1.1)
+      expect(run.updates.map((x) => x.u)).to.have.length(1)
+      expect(run.updates[0].u).to.include({
+        state: 'standby',
+        mode: 'route',
+        engaged: false
+      })
+      expect(run.updates[0].u.target).to.be.a('number')
+    })
+
     it('gives the 4 m boat no pilot, the helm steering as before', () => {
       const run = new Run(scenarioFor('boat-4m'))
       expect(run.sim.pilot).to.equal(undefined)

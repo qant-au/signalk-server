@@ -487,7 +487,10 @@ export = function simulatorPlugin(app: App) {
     await course.at(
       simulation.routeMs(simulation.systems?.scenarioMs ?? scenarioStartMs)
     )
-    if (simulation.pilot) registerPilot()
+    if (simulation.pilot) {
+      registerPilot()
+      simulation.pilot.announce()
+    }
     if (stopped) return
 
     let ticks = 0

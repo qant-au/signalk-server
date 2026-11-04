@@ -977,16 +977,29 @@ export class Autopilot {
     )
   }
 
+  /**
+   * The pilot's state, mode and target sent as they stand, without a change: the server's
+   * API lists a device and picks its default only once a device has sent something, so a
+   * run sends this as it starts and after a restart.
+   */
+  announce(): void {
+    this.updates.push(this.stateUpdate())
+  }
+
   private changed(): void {
     this.s.changedMs = this.nowMs
+    this.updates.push(this.stateUpdate())
+  }
+
+  private stateUpdate(): PilotUpdate {
     const target = this.target
     this.sentTargetDeg = target === null ? null : target / RADIANS
-    this.updates.push({
+    return {
       state: this.s.state,
       mode: this.s.mode,
-      target: this.target,
+      target,
       engaged: this.s.state === 'auto'
-    })
+    }
   }
 }
 
