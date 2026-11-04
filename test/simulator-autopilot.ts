@@ -349,14 +349,19 @@ describe('Simulator autopilot', () => {
       expect(() => run.pilot.tack('starboard')).to.throw(PilotError, /port bow/)
       expect(() => run.pilot.gybe('port')).to.throw(PilotError)
       run.pilot.tack('port')
-      const after = run.until(16).at(-1)!
+      const turn = run.until(16)
+      const after = turn.at(-1)!
       expect(deg(after, 'environment.wind.angleApparent')).to.be.above(0)
-      expect(
-        wrap(
-          deg(after, 'navigation.headingTrue') -
-            deg(before, 'navigation.headingTrue')
-        )
-      ).to.be.below(-60)
+      // round to port through the wind, the heading only ever falling, never round the stern
+      let turned = 0
+      let previous = deg(before, 'navigation.headingTrue')
+      for (const t of turn) {
+        const h = deg(t, 'navigation.headingTrue')
+        turned += wrap(h - previous)
+        previous = h
+      }
+      expect(turned).to.be.within(-150, -60)
+      expect(run.alarms('wind', 'warn')).to.deep.equal([])
     })
   })
 

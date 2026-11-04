@@ -93,6 +93,10 @@ export interface PilotSaved {
   arrived: number[]
   alarmClears: Partial<Record<PilotAlarm, number>>
   offTargetSinceMs: number | null
+  /** a tack or gybe under way: the way she turns until the wind is on her other side */
+  turning?: 'port' | 'starboard' | null
+  /** when the state, mode or target last changed, which the off-target alarms wait out */
+  changedMs?: number | null
   bestErrorDeg: number | null
 }
 
@@ -121,6 +125,10 @@ const XTE_CLEAR_M = 80
 export const OFF_TARGET_DEG = 20
 const OFF_TARGET_CLEAR_DEG = 10
 export const OFF_TARGET_MS = 30000
+/** after a change of state, mode or target the off-target alarms wait this long */
+const OFF_TARGET_GRACE_MS = 60000
+/** a tack or gybe is done once the wind is within this of the target on her other side */
+const TURN_DONE_DEG = 30
 /** she has rejoined the route within this of the point she made for */
 const JOIN_M = 10
 /** the rejoining point lies this far ahead of the nearest, so she joins at an angle */
@@ -168,6 +176,8 @@ export class Autopilot {
     arrived: [],
     alarmClears: {},
     offTargetSinceMs: null,
+    turning: null,
+    changedMs: null,
     bestErrorDeg: null
   }
   private updates: PilotUpdate[] = []
@@ -490,6 +500,7 @@ export class Autopilot {
       )
     }
     this.s.targetAwaDeg = -this.s.targetAwaDeg
+    this.s.turning = direction
     this.changed()
   }
 
@@ -642,6 +653,15 @@ export class Autopilot {
       toward(this.routeTargetDeg(this.last!))
     } else if (this.s.mode === 'compass') {
       toward(this.s.targetHeadingDeg)
+    } else if (this.s.mode === 'wind' && this.s.turning) {
+      // through the wind the way she was told, until it is on her other side
+      rate = this.s.turning === 'starboard' ? maxRate : -maxRate
+      const awa = this.awaDeg()
+      if (
+        Math.sign(awa) === Math.sign(this.s.targetAwaDeg) &&
+        Math.abs(wrap180(awa - this.s.targetAwaDeg)) < TURN_DONE_DEG
+      )
+        this.s.turning = null
     } else if (this.s.mode === 'wind') {
       toward(this.windHeadingDeg(f.headingDeg, f.speedKn, ctx))
     } else {
@@ -879,6 +899,16 @@ export class Autopilot {
       if (errorDeg < OFF_TARGET_CLEAR_DEG) this.clear(kind)
       return
     }
+    // a new target, a tack or a gybe takes a while to come round to
+    if (
+      this.s.turning ||
+      (typeof this.s.changedMs === 'number' &&
+        ms - this.s.changedMs < OFF_TARGET_GRACE_MS)
+    ) {
+      this.s.offTargetSinceMs = null
+      this.s.bestErrorDeg = null
+      return
+    }
     if (errorDeg <= OFF_TARGET_DEG) {
       this.s.offTargetSinceMs = null
       this.s.bestErrorDeg = null
@@ -948,6 +978,7 @@ export class Autopilot {
   }
 
   private changed(): void {
+    this.s.changedMs = this.nowMs
     const target = this.target
     this.sentTargetDeg = target === null ? null : target / RADIANS
     this.updates.push({
