@@ -1,3 +1,4 @@
+import { STABILISED_ROLL_SHARE } from '../deck/deck'
 import { turnRateDegS } from '../routes/route'
 import { VesselProfile } from '../vessels/profile'
 import { Drift, DriftState, Rng } from './random'
@@ -24,6 +25,8 @@ export interface NavigationMotion {
   leavingSoon: boolean
   /** at anchor, the heading she lies to on her chain, or is pointed on to leave */
   headDeg?: number
+  /** her fin stabilisers are working, taking most of the sea's roll out */
+  stabilised?: boolean
 }
 
 export interface TrueWind {
@@ -320,10 +323,9 @@ export class Navigation {
           )
         : 0
 
-    const rollAmpDeg = Math.min(
-      ROLL_MAX_DEG,
-      (ROLL_GAIN * hs) / p.beamM / RADIANS
-    )
+    const rollAmpDeg =
+      Math.min(ROLL_MAX_DEG, (ROLL_GAIN * hs) / p.beamM / RADIANS) *
+      (m.stabilised ? STABILISED_ROLL_SHARE : 1)
     const pitchAmpDeg = Math.min(
       PITCH_MAX_DEG,
       (PITCH_GAIN * hs) / p.lengthM / RADIANS

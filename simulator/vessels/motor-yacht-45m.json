@@ -12,6 +12,7 @@
   "acFrequency": 50,
   "acPhases": 3,
   "persons": 18,
+  "stabilisers": "zeroSpeed",
   "engines": [
     {
       "id": "port",

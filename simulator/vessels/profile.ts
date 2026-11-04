@@ -27,7 +27,13 @@ export interface EngineProfile {
   bank?: string
   /** fuel tank the engine draws from */
   fuelTank?: string
+  /** an outboard, whose trim and tilt the boat reports; any other drive is not sent */
+  drive?: 'outboard'
 }
+
+/** fin stabilisers: `fins` work under way, `zeroSpeed` fins at anchor too */
+export type Stabilisers = 'fins' | 'zeroSpeed'
+const STABILISERS = new Set<string>(['fins', 'zeroSpeed'])
 
 export interface GeneratorProfile {
   id: string
@@ -188,6 +194,9 @@ export interface VesselProfile {
   tanks: Record<TankType, TankProfile[]>
   sounders: SounderProfile[]
   radars: { id: string; displayName: string }[]
+  /** an anchor windlass with a chain counter; without one the crew hauls by hand */
+  windlass: boolean
+  stabilisers?: Stabilisers
   wind: boolean
   /** an autopilot, which the server's Autopilot API drives (simulator/autopilot) */
   autopilot: boolean
@@ -248,6 +257,8 @@ const HYBRID_DIESEL_BELOW_SOC = 0.4
 const HYBRID_ELECTRIC_ABOVE_SOC = 0.6
 const SOUNDER_DEPTH_M = 0.5
 const SIDES = ['Port', 'Starboard']
+/** a boat this long has an anchor windlass; a smaller one's crew hauls the anchor by hand */
+const WINDLASS_FROM_M = 8
 /** generators sit under propulsion beside the main engines, told apart by their id */
 const GENERATOR_ID = /^generator\d+$/
 
@@ -488,6 +499,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
               { id: 'radarX', displayName: 'X-band radar' },
               { id: 'radarS', displayName: 'S-band radar' }
             ],
+    windlass: L >= WINDLASS_FROM_M,
     wind: L >= 7,
     autopilot: L >= AUTOPILOT_FROM_M,
     zones: defaultZones(L),
@@ -580,6 +592,12 @@ export function validateProfile(p: VesselProfile): void {
   }
   for (const type of Object.keys(p.tanks) as TankType[]) {
     for (const t of p.tanks[type]) unique(`tank ${type}`, t.id)
+  }
+  if (p.stabilisers !== undefined && !STABILISERS.has(p.stabilisers))
+    throw new Error(`${p.id}: stabilisers are fins or zeroSpeed`)
+  for (const e of p.engines) {
+    if (e.drive !== undefined && e.drive !== 'outboard')
+      throw new Error(`${p.id}: ${e.id}'s drive can only be outboard`)
   }
   validateSails(p)
 }

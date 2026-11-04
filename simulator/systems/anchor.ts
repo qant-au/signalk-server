@@ -63,6 +63,8 @@ export interface AnchorageState {
   /** where the anchor lies on the bottom, which a drag moves */
   bottom: { lat: number; lon: number } | null
   chainM: number
+  /** the chain at the latest step: paying out 1, heaving in -1, still 0 */
+  winding: number
   boat: { lat: number; lon: number } | null
   velE: number
   velN: number
@@ -143,6 +145,7 @@ export class Anchorage {
   private set: AnchorageState['set'] = null
   private bottom: AnchorageState['bottom'] = null
   private chainM = 0
+  private winding = 0
   private boat: AnchorageState['boat'] = null
   private velE = 0
   private velN = 0
@@ -210,6 +213,16 @@ export class Anchorage {
     return w
   }
 
+  /** metres of chain out, as a windlass's chain counter reads it: 0 with the anchor up */
+  get chainOutM(): number {
+    return this.chainM
+  }
+
+  /** the chain at the latest step: paying out 1, heaving in -1, still 0 */
+  get chainWinding(): number {
+    return this.winding
+  }
+
   /** the radius the boat swings in with this much chain out at this depth */
   maxRadiusFor(depthM: number): number {
     return this.reach(this.scopeM(depthM), depthM) + this.gnssAftM
@@ -232,6 +245,12 @@ export class Anchorage {
 
   /** `first` is the run's first step, when a boat already at anchor is found lying to it */
   step(dt: number, m: AnchorInput, first: boolean): void {
+    const before = this.chainM
+    this.stepAnchor(dt, m, first)
+    this.winding = first ? 0 : Math.sign(this.chainM - before)
+  }
+
+  private stepAnchor(dt: number, m: AnchorInput, first: boolean): void {
     if (!m.anchored) {
       if (this.set) this.weigh(m)
       this.rejoin(dt, m)
@@ -260,7 +279,16 @@ export class Anchorage {
     this.dragging = m.dragging
     const depthM = this.depth(bottom.lat, bottom.lon, m.ms)
     const full = this.scopeM(set.depthM)
-    this.chainM = Math.min(full, this.chainM + PAY_OUT_M_S * dt)
+    // heaving in, the windlass brings the chain up at its pace, timed so that the last of
+    // it, from the bow roller straight down to the anchor, is in as she leaves
+    const heaveTo =
+      m.leavesInS === undefined
+        ? Infinity
+        : depthM + this.bowHeightM + Math.max(0, m.leavesInS) * HEAVE_M_S
+    this.chainM =
+      heaveTo < this.chainM
+        ? heaveTo
+        : Math.min(full, this.chainM + PAY_OUT_M_S * dt)
 
     this.sheerRad =
       (this.sheerRad + (2 * Math.PI * dt) / this.sheerPeriodS) % (2 * Math.PI)
@@ -371,6 +399,7 @@ export class Anchorage {
       set: this.set && { ...this.set },
       bottom: this.bottom && { ...this.bottom },
       chainM: this.chainM,
+      winding: this.winding,
       boat: this.boat && { ...this.boat },
       velE: this.velE,
       velN: this.velN,
@@ -388,6 +417,7 @@ export class Anchorage {
     check(typeof s === 'object' && s !== null, 'anchorage')
     for (const k of [
       'chainM',
+      'winding',
       'velE',
       'velN',
       'residualE',
@@ -406,6 +436,7 @@ export class Anchorage {
     this.set = s.set && { ...s.set }
     this.bottom = s.bottom && { ...s.bottom }
     this.chainM = s.chainM
+    this.winding = s.winding
     this.boat = s.boat && { ...s.boat }
     this.velE = s.velE
     this.velN = s.velN

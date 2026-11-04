@@ -16,7 +16,8 @@
       "type": "petrol",
       "powerKw": 15,
       "maxRpm": 6000,
-      "idleRpm": 900
+      "idleRpm": 900,
+      "drive": "outboard"
     }
   ],
   "generators": [],

@@ -51,12 +51,21 @@ export interface Delta {
  * without the null that clears the anchor's values once it is weighed, which the anchor
  * alarm plugin sends and displays read, but for which the schema has no null position;
  * without the times of the next high and low water, which schema 1.8.2 defines as a
- * bare string rather than a value, so no delta can satisfy it; and without the sails in
+ * bare string rather than a value, so no delta can satisfy it, nor an outboard's
+ * `drive.type`, a bare enum for the same reason; and without the sails in
  * `sails.inventory`, each of which it defines as a bare object for the same reason.
+ * Also without what 1.8.2 has no place for: `navigation.lights`, whose definition lacks
+ * the `$source` and `meta` every value carries in the full model; the windlass's chain
+ * counter, `navigation.anchor.rodeCounterLength`, which the anchor alarm plugin reads;
+ * and `electrical.switches`, which a digital switching system sends.
  */
 const BARE_STRINGS = new Set([
   'environment.tide.timeHigh',
   'environment.tide.timeLow'
+])
+const NOT_IN_SCHEMA = new Set([
+  'navigation.lights',
+  'navigation.anchor.rodeCounterLength'
 ])
 
 export function forSchema(delta: Delta): Delta {
@@ -67,7 +76,10 @@ export function forSchema(delta: Delta): Delta {
         (v) =>
           !(v.value === null && v.path.startsWith('navigation.anchor.')) &&
           !BARE_STRINGS.has(v.path) &&
-          !v.path.startsWith('sails.inventory.')
+          !v.path.endsWith('.drive.type') &&
+          !NOT_IN_SCHEMA.has(v.path) &&
+          !v.path.startsWith('sails.inventory.') &&
+          !v.path.startsWith('electrical.switches.')
       )
       const meta = u.meta?.map((m) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars

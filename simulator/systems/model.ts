@@ -19,12 +19,18 @@ import {
   anchorWatch,
   watchRadiusM
 } from './anchor'
-import { Current, Navigation, NavigationState } from './navigation'
+import {
+  Current,
+  Navigation,
+  NavigationState,
+  NavigationStateValue
+} from './navigation'
 import { NEAR_STOP_M, Sailing, SailingSaved } from '../sailing/sailing'
 import { OptimumAngle } from '../sailing/polar'
 import type { Conditions, TideNow } from '../weather/environment'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
+import { Deck, DeckState, LightsValue, isNight } from '../deck/deck'
 
 /**
  * The boat's systems: engines, generators, batteries and their chargers, tanks, depth
@@ -84,7 +90,7 @@ export interface SystemFaults {
   step(
     nowMs: number,
     dt: number,
-    at: { anchored: boolean; atBerth: boolean }
+    at: { anchored: boolean; atBerth: boolean; night: boolean }
   ): void
   /** the engine's raw-water intake is blocked: its coolant heats while it runs */
   intakeBlocked(engineId: string): boolean
@@ -100,6 +106,8 @@ export interface SystemFaults {
   anchorDragging(): boolean
   /** the autopilot is out of action */
   autopilotFailed(): boolean
+  /** the navigation lights have failed */
+  lightsFailed(): boolean
 }
 
 type Scalar = number | boolean | string | null
@@ -136,12 +144,13 @@ export interface SystemsState {
   anchorage: AnchorageState
   /** a sailing boat's sail plan, null on a motor boat */
   sailing: SailingSaved | null
+  deck: DeckState
   /** holding tanks being pumped out, as `type.id` */
   pumping: string[]
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 7
+export const SYSTEMS_STATE_VERSION = 8
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -503,6 +512,7 @@ export class SystemsModel {
   /** the polar's optimum angles, worked out again only when the true wind changes */
   private optimum?: { twsKn: number; beat: OptimumAngle; gybe: OptimumAngle }
   private readonly anchorage: Anchorage
+  private readonly deck: Deck
   /** the anchor watch's alarm is raised */
   private anchorAlarmed = false
   /** the model has stepped since it started or was restored */
@@ -645,6 +655,7 @@ export class SystemsModel {
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
     this.navigation = new Navigation(profile, seed, options.startMs)
     this.anchorage = new Anchorage(profile.lengthM, seed, options.depthAt)
+    this.deck = new Deck(profile)
     this.sail =
       profile.sails && profile.polar
         ? new Sailing(profile.sails, profile.polar)
@@ -780,6 +791,7 @@ export class SystemsModel {
       navigation: this.navigation.save(),
       anchorage: this.anchorage.save(),
       sailing: this.sail?.save() ?? null,
+      deck: this.deck.save(),
       pumping: [...this.pumping].map(tankKey),
       pumpOuts: Object.fromEntries(this.pumpOuts)
     }
@@ -894,6 +906,10 @@ export class SystemsModel {
           throw new StaleStateError(`saved systems state has a bad ${what}`)
       })
     }
+    this.deck.restore(state.deck, (ok, what) => {
+      if (!ok)
+        throw new StaleStateError(`saved systems state has a bad ${what}`)
+    })
     this.stepped = true
     const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
     const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
@@ -945,7 +961,8 @@ export class SystemsModel {
     const anchored = motion.anchored === true
     this.options.faults?.step(this.nowMs, dt, {
       anchored,
-      atBerth: motion.atBerth
+      atBerth: motion.atBerth,
+      night: isNight(this.nowMs, motion.lat, motion.lon)
     })
     this.stepWeather(dt)
     this.anchorage.step(
@@ -979,6 +996,15 @@ export class SystemsModel {
     this.stepAnchorWatch()
     this.stepPropulsion(dt)
     this.stepThrusters(dt)
+    this.deck.step(dt, {
+      nowMs: this.nowMs,
+      lat: this.motion.lat,
+      lon: this.motion.lon,
+      sogKn: this.motion.sogKn,
+      state: this.stateNow(),
+      lightsFailed: this.options.faults?.lightsFailed() === true,
+      chainWinding: this.anchorage.chainWinding
+    })
     this.navigation.step(
       dt,
       this.nowMs,
@@ -995,7 +1021,8 @@ export class SystemsModel {
         headDeg:
           at?.headDeg !== undefined && motion.leavingSoon
             ? motion.cogDeg
-            : at?.headDeg
+            : at?.headDeg,
+        stabilised: this.deck.stabilisers
       },
       { kn: this.windKn, deg: this.windDeg, waveHeightM: this.waveHeightM },
       { sailing: this.sailing, areaShare: this.sail?.areaShare ?? 0 },
@@ -1007,6 +1034,17 @@ export class SystemsModel {
     this.stepGenerators(dt)
     this.stepTanks(dt)
     this.stepSounders(dt)
+  }
+
+  /** what she is doing, as her navigation lights and the specification's state tell it */
+  private stateNow(): NavigationStateValue {
+    return this.motion.atBerth
+      ? 'moored'
+      : this.motion.anchored
+        ? 'anchored'
+        : this.sailing
+          ? 'sailing'
+          : 'motoring'
   }
 
   /** the anchor watch, on while the anchor is down */
@@ -1344,7 +1382,8 @@ export class SystemsModel {
       // shore power takes over alongside
       for (const g of this.generators) g.running = false
     } else if (hasGenerators && p.lengthM >= LARGE_YACHT_M) {
-      const totalKw = baseKw + hvacDemandKw + watermakerKw
+      const totalKw =
+        baseKw + hvacDemandKw + watermakerKw + this.deck.stabilisersKw
       const each = this.generators[0].p.powerKw
       const running = this.generators.filter((g) => g.running).length
       let needed = Math.ceil(totalKw / (GENERATOR_SHARE * each))
@@ -1392,7 +1431,10 @@ export class SystemsModel {
     this.shoreKw = atBerth && hasGenerators ? baseKw + this.hvacKw : 0
     if (!atBerth && running.length) {
       const acKw =
-        baseKw + this.hvacKw + (this.watermakerRunning ? watermakerKw : 0)
+        baseKw +
+        this.hvacKw +
+        (this.watermakerRunning ? watermakerKw : 0) +
+        this.deck.stabilisersKw
       for (const g of running) g.loadKw = acKw / running.length
     }
     this.inverterKw =
@@ -1565,6 +1607,10 @@ export class SystemsModel {
     for (const t of this.thrusters) {
       if (t.drawW > 0) draw(this.bank(t.p.bank), t.drawW, 'thrusters')
     }
+    // on a boat with no house bank, its one battery
+    const deckBank = house ?? this.banks[0]
+    draw(deckBank, this.deck.lightsW, 'navigation lights')
+    draw(deckBank, this.deck.windlassW, 'windlass')
 
     const supplied = new Map<BankState, number>()
     const take = (bank: BankState, availableW: number, name: string) => {
@@ -1975,6 +2021,24 @@ export class SystemsModel {
         `depth sounder, ${s.depthM} m below the waterline`
       )
     }
+    if (this.profile.windlass)
+      name('electrical.switches.windlass', 'Windlass', 'anchor windlass')
+    if (this.profile.stabilisers) {
+      name(
+        'electrical.switches.stabilisers',
+        'Stabilisers',
+        this.profile.stabilisers === 'zeroSpeed'
+          ? 'zero-speed fin stabilisers'
+          : 'fin stabilisers'
+      )
+    }
+    for (const r of this.profile.radars) {
+      name(
+        `electrical.switches.${r.id}`,
+        r.displayName,
+        'radar: 1 transmitting, 0 standby'
+      )
+    }
     // positive to starboard, as this server's path metadata defines it
     const values = this.sounders.map((s) => ({
       path: `sensors.${s.id}.fromCenter`,
@@ -2009,10 +2073,15 @@ export class SystemsModel {
     this.navigation.put(put, variationDeg)
     this.putPerformance(put, variationDeg)
     this.putAnchor(put)
+    this.putDeck(put, slow)
     if (!slow) {
-      // a battery monitor reports every second: a thruster burst is over in a few
+      // a battery monitor reports every second: a thruster burst or a heave on the
+      // windlass is over in a few
       for (const b of this.banks) {
-        if (this.thrusters.some((t) => t.drawW > 0 && t.p.bank === b.p.id))
+        if (
+          this.thrusters.some((t) => t.drawW > 0 && t.p.bank === b.p.id) ||
+          (this.deck.windlassOn && b === (this.houseBank() ?? this.banks[0]))
+        )
           this.putBank(b, put)
       }
     }
@@ -2078,6 +2147,43 @@ export class SystemsModel {
       deltas.push({ context: 'vessels.self', updates: sounderUpdates })
     }
     return deltas
+  }
+
+  private houseBank(): BankState | undefined {
+    return this.banks.find((b) => b.p.role === 'house')
+  }
+
+  /**
+   * What the deck shows: the navigation lights, the windlass's switch and chain counter,
+   * an outboard's trim and tilt, the stabilisers' switch and each radar's. A switch is
+   * sent as a digital switching system reports one, 1 on and 0 off, with its name in
+   * metadata.
+   */
+  private putDeck(
+    put: (path: string, value: unknown) => void,
+    slow: boolean
+  ): void {
+    const p = this.profile
+    put('navigation.lights', this.deck.lights)
+    if (p.windlass) {
+      put('electrical.switches.windlass.state', this.deck.windlassOn ? 1 : 0)
+      put(
+        'navigation.anchor.rodeCounterLength',
+        round2(this.anchorage.chainOutM)
+      )
+    }
+    for (const [id, trim] of Object.entries(this.deck.trim)) {
+      if (slow) put(`propulsion.${id}.drive.type`, 'outboard')
+      put(`propulsion.${id}.drive.trimState`, round3(trim))
+    }
+    if (p.stabilisers)
+      put(
+        'electrical.switches.stabilisers.state',
+        this.deck.stabilisers ? 1 : 0
+      )
+    const transmitting = this.deck.radarsOn(this.stateNow())
+    for (const r of p.radars)
+      put(`electrical.switches.${r.id}.state`, transmitting ? 1 : 0)
   }
 
   /** the polar's beat and gybe at the true wind now */
@@ -2445,6 +2551,22 @@ export class SystemsModel {
         totalAreaM2: this.sail.fullAreaM2,
         performance: this.performance()
       },
+      deck: {
+        lights: this.deck.lights,
+        night: isNight(this.nowMs, this.motion.lat, this.motion.lon),
+        chainM: this.anchorage.chainOutM,
+        windlass: this.profile.windlass ? this.deck.windlassOn : undefined,
+        trim: this.deck.trim,
+        stabilisers: this.profile.stabilisers
+          ? this.deck.stabilisers
+          : undefined,
+        radars: Object.fromEntries(
+          this.profile.radars.map((r) => [
+            r.id,
+            this.deck.radarsOn(this.stateNow())
+          ])
+        )
+      },
       hotelKw: this.hotelKw,
       hvacKw: this.hvacKw,
       watermakerRunning: this.watermakerRunning,
@@ -2516,6 +2638,22 @@ export interface SystemsSummary {
     activeAreaM2: number
     totalAreaM2: number
     performance?: PerformanceNow
+  }
+  /** what the deck shows: the lights, the chain out and the windlass, trim, stabilisers, radars */
+  deck: {
+    lights: LightsValue
+    /** the sun is down */
+    night: boolean
+    /** metres of chain out, 0 with the anchor up */
+    chainM: number
+    /** the windlass is running; undefined on a boat with none */
+    windlass?: boolean
+    /** each outboard's trim, by engine id */
+    trim: Record<string, number>
+    /** the stabilisers are working; undefined on a boat with none */
+    stabilisers?: boolean
+    /** each radar transmitting, by id */
+    radars: Record<string, boolean>
   }
   hotelKw: number
   /** air conditioning load being carried */

@@ -258,7 +258,25 @@ describe('Simulator systems model', () => {
           )
           .map((u) => u.source.src)
         expect(sounderSources).to.deep.equal(profile.sounders.map((s) => s.id))
-        expect([...all].some((p) => /radar/i.test(p))).to.equal(false)
+        // a switch for each radar, the windlass and the stabilisers, where she has them
+        expect(idsUnder(all, 'electrical.switches.')).to.deep.equal(
+          new Set([
+            ...profile.radars.map((r) => r.id),
+            ...(profile.windlass ? ['windlass'] : []),
+            ...(profile.stabilisers ? ['stabilisers'] : [])
+          ])
+        )
+        expect(all.has('navigation.anchor.rodeCounterLength')).to.equal(
+          profile.windlass
+        )
+        expect(
+          [...all].filter((p) => /\.drive\.trimState$/.test(p)).sort()
+        ).to.deep.equal(
+          profile.engines
+            .filter((e) => e.drive === 'outboard')
+            .map((e) => `propulsion.${e.id}.drive.trimState`)
+        )
+        expect(all.has('navigation.lights')).to.equal(true)
         expect(all.has('environment.wind.speedApparent')).to.equal(profile.wind)
       })
 

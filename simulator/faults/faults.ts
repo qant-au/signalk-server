@@ -33,7 +33,8 @@ export const FAULT_KINDS = [
   'windInstrumentFrozen',
   'staleSensor',
   'anchorDragging',
-  'autopilotFailure'
+  'autopilotFailure',
+  'navLightsFailure'
 ] as const
 export type FaultKind = (typeof FAULT_KINDS)[number]
 
@@ -79,6 +80,8 @@ interface KindSpec {
   atAnchor?: boolean
   /** it can happen only under way: neither alongside nor at anchor */
   underWay?: boolean
+  /** it can happen only from dusk, while the sun is down */
+  night?: boolean
 }
 
 const combustion = (p: VesselProfile) =>
@@ -181,6 +184,14 @@ export const FAULT_SPECS: Record<FaultKind, KindSpec> = {
     targets: (p) => (p.autopilot ? ['autopilot'] : []),
     lastsMin: [10, 30],
     underWay: true
+  },
+  navLightsFailure: {
+    title: 'Navigation lights failure',
+    description:
+      'From dusk only: the navigation lights go out (a blown fuse, a corroded connection), so she shows no lights; the crew finds and fixes it',
+    targets: () => ['lights'],
+    lastsMin: [10, 60],
+    night: true
   }
 }
 
@@ -218,6 +229,8 @@ export interface FaultsState {
   anchored?: boolean
   /** the boat lay alongside at the last step */
   atBerth?: boolean
+  /** the sun was down at the last step */
+  night?: boolean
 }
 
 export const FAULTS_STATE_VERSION = 1
@@ -255,6 +268,7 @@ export class Faults implements SystemFaults {
   private bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
   private anchored = false
   private atBerth = true
+  private night = false
   /** the latest value sent on each path, as an alarm panel reads it */
   private readonly lastSent = new Map<string, unknown>()
   /** the systems model's satellites and dilution, before a lost fix changes them */
@@ -289,6 +303,7 @@ export class Faults implements SystemFaults {
       this.bilge = { ...state.bilge }
       this.anchored = state.anchored === true
       this.atBerth = state.atBerth !== false
+      this.night = state.night === true
     }
   }
 
@@ -303,7 +318,8 @@ export class Faults implements SystemFaults {
       faults: this.faults.map((f) => ({ ...f })),
       bilge: { ...this.bilge },
       anchored: this.anchored,
-      atBerth: this.atBerth
+      atBerth: this.atBerth,
+      night: this.night
     }
   }
 
@@ -318,6 +334,8 @@ export class Faults implements SystemFaults {
       return `${kind} happens only while the boat lies at anchor`
     if (spec.underWay && (this.anchored || this.atBerth))
       return `${kind} happens only under way`
+    if (spec.night && !this.night)
+      return `${kind} happens only from dusk, while the sun is down`
     return undefined
   }
 
@@ -416,12 +434,13 @@ export class Faults implements SystemFaults {
   step(
     nowMs: number,
     dt: number,
-    at: { anchored: boolean; atBerth: boolean }
+    at: { anchored: boolean; atBerth: boolean; night: boolean }
   ): void {
     const anchored = at.anchored
     this.nowMs = nowMs
     this.anchored = anchored
     this.atBerth = at.atBerth
+    this.night = at.night
     for (const f of this.faults) {
       if (f.clearedMs !== undefined) continue
       if (f.clearsMs !== undefined && nowMs >= f.clearsMs) {
@@ -472,6 +491,10 @@ export class Faults implements SystemFaults {
 
   autopilotFailed(): boolean {
     return this.on('autopilotFailure', 'autopilot') !== undefined
+  }
+
+  lightsFailed(): boolean {
+    return this.on('navLightsFailure', 'lights') !== undefined
   }
 
   anchorDragging(): boolean {
@@ -815,6 +838,15 @@ export class Faults implements SystemFaults {
             raise('navigation.position', 'alarm', 'GNSS fix lost')
           }
           break
+        case 'navLightsFailure':
+          if (f.clearedMs === undefined) {
+            raise(
+              'navigation.lights',
+              'alarm',
+              'Navigation lights failure: showing no lights'
+            )
+          }
+          break
       }
     }
     return out
@@ -862,6 +894,11 @@ export class Faults implements SystemFaults {
           f.clearedMs === undefined
             ? 'the helm has her; the pilot cannot be engaged'
             : 'cleared: the pilot can be engaged'
+        )
+        break
+      case 'navLightsFailure':
+        parts.push(
+          f.clearedMs === undefined ? 'showing no lights' : 'lights back on'
         )
         break
       case 'anchorDragging':

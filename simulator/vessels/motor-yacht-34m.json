@@ -9,6 +9,7 @@
   "rig": "motor",
   "maxSpeedKn": 15,
   "persons": 12,
+  "stabilisers": "fins",
   "generators": [
     {
       "id": "generator1",

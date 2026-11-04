@@ -346,7 +346,8 @@ describe('Simulator faults', () => {
         chargerFailed: () => false,
         bilgePumpW: () => 0,
         anchorDragging: () => false,
-        autopilotFailed: () => false
+        autopilotFailed: () => false,
+        lightsFailed: () => false
       }
       const model = new SystemsModel(profile, {
         seed: 1,
