@@ -144,8 +144,9 @@ one shows up.
 ## The Page, the Run View and the Status Line
 
 - **The page** has a Deck card: the navigation lights and whether the sun is down, the
-  chain out and the scope she lies to (over the depth and the bow roller's height: 5 to 1 once it is all out), the windlass, the outboard's trim, the
-  stabilisers, each radar transmitting or on standby, and the bridge she is holding for.
+  chain out and the scope she lies to (over the depth and the bow roller's height: 5 to 1
+  once it is all out), the windlass, the outboard's trim, the stabilisers, each radar
+  transmitting or on standby, and the bridge she is holding for.
 - **`GET /run`** carries the same under `deck` (`lights`, `night`, `chainM`, `scope`,
   `windlass`, `trim`, `stabilisers`, `radars` by name), and `nextPoint.bridge` (`name`,
   `closedClearanceM`, `airHeightM`, `clearsClosed`, `words`) while she holds for a
