@@ -24,6 +24,9 @@ export type Field =
   | 'tidePredictionM'
   /** the water level above the depth grid's datum */
   | 'waterLevelM'
+  /** the tidal or ocean current as a vector towards where it runs, knots east and north */
+  | 'currentE'
+  | 'currentN'
 
 export interface Series {
   ms: number[]
@@ -48,6 +51,7 @@ export type Quantity =
   | 'waves'
   | 'tide'
   | 'waterLevel'
+  | 'current'
 
 export interface WeatherSource {
   format: 'ndbc' | 'coops' | 'open-meteo' | 'qld-buoy' | 'gfs-csv'
@@ -66,6 +70,7 @@ export interface WeatherSource {
 }
 
 const KN_PER_MS = 3600 / 1852
+const KN_PER_KMH = 1000 / 1852
 const PA_PER_HPA = 100
 const KELVIN = 273.15
 
@@ -84,6 +89,14 @@ class Builder {
     const r = (fromDeg * Math.PI) / 180
     this.add('windE', ms, kn * Math.sin(r))
     this.add('windN', ms, kn * Math.cos(r))
+  }
+
+  /** a current running towards `toDeg` at `kn` */
+  current(ms: number, kn: number | undefined, toDeg: number | undefined): void {
+    if (kn === undefined || toDeg === undefined) return
+    const r = (toDeg * Math.PI) / 180
+    this.add('currentE', ms, kn * Math.sin(r))
+    this.add('currentN', ms, kn * Math.cos(r))
   }
 
   /** each series in time order, as the files give them or not */
@@ -207,6 +220,15 @@ function coops(
       if (use.has('waterLevel')) b.add('waterLevelM', ms, v - offset)
     }
   }
+  if (use.has('current')) {
+    // the predicted current along its major axis, knots: flood positive, towards the
+    // flood direction, ebb negative, towards the ebb direction
+    for (const { ms, cells } of coopsRows(file('currents_predictions'))) {
+      const v = num(cells[2])
+      if (v === undefined) continue
+      b.current(ms, Math.abs(v), num(v >= 0 ? cells[3] : cells[4]))
+    }
+  }
   return b
 }
 
@@ -249,6 +271,15 @@ function openMeteo(file: string, use: Set<Quantity>, id: string): Station[] {
       if (use.has('waves')) b.add('waveHeightM', ms, v('wave_height'))
       if (use.has('waterLevel'))
         b.add('waterLevelM', ms, v('sea_level_height_msl'))
+      if (use.has('current')) {
+        // the direction the current runs towards
+        const kmh = v('ocean_current_velocity')
+        b.current(
+          ms,
+          kmh === undefined ? undefined : kmh * KN_PER_KMH,
+          v('ocean_current_direction')
+        )
+      }
     })
     return {
       id: `${id}#${i}`,
@@ -341,7 +372,15 @@ export function loadStations(
     const file = path.join(sampleDir, source.file)
     const probe =
       source.format === 'coops'
-        ? path.join(sampleDir, source.file.replace('{product}', 'predictions'))
+        ? path.join(
+            sampleDir,
+            source.file.replace(
+              '{product}',
+              source.use.includes('current')
+                ? 'currents_predictions'
+                : 'predictions'
+            )
+          )
         : file
     if (!existsSync(probe)) {
       if (source.optional) {

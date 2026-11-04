@@ -187,6 +187,101 @@ describe('Simulator weather', () => {
     })
   })
 
+  describe('the current', () => {
+    const GOVERNMENT_CUT = { lat: 25.76405, lon: -80.13394 }
+    const SEVENTEENTH_STREET = { lat: 26.09973, lon: -80.1191 }
+    const file = 'coops_MIH0901_currents_predictions_20240316.csv'
+
+    it('reads a CO-OPS prediction as running towards the flood or the ebb direction', () => {
+      // 2024-03-16 16:18,8,1.72,293.0,114.0,9: a flood of 1.72 kn setting 293°
+      const flood = miami.at(
+        GOVERNMENT_CUT.lat,
+        GOVERNMENT_CUT.lon,
+        utc('2024-03-16T16:18')
+      )
+      expect(coops(file, '2024-03-16 16:18', 2)).to.equal(1.72)
+      expect(flood.currentKn).to.be.closeTo(1.72, 1e-9)
+      expect(flood.currentToDeg).to.be.closeTo(293, 1e-9)
+      // 2024-03-16 00:00,8,-1.52,293.0,114.0,9: an ebb of 1.52 kn setting 114°
+      const ebb = miami.at(
+        GOVERNMENT_CUT.lat,
+        GOVERNMENT_CUT.lon,
+        utc('2024-03-16T00:00')
+      )
+      expect(ebb.currentKn).to.be.closeTo(1.52, 1e-9)
+      expect(ebb.currentToDeg).to.be.closeTo(114, 1e-9)
+    })
+
+    it('reads an Open-Meteo ocean current, from km/h towards its direction', () => {
+      const q = loadEnvironment(QUEENSLAND)!
+      const marine = JSON.parse(
+        readFileSync(
+          path.join(QUEENSLAND, 'open/weather/open-meteo-marine.json'),
+          'utf8'
+        )
+      )[7]
+      const k = marine.hourly.time.indexOf('2026-08-22T06:00')
+      const c = q.at(marine.latitude, marine.longitude, utc('2026-08-22T06:00'))
+      expect(c.currentKn).to.be.closeTo(
+        (marine.hourly.ocean_current_velocity[k] * 1000) / 1852,
+        1e-9
+      )
+      expect(c.currentToDeg).to.be.closeTo(
+        marine.hourly.ocean_current_direction[k],
+        1e-9
+      )
+    })
+
+    it('blends two stations as vectors by inverse distance squared, holding past the edges', () => {
+      const at = utc('2024-03-16T15:00')
+      const p = {
+        lat: (GOVERNMENT_CUT.lat + SEVENTEENTH_STREET.lat) / 2,
+        lon: (GOVERNMENT_CUT.lon + SEVENTEENTH_STREET.lon) / 2
+      }
+      const vector = (f: string, deg: (v: number) => number) => {
+        const v = coops(f, '2024-03-16 15:00', 2)
+        const r = deg(v) * RAD
+        return [Math.abs(v) * Math.sin(r), Math.abs(v) * Math.cos(r)]
+      }
+      const a = vector(file, (v) => (v >= 0 ? 293 : 114))
+      const b = vector(
+        'coops_PEV0903_currents_predictions_20240316.csv',
+        (v) => (v >= 0 ? 22 : 184)
+      )
+      const d = (s: { lat: number; lon: number }) =>
+        Math.hypot(
+          (s.lat - p.lat) * METRES_PER_DEG,
+          (s.lon - p.lon) * METRES_PER_DEG * Math.cos(p.lat * RAD)
+        )
+      const wa = 1 / d(GOVERNMENT_CUT) ** 2
+      const wb = 1 / d(SEVENTEENTH_STREET) ** 2
+      const e = (wa * a[0] + wb * b[0]) / (wa + wb)
+      const n = (wa * a[1] + wb * b[1]) / (wa + wb)
+      const c = miami.at(p.lat, p.lon, at)
+      expect(c.currentKn).to.be.closeTo(Math.hypot(e, n), 1e-9)
+      expect(c.currentToDeg).to.be.closeTo(
+        (Math.atan2(e, n) / RAD + 360) % 360,
+        1e-9
+      )
+      // past the predictions' end, each station holds its last
+      const late = miami.at(
+        GOVERNMENT_CUT.lat,
+        GOVERNMENT_CUT.lon,
+        utc('2024-03-19T00:00')
+      )
+      expect(late.currentKn).to.be.closeTo(1.88, 1e-9)
+      expect(late.currentToDeg).to.be.closeTo(114, 1e-9)
+    })
+
+    it('gives the Saronic, which has no current data, none', () => {
+      const s = loadEnvironment(SARONIC)!
+      expect(s.has('currentE')).to.equal(false)
+      expect(s.at(37.9, 23.6, utc('2018-07-13T12:00')).currentKn).to.equal(
+        undefined
+      )
+    })
+  })
+
   describe('past the edges', () => {
     it('holds the first reading before the record starts and the last after it ends', () => {
       const first = miami.value(

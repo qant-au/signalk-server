@@ -59,7 +59,7 @@
       {
         "format": "open-meteo",
         "file": "open/weather/open-meteo-marine.json",
-        "use": ["water", "waterLevel"]
+        "use": ["water", "waterLevel", "current"]
       },
       {
         "format": "qld-buoy",

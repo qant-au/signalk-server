@@ -345,6 +345,28 @@
         "gridDatumAboveChartDatumM": 0.676
       },
       {
+        "format": "coops",
+        "file": "open/weather/coops_MIH0901_{product}_20240316.csv",
+        "use": ["current"],
+        "station": {
+          "id": "MIH0901",
+          "name": "Miami Harbor Entrance (Government Cut)",
+          "lat": 25.76405,
+          "lon": -80.13394
+        }
+      },
+      {
+        "format": "coops",
+        "file": "open/weather/coops_PEV0903_{product}_20240316.csv",
+        "use": ["current"],
+        "station": {
+          "id": "PEV0903",
+          "name": "Port Everglades, 17th Street Bridge",
+          "lat": 26.09973,
+          "lon": -80.1191
+        }
+      },
+      {
         "format": "ndbc",
         "file": "open/weather/ndbc-vakf1-2024-03-16.txt",
         "use": ["air", "water"],

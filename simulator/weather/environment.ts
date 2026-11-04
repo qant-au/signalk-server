@@ -10,8 +10,8 @@ import { Field, Series, Station, WeatherSource, loadStations } from './sources'
  * `MAX_GAP_MS` in it, and its weight fades in and out over the first and last hour of
  * its record, so a station whose record starts or ends mid-run hands over without a step.
  *
- * In place, the stations that count are combined by inverse distance squared, the wind as
- * a vector. A boat within `AT_STATION_M` of one reads that station alone; beyond the
+ * In place, the stations that count are combined by inverse distance squared, the wind
+ * and the current as vectors. A boat within `AT_STATION_M` of one reads that station alone; beyond the
  * stations' spread the nearest dominates, so the values never run past what was measured.
  *
  * Past the edges in time, where no station's record reaches, every station holds its
@@ -30,6 +30,9 @@ export interface Conditions {
   /** the water level above the depth grid's datum, to add to the grid's depth */
   waterLevelM?: number
   tide?: TideNow
+  /** the tidal or ocean current: its speed, and the direction it runs towards, degrees true */
+  currentKn?: number
+  currentToDeg?: number
 }
 
 export interface TideNow {
@@ -164,12 +167,12 @@ export class Environment {
     const e = v('windE')
     const n = v('windN')
     const tideM = v('tideM')
+    const ce = v('currentE')
+    const cn = v('currentN')
     return {
       windKn: e === undefined || n === undefined ? undefined : Math.hypot(e, n),
       windDeg:
-        e === undefined || n === undefined
-          ? undefined
-          : ((((Math.atan2(e, n) * 180) / Math.PI) % 360) + 360) % 360,
+        e === undefined || n === undefined ? undefined : bearingDeg(e, n),
       gustKn: v('gustKn'),
       pressurePa: v('pressurePa'),
       airC: v('airC'),
@@ -177,6 +180,10 @@ export class Environment {
       humidity: v('humidity'),
       waveHeightM: v('waveHeightM'),
       waterLevelM: v('waterLevelM'),
+      currentKn:
+        ce === undefined || cn === undefined ? undefined : Math.hypot(ce, cn),
+      currentToDeg:
+        ce === undefined || cn === undefined ? undefined : bearingDeg(ce, cn),
       tide:
         tideM === undefined
           ? undefined
@@ -224,6 +231,10 @@ export class Environment {
     return { high, low }
   }
 }
+
+/** the bearing of a vector east and north, degrees true */
+const bearingDeg = (e: number, n: number) =>
+  ((((Math.atan2(e, n) * 180) / Math.PI) % 360) + 360) % 360
 
 /** a sample's environment from its `sample.json`, or undefined when it lists no weather */
 export function loadEnvironment(sampleDir: string): Environment | undefined {
