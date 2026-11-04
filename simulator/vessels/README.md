@@ -179,9 +179,9 @@ each sounder sends them under its own source: `simulator.portSounder` and
 `simulator.starboardSounder`, which the server keeps apart and source priorities can choose
 between. This is how two sounders arrive from an NMEA 2000 network. Each reads the depth
 grid at its own place under the hull (its offset from the centreline, across the boat's
-heading), so on a sloping bottom they disagree the way real ones do, with the sample's
-water level on the grid's datum (the tide), so the depth rises and falls with it (see
-[the tide on the depth](../weather/README.md#the-tide-on-the-depth)). With a profile, the sounders
+heading), so on a sloping bottom they disagree the way real ones do, with the sample's water
+level on the grid's datum (the tide), so the depth rises and falls with it (see [the tide on
+the depth](../weather/README.md#the-tide-on-the-depth)). With a profile, the sounders
 replace the single grid depth a route without one sends.
 
 **Radars** are counted in the profile and send nothing: radar data does not go through the
@@ -470,12 +470,12 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
 - **Inside**: living spaces go to their setpoint while the air conditioning runs and towards
   the outside temperature (plus the sun) when it does not; the engine room heats with the
   engines; fridges and freezers cycle their compressors in a band around the setpoint.
-- **Weather**: from the sample's own data at the boat's position and the scenario time:
-  the true wind, with the seed's gusts and shifts on it, the air pressure, the air and water
-  temperature and the humidity (see [Weather and Tides](../weather/README.md)). Where a sample has
-  none of one, the model's own: air and water temperature from latitude, season and time of
-  day, and a seeded wind with a daily sea breeze. The apparent wind is worked out from the
-  true wind and the boat's own motion.
+- **Weather**: from the sample's own data at the boat's position and the scenario time: the
+  true wind, with the seed's gusts and shifts on it, the air pressure, the air and water
+  temperature and the humidity (see [Weather and Tides](../weather/README.md)). Where a
+  sample has none of one, the model's own: air and water temperature from latitude, season
+  and time of day, and a seeded wind with a daily sea breeze. The apparent wind is worked
+  out from the true wind and the boat's own motion.
 
 Every drift comes from the run's **seed** (a plugin setting), one stream per system, so
 the same seed, sample and start time give exactly the same data, and another seed gives a
