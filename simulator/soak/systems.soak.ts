@@ -25,6 +25,8 @@ import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
 import { Delta, forSchema } from './deltas'
 import { NotificationValue } from '../alarms/panel'
 import { AlarmBand } from '../alarms/zones'
+import { FaultError } from '../faults/faults'
+import { SCOPE } from '../systems/anchor'
 
 // The server pins signalk-schema 1.0; free names under environment.inside need 1.1 or
 // later, so the deltas are validated against the newer copy the streams package uses.
@@ -78,6 +80,8 @@ interface Tick {
   values: Map<string, unknown>
   main?: Set<string>
   slow: boolean
+  /** the navigation lights have failed */
+  lightsFault: boolean
 }
 
 interface CaseResult {
@@ -97,6 +101,8 @@ interface CaseResult {
   pilotUpdates: { ms: number; u: PilotUpdate }[]
   underWayTicks: number
   engagedTicks: number
+  /** the sun's elevation, degrees, at each try at failing the lights, and whether it took */
+  lightsTries: { sunDeg: number; raised: boolean }[]
 }
 
 interface Note {
@@ -119,6 +125,13 @@ const DAY_ALARMS = [
 const SEVERE = new Set(['warn', 'alarm', 'alert', 'emergency'])
 /** the anchor watch's notification, raised by the watch rather than from a zone */
 const ANCHOR_ALARM = 'navigation.anchor'
+/** the lights failure the soak raises itself, once it is dark */
+const LIGHTS_ALARM = 'navigation.lights'
+/** the sun's upper limb at the horizon, degrees; the lights follow it to within this */
+const SUNSET_DEG = -0.833
+const SUNSET_MARGIN_DEG = 0.25
+/** five times a depth sent to the centimetre, and the chain sent to the centimetre */
+const CHAIN_ROUNDING_M = 0.05
 
 /** where each profile not named by a sample spends its day */
 const DAY_AT: Record<string, string> = {
@@ -364,6 +377,7 @@ function run(soak: SoakCase): CaseResult {
   const pilotUpdates: { ms: number; u: PilotUpdate }[] = []
   let underWayTicks = 0
   let engagedTicks = 0
+  const lightsTries: CaseResult['lightsTries'] = []
   const latest = new Map<string, unknown>()
   const check = (batch: Delta[]) => {
     for (const d of batch) {
@@ -417,19 +431,37 @@ function run(soak: SoakCase): CaseResult {
     if (sim.faults!.active().some((f) => f.kind === 'anchorDragging'))
       dragged = true
     const p = result.position
+    const sunDeg =
+      (sunElevation(result.scenarioMs, p.lat, p.lon) * 180) / Math.PI
+    // the fault as it stood through the tick, before the soak tries to raise it
+    const lightsFault = sim
+      .faults!.active()
+      .some((f) => f.kind === 'navLightsFailure')
+    // the lights fail once, at the first try the faults will take: from dusk only
+    if (!lightsTries.some((x) => x.raised)) {
+      let raised = true
+      try {
+        sim.faults!.raise('navLightsFailure')
+      } catch (error) {
+        if (!(error instanceof FaultError)) throw error
+        raised = false
+      }
+      lightsTries.push({ sunDeg, raised })
+    }
     ticks.push({
       ms: result.scenarioMs,
       lat: p.lat,
       lon: p.lon,
       sogKn: p.sogKn,
-      sunDeg: (sunElevation(result.scenarioMs, p.lat, p.lon) * 180) / Math.PI,
+      sunDeg,
       hour: solarHour(result.scenarioMs, p.lon),
       atBerth:
         !p.anchored && (p.finished || result.scenarioMs < legs[0].departMs),
       summary: sim.systems!.summary(),
       values,
       main,
-      slow: main?.has('environment.outside.temperature') ?? false
+      slow: main?.has('environment.outside.temperature') ?? false,
+      lightsFault
     })
   }
   // each fuel rate sent holds until the next tick, as a gauge integrating it would hold it
@@ -453,7 +485,8 @@ function run(soak: SoakCase): CaseResult {
     dragged,
     pilotUpdates,
     underWayTicks,
-    engagedTicks
+    engagedTicks,
+    lightsTries
   }
 }
 
@@ -495,6 +528,10 @@ function band(
       case 'state':
       case 'transmission.gear':
         return 'string'
+      case 'drive.type':
+        return engine?.drive === 'outboard' ? 'string' : undefined
+      case 'drive.trimState':
+        return engine?.drive === 'outboard' ? [0, 1] : undefined
       case 'revolutions':
         return [0, (maxRpm * 1.05) / 60]
       case 'engineLoad':
@@ -536,6 +573,14 @@ function band(
         return [0, 1e9]
     }
     return undefined
+  }
+  if ((r = m(/^electrical\.switches\.(\w+)\.state$/))) {
+    const id = r[1]
+    const fitted =
+      (id === 'windlass' && p.windlass) ||
+      (id === 'stabilisers' && p.stabilisers !== undefined) ||
+      p.radars.some((x) => x.id === id)
+    return fitted ? [0, 1] : undefined
   }
   if ((r = m(/^electrical\.chargers\.(\w+)\.(.+)$/))) {
     const b = p.banks.find((x) => x.id === r![1])
@@ -734,6 +779,10 @@ function band(
     'navigation.gnss.methodQuality': 'string',
     'navigation.datetime': 'string',
     'navigation.anchor.maxRadius': [1, 200],
+    'navigation.lights': 'string',
+    ...(p.windlass
+      ? { 'navigation.anchor.rodeCounterLength': [0, 200] as Band }
+      : {}),
     'navigation.anchor.currentRadius': [0, 200]
   }
   return fixed[pathOnly]
@@ -1500,7 +1549,8 @@ describe('Simulator systems soak', function () {
     each((r) => {
       const problems: string[] = []
       for (const n of r.notes) {
-        if (n.path === ANCHOR_ALARM) continue
+        // the anchor watch and the lights failure raise their own, with no zone
+        if (n.path === ANCHOR_ALARM || n.path === LIGHTS_ALARM) continue
         const band = r.bands.get(n.path)
         const at = `${n.path} ${n.value.state} at ${new Date(n.ms).toISOString()}`
         if (!band) {
@@ -1551,7 +1601,8 @@ describe('Simulator systems soak', function () {
       const unexpected = [...raised].filter(
         (p) =>
           !DAY_ALARMS.some((re) => re.test(p)) &&
-          !(p === ANCHOR_ALARM && r.dragged)
+          !(p === ANCHOR_ALARM && r.dragged) &&
+          p !== LIGHTS_ALARM
       )
       expect(unexpected, r.soak.name).to.deep.equal([])
     })
@@ -1641,6 +1692,179 @@ describe('Simulator systems soak', function () {
         ).to.be.oneOf(['sailing', 'motoring'])
       }
       if (sailing) expect(set, r.soak.name).to.be.above(0)
+    })
+  )
+
+  it(
+    'shows the lights by the sun and what she is doing, and fails them only from dusk',
+    each((r) => {
+      let state: unknown
+      const seen = new Set<unknown>()
+      for (const t of r.ticks) {
+        state = t.values.get('navigation.state') ?? state
+        const lights = t.values.get('navigation.lights')
+        const at = `${r.soak.name} at ${new Date(t.ms).toISOString()} (${state}, sun ${t.sunDeg.toFixed(2)}°)`
+        expect(lights, at).to.be.a('string')
+        seen.add(lights)
+        if (t.lightsFault) {
+          expect(lights, at).to.equal('fault')
+          continue
+        }
+        expect(lights, at).to.not.equal('fault')
+        // never lit by day, nor alongside
+        if (t.sunDeg > SUNSET_DEG + SUNSET_MARGIN_DEG || state === 'moored')
+          expect(lights, at).to.equal('off')
+        // always lit at night, at anchor and under way
+        if (t.sunDeg < SUNSET_DEG - SUNSET_MARGIN_DEG && state !== 'moored')
+          expect(lights, at).to.equal(
+            state === 'anchored'
+              ? 'anchored'
+              : t.summary.sailing
+                ? 'sailing'
+                : 'motoring'
+          )
+      }
+      expect(seen.has('off'), r.soak.name).to.equal(true)
+      // a try at failing them by day is refused; the first after dusk takes
+      const raised = r.lightsTries.filter((x) => x.raised)
+      expect(raised, r.soak.name).to.have.length(1)
+      expect(raised[0].sunDeg, r.soak.name).to.be.below(
+        SUNSET_DEG + SUNSET_MARGIN_DEG
+      )
+      for (const x of r.lightsTries.filter((y) => !y.raised))
+        expect(x.sunDeg, r.soak.name).to.be.above(
+          SUNSET_DEG - SUNSET_MARGIN_DEG
+        )
+      expect(
+        r.notes.filter(
+          (n) => n.path === LIGHTS_ALARM && n.value.state === 'alarm'
+        ).length,
+        r.soak.name
+      ).to.be.above(0)
+      expect(r.ticks.some((t) => t.lightsFault)).to.equal(true)
+    })
+  )
+
+  it(
+    'pays out the chain the scope calls for on the windlass, and none under way',
+    each((r) => {
+      const p = r.soak.profile
+      let state: unknown
+      let anchoredTicks = 0
+      let ran = 0
+      let previous: number | undefined
+      for (const t of r.ticks) {
+        state = t.values.get('navigation.state') ?? state
+        const chain = num(t, 'navigation.anchor.rodeCounterLength')
+        const windlass = num(t, 'electrical.switches.windlass.state')
+        if (!p.windlass) {
+          expect(chain, r.soak.name).to.equal(undefined)
+          expect(windlass, r.soak.name).to.equal(undefined)
+          continue
+        }
+        const at = `${r.soak.name} at ${new Date(t.ms).toISOString()}`
+        expect(chain, at).to.be.a('number')
+        if (state !== 'anchored') expect(chain, at).to.equal(0)
+        // the windlass runs only while the chain moves
+        if (windlass === 1 && previous !== undefined)
+          expect(chain, at).to.not.equal(previous)
+        if (windlass === 1) ran++
+        const anchor = t.values.get('navigation.anchor.position') as
+          { altitude: number } | undefined
+        if (state === 'anchored' && windlass === 0 && anchor) {
+          // lying to her anchor, the chain out is the scope: five times the depth there
+          // and the bow's height, unless she is heaving in to leave
+          anchoredTicks++
+          const full = SCOPE * (-anchor.altitude + 0.08 * p.lengthM)
+          expect(chain! <= full + CHAIN_ROUNDING_M, at).to.equal(true)
+        }
+        previous = chain
+      }
+      const anchors = r.soak.route.waypoints.some((w) => w.anchor)
+      if (p.windlass && anchors) {
+        expect(anchoredTicks, r.soak.name).to.be.above(0)
+        expect(ran, r.soak.name).to.be.above(0)
+        const house =
+          r.books.banks.find((b) => b.id === 'house') ?? r.books.banks[0]
+        expect(house.outJ.windlass, r.soak.name).to.be.above(0)
+      }
+    })
+  )
+
+  it(
+    'trims only an outboard: tilted up alongside, down to leave and come in',
+    each((r) => {
+      const outboards = new Set(
+        r.soak.profile.engines
+          .filter((e) => e.drive === 'outboard')
+          .map((e) => e.id)
+      )
+      for (const t of r.ticks) {
+        for (const [key, v] of t.values) {
+          const m = /^propulsion\.(\w+)\.drive\./.exec(key)
+          if (!m) continue
+          expect(outboards.has(m[1]), `${r.soak.name}: ${key}`).to.equal(true)
+          if (key.endsWith('.trimState') && t.atBerth)
+            expect(v, `${r.soak.name}: ${key} alongside`).to.equal(1)
+        }
+      }
+      for (const id of outboards) {
+        const trims = r.ticks
+          .map((t) => t.values.get(`propulsion.${id}.drive.trimState`))
+          .filter((x): x is number => typeof x === 'number')
+        expect(Math.min(...trims), r.soak.name).to.equal(0)
+        expect(Math.max(...trims), r.soak.name).to.equal(1)
+      }
+    })
+  )
+
+  it(
+    'works the stabilisers only on the two yachts, and they cut the roll',
+    each((r) => {
+      const p = r.soak.profile
+      const on = r.ticks.filter(
+        (t) => num(t, 'electrical.switches.stabilisers.state') === 1
+      )
+      if (!p.stabilisers) {
+        expect(
+          r.ticks.some((t) =>
+            t.values.has('electrical.switches.stabilisers.state')
+          ),
+          r.soak.name
+        ).to.equal(false)
+        return
+      }
+      expect(on.length, r.soak.name).to.be.above(30)
+      // the same day without them, for the roll they take out
+      const bare = run({ ...r.soak, profile: { ...p, stabilisers: undefined } })
+      const rms = (ticks: Tick[]) => {
+        const rolls = ticks
+          .map((t) => t.values.get('navigation.attitude') as { roll: number })
+          .filter(Boolean)
+          .map((a) => a.roll)
+        return Math.sqrt(rolls.reduce((a, x) => a + x * x, 0) / rolls.length)
+      }
+      const when = new Set(on.map((t) => t.ms))
+      const ratio = rms(on) / rms(bare.ticks.filter((t) => when.has(t.ms)))
+      console.log(
+        `${r.soak.name}: stabilisers on ${on.length} of ${r.ticks.length} ticks, the roll then ${(100 * ratio).toFixed(0)} % of what it is without them`
+      )
+      expect(ratio, r.soak.name).to.be.below(0.5)
+    })
+  )
+
+  it(
+    'transmits on each radar only under way',
+    each((r) => {
+      let state: unknown
+      for (const t of r.ticks) {
+        state = t.values.get('navigation.state') ?? state
+        for (const radar of r.soak.profile.radars) {
+          const v = num(t, `electrical.switches.${radar.id}.state`)
+          const want = state === 'sailing' || state === 'motoring' ? 1 : 0
+          expect(v, `${r.soak.name} ${radar.id} ${state}`).to.equal(want)
+        }
+      }
     })
   )
 
