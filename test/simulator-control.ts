@@ -116,6 +116,13 @@ describe('Simulator REST surface', () => {
     expect(body.position.state).to.equal('under way')
     expect(body.systems.enginesRunning).to.equal(2)
     expect(body.faults).to.deep.equal([])
+    // the water she moves through; a motor boat has no sails
+    expect(body.water.currentFrom).to.equal('seeded')
+    expect(body.water.currentKn).to.be.within(0, 1)
+    expect(body.water.currentSetDeg).to.be.within(0, 359)
+    expect(body.water.speedThroughWaterKn).to.be.above(0)
+    expect(body.water.leewayDeg).to.equal(0)
+    expect(body.sails).to.equal(undefined)
   })
 
   it('pauses, sets the multiplier and jumps, and refuses a bad change', async () => {
