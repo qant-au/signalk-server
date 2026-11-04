@@ -18,6 +18,7 @@ import {
 } from '../routes/route'
 import { VariationGrid, loadVariation } from '../systems/magnetic'
 import { Environment, loadEnvironment } from '../weather/environment'
+import { PilotUpdate } from '../autopilot/pilot'
 import { EnergyBooks, STEP_S, SystemsSummary } from '../systems/model'
 import { solarHour, sunElevation } from '../systems/sun'
 import { VesselProfile, listProfiles, loadProfile } from '../vessels/profile'
@@ -61,6 +62,8 @@ interface SoakCase {
   environment?: Environment
   /** the sample it sails in */
   sample: string
+  /** a passage is sailed on the autopilot in route mode; a day out by the helm */
+  pilot: 'route' | 'standby'
 }
 
 interface Tick {
@@ -90,6 +93,10 @@ interface CaseResult {
   bands: Map<string, AlarmBand>
   /** the anchor dragged at some point in the run, the only cause of an anchor alarm */
   dragged: boolean
+  /** what the autopilot sent the Autopilot API, and the ticks under way it was engaged in */
+  pilotUpdates: { ms: number; u: PilotUpdate }[]
+  underWayTicks: number
+  engagedTicks: number
 }
 
 interface Note {
@@ -252,7 +259,8 @@ async function cases(): Promise<SoakCase[]> {
       hours: 24,
       variation: loadVariation(path.join(SAMPLES, sample)),
       environment: loadEnvironment(path.join(SAMPLES, sample)),
-      sample
+      sample,
+      pilot: 'standby'
     })
   }
   for (const [sample, { hours, leadHours }] of Object.entries(PASSAGES)) {
@@ -266,7 +274,8 @@ async function cases(): Promise<SoakCase[]> {
       hours,
       variation: loadVariation(path.join(SAMPLES, sample)),
       environment: loadEnvironment(path.join(SAMPLES, sample)),
-      sample
+      sample,
+      pilot: 'route'
     })
   }
   for (const other of OTHER_PASSAGES) {
@@ -292,7 +301,8 @@ async function cases(): Promise<SoakCase[]> {
       hours: other.hours,
       variation: loadVariation(path.join(SAMPLES, other.sample)),
       environment: loadEnvironment(path.join(SAMPLES, other.sample)),
-      sample: other.sample
+      sample: other.sample,
+      pilot: 'route'
     })
   }
   return out
@@ -341,7 +351,9 @@ function run(soak: SoakCase): CaseResult {
       timeMultiplier: TIME_MULTIPLIER,
       showTraffic: false,
       scenarioStartMs: soak.startMs,
-      seed: SEED
+      seed: SEED,
+      autopilotUpdate: (u) =>
+        pilotUpdates.push({ ms: sim.systems!.scenarioMs, u })
     },
     (d) => pending.push(d),
     0
@@ -349,6 +361,9 @@ function run(soak: SoakCase): CaseResult {
   const tickCount = (soak.hours * HOUR_MS) / (TICK_MS * TIME_MULTIPLIER)
   const notes: Note[] = []
   let dragged = false
+  const pilotUpdates: { ms: number; u: PilotUpdate }[] = []
+  let underWayTicks = 0
+  let engagedTicks = 0
   const latest = new Map<string, unknown>()
   const check = (batch: Delta[]) => {
     for (const d of batch) {
@@ -365,6 +380,14 @@ function run(soak: SoakCase): CaseResult {
   pending = []
   for (let i = 1; i <= tickCount; i++) {
     const result = sim.tick(i * TICK_MS)
+    const pilot = sim.pilot
+    if (pilot && soak.pilot === 'route') {
+      // back on the pilot whenever she is under way and it stands by
+      if (!pilot.engaged && !pilot.refusal()) pilot.setState('auto')
+      const underWay = !pilot.refusal()
+      if (underWay) underWayTicks++
+      if (underWay && pilot.engaged && pilot.mode === 'route') engagedTicks++
+    }
     check(pending)
     const values = new Map<string, unknown>()
     let main: Set<string> | undefined
@@ -427,7 +450,10 @@ function run(soak: SoakCase): CaseResult {
     sentFuelL,
     notes,
     bands: sim.alarms!.bands,
-    dragged
+    dragged,
+    pilotUpdates,
+    underWayTicks,
+    engagedTicks
   }
 }
 
@@ -611,6 +637,9 @@ function band(p: VesselProfile, key: string): Band | 'string' | undefined {
     'environment.outside.pressure': [95000, 106000],
     'environment.water.temperature': [KELVIN - 2, KELVIN + 35],
     'environment.outside.relativeHumidity': [0, 1],
+    'steering.autopilot.target.headingTrue': [0, 2 * Math.PI],
+    'steering.autopilot.target.headingMagnetic': [0, 2 * Math.PI],
+    'steering.autopilot.target.windAngleApparent': [-Math.PI, Math.PI],
     'environment.tide.heightNow': [-1.5, 3],
     'environment.tide.heightHigh': [-1.5, 3],
     'environment.tide.heightLow': [-1.5, 3],
@@ -1448,6 +1477,35 @@ describe('Simulator systems soak', function () {
           !(p === ANCHOR_ALARM && r.dragged)
       )
       expect(unexpected, r.soak.name).to.deep.equal([])
+    })
+  )
+
+  it(
+    'sails each passage on the autopilot in route mode, and a day out by the helm',
+    each((r) => {
+      const raised = (path: string) =>
+        r.pilotUpdates.filter(
+          (x) => x.u.alarm?.path === path && x.u.alarm.value.state !== 'normal'
+        )
+      if (r.soak.pilot === 'standby' || !r.soak.profile.autopilot) {
+        // the helm has her all day: the pilot never engages, and says nothing
+        expect(
+          r.pilotUpdates.filter((x) => x.u.engaged),
+          r.soak.name
+        ).to.deep.equal([])
+        expect(
+          r.pilotUpdates.filter((x) => x.u.alarm),
+          r.soak.name
+        ).to.deep.equal([])
+        return
+      }
+      expect(r.underWayTicks, r.soak.name).to.be.above(60)
+      // engaged from the tick after she gets under way, and again after each anchorage
+      expect(r.engagedTicks / r.underWayTicks, r.soak.name).to.be.above(0.98)
+      expect(raised('waypointArrival').length, r.soak.name).to.be.above(5)
+      expect(raised('routeComplete'), r.soak.name).to.have.length(1)
+      for (const off of ['xte', 'heading', 'wind'])
+        expect(raised(off), `${r.soak.name} ${off}`).to.deep.equal([])
     })
   )
 
