@@ -6,6 +6,8 @@ import { Route, routeLegs } from '../simulator/routes/route'
 import { Delta, forSchema } from '../simulator/soak/deltas'
 import { Motion, STEP_S, SystemsModel } from '../simulator/systems/model'
 import { Drift, Rng } from '../simulator/systems/random'
+import { switchList } from '../simulator/switching/switches'
+import { hasInverter } from '../simulator/switching/inverters'
 import {
   MAX_TANKS,
   ProfileFile,
@@ -258,13 +260,18 @@ describe('Simulator systems model', () => {
           )
           .map((u) => u.source.src)
         expect(sounderSources).to.deep.equal(profile.sounders.map((s) => s.id))
-        // a switch for each radar, the windlass and the stabilisers, where she has them
+        // every switch in the profile's list, and its bank; the bilge pump only once
+        // the bilge has water, which a fault-free day never gives it
         expect(idsUnder(all, 'electrical.switches.')).to.deep.equal(
           new Set([
-            ...profile.radars.map((r) => r.id),
-            ...(profile.windlass ? ['windlass'] : []),
-            ...(profile.stabilisers ? ['stabilisers'] : [])
+            ...switchList(profile)
+              .map((s) => s.id)
+              .filter((id) => id !== 'bilgePump'),
+            'bank'
           ])
+        )
+        expect(idsUnder(all, 'electrical.inverters.')).to.deep.equal(
+          new Set(hasInverter(profile) ? ['inverter'] : [])
         )
         expect(all.has('navigation.anchor.rodeCounterLength')).to.equal(
           profile.windlass
@@ -300,7 +307,15 @@ describe('Simulator systems model', () => {
         for (const s of profile.sounders) {
           expect(named.get(`sensors.${s.id}`)).to.equal(s.displayName)
         }
-        const names = [...named.values()]
+        // a switch goes by one name on its own path and its bank channel's
+        for (const sw of switchList(profile)) {
+          expect(named.get(`electrical.switches.${sw.id}`)).to.equal(
+            sw.displayName
+          )
+        }
+        const names = [...named]
+          .filter(([path]) => !path.startsWith('electrical.switches.'))
+          .map(([, name]) => name)
         expect(new Set(names).size, 'display names are distinct').to.equal(
           names.length
         )

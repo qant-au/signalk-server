@@ -30,7 +30,24 @@ import { OptimumAngle } from '../sailing/polar'
 import type { Conditions, TideNow } from '../weather/environment'
 import { Drift, DriftState, Rng } from './random'
 import { solarHour, sunElevation } from './sun'
-import { Deck, DeckState, LightsValue, isNight } from '../deck/deck'
+import {
+  Deck,
+  DeckState,
+  LightsValue,
+  isNight,
+  lightsShown
+} from '../deck/deck'
+import {
+  SwitchAnswer,
+  SwitchHolds,
+  SwitchSpec,
+  Switchboard,
+  bankChannels,
+  bankPath,
+  switchList,
+  switchPath
+} from '../switching/switches'
+import { INVERTER_ID, InverterMode, hasInverter } from '../switching/inverters'
 
 /**
  * The boat's systems: engines, generators, batteries and their chargers, tanks, depth
@@ -108,6 +125,10 @@ export interface SystemFaults {
   autopilotFailed(): boolean
   /** the navigation lights have failed */
   lightsFailed(): boolean
+  /** the inverter has tripped to faulted */
+  inverterFailed(inverterId: string): boolean
+  /** the crew switches the bilge pump on or off */
+  bilgePumpByHand(on: boolean): void
 }
 
 type Scalar = number | boolean | string | null
@@ -145,12 +166,14 @@ export interface SystemsState {
   /** a sailing boat's sail plan, null on a motor boat */
   sailing: SailingSaved | null
   deck: DeckState
+  /** the crew's hands on the switches */
+  switches: SwitchHolds
   /** holding tanks being pumped out, as `type.id` */
   pumping: string[]
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 8
+export const SYSTEMS_STATE_VERSION = 9
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -279,6 +302,16 @@ const FUEL_SWITCH_LEVEL = 0.15
 const DAY_TANK_FULL = 0.95
 /** on the inverter a boat sheds all but the occasional galley load */
 const INVERTER_SHARE = 0.06
+/** the cabin lights' share of the hotel load, lit from sunset until the crew turns in */
+const CABIN_LIGHTING_SHARE = 0.1
+/** deck floodlights, watts per metre of length */
+const DECK_LIGHTS_W_PER_M = 6
+/** a fresh water pressure pump: its draw, its flow, and the pressure vessel it fills */
+const FRESH_PUMP_W = 60
+const FRESH_PUMP_L_PER_H = 600
+const FRESH_PRESSURE_L = 1
+/** the fuel transfer pump's draw from the house bank */
+const TRANSFER_PUMP_W = 400
 /** above this length every generator-equipped boat carries its AC load on generators */
 const LARGE_YACHT_M = 24
 /** heat a blocked raw-water intake leaves in the coolant, degrees a second */
@@ -522,6 +555,16 @@ export class SystemsModel {
   private transferring: string | undefined
   /** AC a small boat's inverter carries from the house bank when no generator runs */
   private inverterKw = 0
+  private inverterMode: InverterMode = 'standby'
+  /** the switches the boat has, in their bank's order, and the crew's hands on them */
+  private readonly switches: SwitchSpec[]
+  private readonly switchIds: Set<string>
+  private readonly channels: Map<string, number>
+  private readonly board = new Switchboard()
+  private cabinLightsOn = false
+  /** the fresh water pump runs to fill its pressure vessel, which the taps draw down */
+  private freshPumpOn = false
+  private freshPressureL = FRESH_PRESSURE_L
 
   constructor(
     readonly profile: VesselProfile,
@@ -655,7 +698,10 @@ export class SystemsModel {
     this.loadDrift = new Drift(rng('hotel'), 0.06, 900)
     this.navigation = new Navigation(profile, seed, options.startMs)
     this.anchorage = new Anchorage(profile.lengthM, seed, options.depthAt)
-    this.deck = new Deck(profile)
+    this.switches = switchList(profile)
+    this.switchIds = new Set(this.switches.map((s) => s.id))
+    this.channels = bankChannels(profile)
+    this.deck = new Deck(profile, this.board, this.switchIds)
     this.sail =
       profile.sails && profile.polar
         ? new Sailing(profile.sails, profile.polar)
@@ -760,6 +806,10 @@ export class SystemsModel {
         hybridCharging: this.hybridCharging,
         transferring: this.transferring ?? null,
         inverterKw: this.inverterKw,
+        inverterMode: this.inverterMode,
+        cabinLightsOn: this.cabinLightsOn,
+        freshPumpOn: this.freshPumpOn,
+        freshPressureL: this.freshPressureL,
         anchorAlarmed: this.anchorAlarmed
       },
       drifts: Object.fromEntries(
@@ -792,6 +842,7 @@ export class SystemsModel {
       anchorage: this.anchorage.save(),
       sailing: this.sail?.save() ?? null,
       deck: this.deck.save(),
+      switches: this.board.save(),
       pumping: [...this.pumping].map(tankKey),
       pumpOuts: Object.fromEntries(this.pumpOuts)
     }
@@ -910,6 +961,10 @@ export class SystemsModel {
       if (!ok)
         throw new StaleStateError(`saved systems state has a bad ${what}`)
     })
+    this.board.restore(state.switches, this.switchIds, (ok, what) => {
+      if (!ok)
+        throw new StaleStateError(`saved systems state has a bad ${what}`)
+    })
     this.stepped = true
     const tanks = new Map(this.tanks.map((t) => [tankKey(t), t]))
     const pumping = (state.pumping ?? []).map((k) => tanks.get(k))
@@ -938,6 +993,10 @@ export class SystemsModel {
     this.hybridCharging = values.hybridCharging as boolean
     this.transferring = (values.transferring as string | null) ?? undefined
     this.inverterKw = values.inverterKw as number
+    this.inverterMode = values.inverterMode as InverterMode
+    this.cabinLightsOn = values.cabinLightsOn as boolean
+    this.freshPumpOn = values.freshPumpOn as boolean
+    this.freshPressureL = values.freshPressureL as number
     this.anchorAlarmed = values.anchorAlarmed as boolean
     this.pumping.clear()
     for (const t of pumping) this.pumping.add(t as TankState)
@@ -1357,14 +1416,24 @@ export class SystemsModel {
     const anchored = this.motion.anchored === true
     const hour = solarHour(this.nowMs, this.motion.lon)
     const meal = isMealTime(hour)
-    const awake = hour >= 6.5 && hour < 22.5
+    const awake = this.awake()
     const scaleKw = p.hotelKw
     // a hybrid's hotel load runs on its bank, and its generator only charges the bank
     const batteryHotel = p.hybrid !== undefined
+    const inverterFailed =
+      hasInverter(p) &&
+      this.options.faults?.inverterFailed(INVERTER_ID) === true
+    // the cabin lights come on at sunset and go off as the crew turns in
+    const night = isNight(this.nowMs, this.motion.lat, this.motion.lon)
+    const cabinFollows = night && awake
+    this.cabinLightsOn =
+      this.switchIds.has('cabinLights') &&
+      this.board.state('cabinLights', cabinFollows, String(cabinFollows))
     const baseKw =
       scaleKw *
       (awake ? 1 : 0.6) *
       (meal ? 1.3 : 1) *
+      this.lightingFactor() *
       (1 + this.loadDrift.step(dt))
     const hvacDemandKw =
       HVAC_SHARE *
@@ -1426,7 +1495,8 @@ export class SystemsModel {
     this.hvacKw = this.hvacOn ? hvacDemandKw : 0
     this.hotelKw = baseKw
     this.watermakerRunning =
-      this.watermakerOn && (running.length > 0 || batteryHotel)
+      this.watermakerOn &&
+      (running.length > 0 || (batteryHotel && !inverterFailed))
     for (const g of this.generators) g.loadKw = 0
     this.shoreKw = atBerth && hasGenerators ? baseKw + this.hvacKw : 0
     if (!atBerth && running.length) {
@@ -1437,14 +1507,28 @@ export class SystemsModel {
         this.deck.stabilisersKw
       for (const g of running) g.loadKw = acKw / running.length
     }
+    // a faulted inverter carries nothing, so the loads on it are shed
     this.inverterKw =
-      atBerth || running.length
+      !hasInverter(p) || inverterFailed || atBerth || running.length
         ? 0
         : batteryHotel
           ? baseKw + (this.watermakerRunning ? watermakerKw : 0)
-          : hasGenerators
-            ? INVERTER_SHARE * baseKw
-            : 0
+          : INVERTER_SHARE * baseKw
+    this.inverterMode = inverterFailed
+      ? 'faulted'
+      : atBerth || running.length
+        ? 'standby'
+        : this.inverterKw > 0
+          ? 'inverting'
+          : 'idle'
+  }
+
+  /** the hotel and house loads with the cabin lights' share as their switch has it */
+  private lightingFactor(): number {
+    if (!this.switchIds.has('cabinLights')) return 1
+    return (
+      1 - CABIN_LIGHTING_SHARE + (this.cabinLightsOn ? CABIN_LIGHTING_SHARE : 0)
+    )
   }
 
   /** once started a generator runs a minimum time, so a passing load cannot cycle it */
@@ -1515,9 +1599,11 @@ export class SystemsModel {
         z.tempC = relax(z.tempC, this.engineRoomAmbient(), dt, 900)
         z.humidity = relax(z.humidity, 0.4, dt, 1800)
       } else {
-        // a compressor cycling between a band either side of the setpoint
+        // a compressor cycling between a band either side of the setpoint, while its
+        // switch gives it power; switched off, the inside warms towards the cabin
         const band = 1.5
-        if (z.tempC > p.setpointC + band) z.compressorOn = true
+        if (!this.board.state(p.kind, true)) z.compressorOn = false
+        else if (z.tempC > p.setpointC + band) z.compressorOn = true
         else if (z.tempC < p.setpointC - band) z.compressorOn = false
         const coolPerS = (p.kind === 'freezer' ? 1.0 : 1.2) / 600
         z.tempC = z.compressorOn
@@ -1579,7 +1665,14 @@ export class SystemsModel {
     const house = this.banks.find((b) => b.p.role === 'house')
     const propulsion = this.banks.find((b) => b.p.role === 'propulsion')
     if (house) {
-      draw(house, 3 * p.lengthM ** 1.4, 'house')
+      // with no generator and no AC hotel load, the cabin lights are on the house bank
+      draw(
+        house,
+        3 *
+          p.lengthM ** 1.4 *
+          (this.generators.length ? 1 : this.lightingFactor()),
+        'house'
+      )
       let fridgeW = 0
       for (const z of this.zones) {
         if (
@@ -1593,10 +1686,8 @@ export class SystemsModel {
       draw(house, fridgeW, 'fridges')
       draw(house, this.options.faults?.bilgePumpW() ?? 0, 'bilge pump')
     }
-    // a hybrid's inverter hangs off its propulsion bank, which carries its hotel load
-    const inverterBank = p.hybrid && propulsion ? propulsion : house
     draw(
-      inverterBank,
+      this.inverterBank(),
       (this.inverterKw * 1000) / CHARGER_EFFICIENCY,
       'inverter'
     )
@@ -1611,6 +1702,16 @@ export class SystemsModel {
     const deckBank = house ?? this.banks[0]
     draw(deckBank, this.deck.lightsW, 'navigation lights')
     draw(deckBank, this.deck.windlassW, 'windlass')
+    if (this.board.state('deckLights', false))
+      draw(deckBank, DECK_LIGHTS_W_PER_M * p.lengthM, 'deck lights')
+    if (this.freshPumpOn)
+      draw(
+        deckBank,
+        FRESH_PUMP_W * Math.max(1, p.lengthM / 15),
+        'fresh water pump'
+      )
+    if (this.transferring !== undefined)
+      draw(deckBank, TRANSFER_PUMP_W, 'fuel transfer pump')
 
     const supplied = new Map<BankState, number>()
     const take = (bank: BankState, availableW: number, name: string) => {
@@ -1814,10 +1915,14 @@ export class SystemsModel {
     // the transfer pump keeps the day tanks topped up from the storage tanks
     const dayTanks = fuel.filter((t) => t.p.dayTank)
     const storage = fuel.filter((t) => !t.p.dayTank)
-    const low = dayTanks.find(
-      (t) =>
-        t.p.id === this.transferring || t.litres < DAY_TANK_LOW * t.p.capacityL
-    )
+    // switched off, it stays off until switched on again
+    const low = this.board.state('fuelTransferPump', true)
+      ? dayTanks.find(
+          (t) =>
+            t.p.id === this.transferring ||
+            t.litres < DAY_TANK_LOW * t.p.capacityL
+        )
+      : undefined
     this.transferring = undefined
     if (low && low.litres < DAY_TANK_FULL * low.p.capacityL && storage.length) {
       const from = storage.reduce((a, b) => (b.litres > a.litres ? b : a))
@@ -1839,7 +1944,10 @@ export class SystemsModel {
       const source =
         fresh.find((t) => t.litres > 0.2 * t.p.capacityL) ??
         fresh.reduce((a, b) => (b.litres > a.litres ? b : a))
-      const usedL = Math.min(source.litres, wantL)
+      // the taps give what the pressure pump can keep up; switched off, nothing
+      const pumpPowered = this.board.state('freshWaterPump', true)
+      const usedL = pumpPowered ? Math.min(source.litres, wantL) : 0
+      this.stepFreshPump(dt, pumpPowered && source.litres > 0, usedL)
       source.litres -= usedL
       this.freshUsedL += usedL
       fillTanks(this.tanksOf('wasteWater'), GREY_SHARE * usedL)
@@ -1887,6 +1995,26 @@ export class SystemsModel {
       }
     }
     for (const t of this.tanks) t.slosh.step(dt)
+  }
+
+  /**
+   * The pressure pump: water drawn empties its pressure vessel, and it runs at its own
+   * flow until the vessel is full again, a few seconds every few minutes
+   */
+  private stepFreshPump(dt: number, powered: boolean, usedL: number): void {
+    this.freshPressureL -= usedL
+    if (!powered) {
+      this.freshPumpOn = false
+      return
+    }
+    if (this.freshPressureL <= 0) this.freshPumpOn = true
+    if (this.freshPumpOn) {
+      this.freshPressureL += (FRESH_PUMP_L_PER_H * dt) / SECONDS_PER_HOUR
+      if (this.freshPressureL >= FRESH_PRESSURE_L) {
+        this.freshPressureL = FRESH_PRESSURE_L
+        this.freshPumpOn = false
+      }
+    }
   }
 
   private stepSounders(dt: number): void {
@@ -2021,22 +2149,28 @@ export class SystemsModel {
         `depth sounder, ${s.depthM} m below the waterline`
       )
     }
-    if (this.profile.windlass)
-      name('electrical.switches.windlass', 'Windlass', 'anchor windlass')
-    if (this.profile.stabilisers) {
-      name(
-        'electrical.switches.stabilisers',
-        'Stabilisers',
-        this.profile.stabilisers === 'zeroSpeed'
-          ? 'zero-speed fin stabilisers'
-          : 'fin stabilisers'
-      )
+    // each switch by its own name and by its channel on the switch bank, as the NMEA 2000
+    // converter names a bank's channels
+    // and on the state itself, which a display PUTs to and may read the name from
+    for (const s of this.switches) {
+      const channel = this.channels.get(s.id)
+      const paths = [switchPath(s.id)]
+      if (channel !== undefined) paths.push(bankPath(channel))
+      for (const path of paths) {
+        const description =
+          path === switchPath(s.id)
+            ? s.description
+            : `${s.description}; also ${switchPath(s.id)}`
+        name(path.replace(/\.state$/, ''), s.displayName, description)
+        name(path, s.displayName, description)
+      }
     }
-    for (const r of this.profile.radars) {
+    if (hasInverter(this.profile)) {
+      const bank = this.inverterBank()
       name(
-        `electrical.switches.${r.id}`,
-        r.displayName,
-        'radar: 1 transmitting, 0 standby'
+        `electrical.inverters.${INVERTER_ID}`,
+        'Inverter',
+        `inverter, ${bank?.p.nominalVoltage} V DC from the ${bank?.p.displayName} to ${this.profile.acVoltage} V AC`
       )
     }
     // positive to starboard, as this server's path metadata defines it
@@ -2153,6 +2287,158 @@ export class SystemsModel {
     return this.banks.find((b) => b.p.role === 'house')
   }
 
+  /** a hybrid's inverter hangs off its propulsion bank, which carries its hotel load */
+  private inverterBank(): BankState | undefined {
+    const propulsion = this.banks.find((b) => b.p.role === 'propulsion')
+    return this.profile.hybrid && propulsion ? propulsion : this.houseBank()
+  }
+
+  /** each switch as it is now, by id; the bilge pump is the faults' to send */
+  private switchStates(): Record<string, boolean> {
+    const out: Record<string, boolean> = {}
+    const radars = this.deck.radars
+    for (const s of this.switches) {
+      switch (s.id) {
+        case 'navLights':
+          out[s.id] = this.deck.navLights
+          break
+        case 'anchorLight':
+          out[s.id] = this.deck.anchorLight
+          break
+        case 'deckLights':
+          out[s.id] = this.board.state('deckLights', false)
+          break
+        case 'cabinLights':
+          out[s.id] = this.cabinLightsOn
+          break
+        case 'freshWaterPump':
+          out[s.id] = this.freshPumpOn
+          break
+        case 'fridge':
+        case 'freezer':
+          out[s.id] = this.board.state(s.id, true)
+          break
+        case 'fuelTransferPump':
+          out[s.id] = this.transferring !== undefined
+          break
+        case 'windlass':
+          out[s.id] = this.deck.windlassOn
+          break
+        case 'stabilisers':
+          out[s.id] = this.deck.stabilisers
+          break
+        case 'bilgePump':
+          break
+        default:
+          out[s.id] = radars[s.id] === true
+      }
+    }
+    return out
+  }
+
+  /**
+   * A PUT to a switch, from a display or the page: what it does, or why it is refused.
+   * The switch's value moves at the model's next step.
+   */
+  putSwitch(id: string, on: boolean): SwitchAnswer {
+    if (!this.switchIds.has(id))
+      return { ok: false, message: `this boat has no switch ${id}` }
+    const state = this.stateNow()
+    const underWay = state === 'sailing' || state === 'motoring'
+    const b = this.board
+    switch (id) {
+      case 'navLights':
+      case 'anchorLight': {
+        // held until the lights she should show next change
+        const night = isNight(this.nowMs, this.motion.lat, this.motion.lon)
+        b.hold(id, on, lightsShown(night, state))
+        return { ok: true }
+      }
+      case 'cabinLights': {
+        const awake = this.awake()
+        const follows =
+          isNight(this.nowMs, this.motion.lat, this.motion.lon) && awake
+        b.hold(id, on, String(follows))
+        return { ok: true }
+      }
+      case 'deckLights':
+        if (on) b.hold(id, true)
+        else b.release(id)
+        return { ok: true }
+      case 'fridge':
+      case 'freezer':
+      case 'freshWaterPump':
+        if (on) b.release(id)
+        else b.hold(id, false)
+        return id === 'freshWaterPump' && on
+          ? { ok: true, message: 'on: it runs as water is drawn' }
+          : { ok: true }
+      case 'fuelTransferPump': {
+        if (!on) {
+          b.hold(id, false)
+          return { ok: true }
+        }
+        b.release(id)
+        // on, it tops up the lowest day tank that is not full
+        const day = this.tanksOf('fuel').filter(
+          (t) => t.p.dayTank && t.litres < DAY_TANK_FULL * t.p.capacityL
+        )
+        if (!day.length) return { ok: true, message: 'the day tanks are full' }
+        const lowest = day.reduce((a, c) =>
+          c.litres / c.p.capacityL < a.litres / a.p.capacityL ? c : a
+        )
+        this.transferring = lowest.p.id
+        return { ok: true }
+      }
+      case 'stabilisers':
+        if (!on) {
+          b.hold(id, false)
+          return { ok: true }
+        }
+        b.release(id)
+        return this.deck.stabilisersFollowing
+          ? { ok: true }
+          : {
+              ok: true,
+              message:
+                this.profile.stabilisers === 'zeroSpeed'
+                  ? 'on: they work at anchor, and under way above 6 kn'
+                  : 'on: they work under way above 6 kn'
+            }
+      case 'windlass': {
+        if (!this.anchorage.windlassByHand(on))
+          return { ok: false, message: 'the anchor is up' }
+        const shortStay = this.anchorage.shortStayM ?? 0
+        return on && this.anchorage.chainOutM <= shortStay + 0.01
+          ? { ok: true, message: 'the chain is in to short stay' }
+          : { ok: true }
+      }
+      case 'bilgePump':
+        if (!this.options.faults)
+          return { ok: false, message: 'this run has no bilge' }
+        this.options.faults.bilgePumpByHand(on)
+        return { ok: true }
+      default:
+        // a radar
+        if (!on) {
+          b.hold(id, false)
+          return { ok: true }
+        }
+        if (state === 'moored')
+          return { ok: false, message: 'the radar does not transmit alongside' }
+        // transmitting at anchor holds until she comes alongside
+        if (underWay) b.release(id)
+        else b.hold(id, true, 'away')
+        return { ok: true }
+    }
+  }
+
+  /** the crew is up: from 06:30 until they turn in at 22:30, local sun time */
+  private awake(): boolean {
+    const hour = solarHour(this.nowMs, this.motion.lon)
+    return hour >= 6.5 && hour < 22.5
+  }
+
   /**
    * What the deck shows: the navigation lights, the windlass's switch and chain counter,
    * an outboard's trim and tilt, the stabilisers' switch and each radar's. A switch is
@@ -2166,7 +2452,6 @@ export class SystemsModel {
     const p = this.profile
     put('navigation.lights', this.deck.lights)
     if (p.windlass) {
-      put('electrical.switches.windlass.state', this.deck.windlassOn ? 1 : 0)
       put(
         'navigation.anchor.rodeCounterLength',
         round2(this.anchorage.chainOutM)
@@ -2176,14 +2461,33 @@ export class SystemsModel {
       if (slow) put(`propulsion.${id}.drive.type`, 'outboard')
       put(`propulsion.${id}.drive.trimState`, round3(trim))
     }
-    if (p.stabilisers)
-      put(
-        'electrical.switches.stabilisers.state',
-        this.deck.stabilisers ? 1 : 0
-      )
-    const transmitting = this.deck.radarsOn(this.stateNow())
-    for (const r of p.radars)
-      put(`electrical.switches.${r.id}.state`, transmitting ? 1 : 0)
+    // each switch by name, and on its switch bank channel
+    for (const [id, on] of Object.entries(this.switchStates())) {
+      put(switchPath(id), on ? 1 : 0)
+      const channel = this.channels.get(id)
+      if (channel !== undefined) put(bankPath(channel), on ? 1 : 0)
+    }
+    if (hasInverter(p)) this.putInverter(put)
+  }
+
+  /** the inverter, every second: its DC side from its bank, and the AC it carries */
+  private putInverter(put: (path: string, value: unknown) => void): void {
+    const p = this.profile
+    const base = `electrical.inverters.${INVERTER_ID}`
+    const bankV = this.inverterBank()?.voltage ?? 0
+    const acW = this.inverterKw * 1000
+    const dcW = acW / CHARGER_EFFICIENCY
+    const live =
+      this.inverterMode === 'inverting' || this.inverterMode === 'idle'
+    const acV = live ? p.acVoltage : 0
+    put(`${base}.dc.voltage`, round2(bankV))
+    put(`${base}.dc.current`, round2(bankV ? dcW / bankV : 0))
+    put(`${base}.ac.lineNeutralVoltage`, acV)
+    put(`${base}.ac.frequency`, live ? p.acFrequency : 0)
+    put(`${base}.ac.current`, round2(acV ? acW / (acV * POWER_FACTOR) : 0))
+    put(`${base}.ac.realPower`, Math.round(acW))
+    put(`${base}.ac.apparentPower`, Math.round(acW / POWER_FACTOR))
+    put(`${base}.inverterMode`, this.inverterMode)
   }
 
   /** the polar's beat and gybe at the true wind now */
@@ -2560,13 +2864,21 @@ export class SystemsModel {
         stabilisers: this.profile.stabilisers
           ? this.deck.stabilisers
           : undefined,
-        radars: Object.fromEntries(
-          this.profile.radars.map((r) => [
-            r.id,
-            this.deck.radarsOn(this.stateNow())
-          ])
-        )
+        radars: this.deck.radars
       },
+      switches: {
+        ...this.switchStates(),
+        bilgePump: (this.options.faults?.bilgePumpW() ?? 0) > 0
+      },
+      inverter: hasInverter(this.profile)
+        ? {
+            id: INVERTER_ID,
+            mode: this.inverterMode,
+            acW: this.inverterKw * 1000,
+            dcW: (this.inverterKw * 1000) / CHARGER_EFFICIENCY,
+            bank: this.inverterBank()?.p.id
+          }
+        : undefined,
       hotelKw: this.hotelKw,
       hvacKw: this.hvacKw,
       watermakerRunning: this.watermakerRunning,
@@ -2654,6 +2966,16 @@ export interface SystemsSummary {
     stabilisers?: boolean
     /** each radar transmitting, by id */
     radars: Record<string, boolean>
+  }
+  /** each switch on or off, by id, in the bank's order */
+  switches: Record<string, boolean>
+  /** the inverter, on a boat with one: its mode, the AC it carries and what it draws */
+  inverter?: {
+    id: string
+    mode: InverterMode
+    acW: number
+    dcW: number
+    bank?: string
   }
   hotelKw: number
   /** air conditioning load being carried */

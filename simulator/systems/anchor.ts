@@ -76,7 +76,17 @@ export interface AnchorageState {
   /** the anchor has come up since the last report, so its values are cleared */
   weighed: boolean
   sheer: DriftState
+  /** the windlass as the crew has it: on its own course, heaving in, or stopped */
+  hand: WindlassHand
 }
+
+/**
+ * The windlass under the crew's hand: `auto` pays out and heaves in as the anchorage goes,
+ * `heave` heaves in to short stay and stops there, `stop` holds the chain where it is
+ * until the heave before leaving reaches it
+ */
+export type WindlassHand = 'auto' | 'heave' | 'stop'
+const HANDS = new Set<unknown>(['auto', 'heave', 'stop'])
 
 const RADIANS = Math.PI / 180
 const METRES_PER_DEG_LAT = (6371000 * Math.PI) / 180
@@ -154,6 +164,7 @@ export class Anchorage {
   private sheerRad = 0
   private dragging = false
   private weighed = false
+  private hand: WindlassHand = 'auto'
   private readonly sheer: Drift
   private readonly bowHeightM: number
   private readonly gnssAftM: number
@@ -223,6 +234,25 @@ export class Anchorage {
     return this.winding
   }
 
+  /**
+   * The crew at the windlass: on, it heaves the chain in to short stay; off, it stops the
+   * chain where it is. False with the anchor up, when there is nothing to work.
+   */
+  windlassByHand(on: boolean): boolean {
+    if (!this.set) return false
+    this.hand = on ? 'heave' : 'stop'
+    return true
+  }
+
+  get windlassHand(): WindlassHand {
+    return this.hand
+  }
+
+  /** the chain from the bow roller straight down to the anchor, with the anchor down */
+  get shortStayM(): number | undefined {
+    return this.set ? this.set.depthM + this.bowHeightM : undefined
+  }
+
   /** the radius the boat swings in with this much chain out at this depth */
   maxRadiusFor(depthM: number): number {
     return this.reach(this.scopeM(depthM), depthM) + this.gnssAftM
@@ -285,10 +315,16 @@ export class Anchorage {
       m.leavesInS === undefined
         ? Infinity
         : depthM + this.bowHeightM + Math.max(0, m.leavesInS) * HEAVE_M_S
-    this.chainM =
-      heaveTo < this.chainM
-        ? heaveTo
+    // under the crew's hand it heaves in to short stay, or holds where it was stopped
+    const shortStay = depthM + this.bowHeightM
+    const handHeaving = this.hand === 'heave'
+    const next = handHeaving
+      ? Math.max(shortStay, this.chainM - HEAVE_M_S * dt)
+      : this.hand === 'stop'
+        ? this.chainM
         : Math.min(full, this.chainM + PAY_OUT_M_S * dt)
+    if (handHeaving && next <= shortStay) this.hand = 'stop'
+    this.chainM = heaveTo < this.chainM ? Math.min(heaveTo, next) : next
 
     this.sheerRad =
       (this.sheerRad + (2 * Math.PI * dt) / this.sheerPeriodS) % (2 * Math.PI)
@@ -320,7 +356,8 @@ export class Anchorage {
     const boat = this.boat ?? target
     const [e, n] = metresFrom(boat, target)
     // heaving in, the chain brings her up to the anchor as fast as it comes in
-    const k = 1 - Math.exp(-dt / (heaving ? HEAVE_SETTLE_S : SETTLE_S))
+    const k =
+      1 - Math.exp(-dt / (heaving || handHeaving ? HEAVE_SETTLE_S : SETTLE_S))
     // on her chain, under the windlass or dragging, she never makes a passage's speed
     const stepM = Math.hypot(e, n) * k
     const cap =
@@ -347,6 +384,7 @@ export class Anchorage {
     }
     this.bottom = { lat: m.lat, lon: m.lon }
     this.dragging = false
+    this.hand = 'auto'
     // a run that starts at anchor finds her lying to all her chain
     this.chainM = first ? this.scopeM(depthM) : depthM + this.bowHeightM
     this.boat = first ? null : { lat: m.lat, lon: m.lon }
@@ -367,6 +405,7 @@ export class Anchorage {
     this.chainM = 0
     this.dragging = false
     this.weighed = true
+    this.hand = 'auto'
   }
 
   private rejoin(dt: number, m: AnchorInput): void {
@@ -408,7 +447,8 @@ export class Anchorage {
       sheerRad: this.sheerRad,
       dragging: this.dragging,
       weighed: this.weighed,
-      sheer: this.sheer.save()
+      sheer: this.sheer.save(),
+      hand: this.hand
     }
   }
 
@@ -433,6 +473,8 @@ export class Anchorage {
         Number.isFinite((p as { lon: number }).lon))
     check(point(s.set) && point(s.bottom) && point(s.boat), 'anchorage points')
     check(Number.isFinite(s.sheer?.value), 'anchorage sheer')
+    check(HANDS.has(s.hand), 'anchorage windlass')
+    this.hand = s.hand
     this.set = s.set && { ...s.set }
     this.bottom = s.bottom && { ...s.bottom }
     this.chainM = s.chainM

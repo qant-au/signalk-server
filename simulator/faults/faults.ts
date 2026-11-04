@@ -3,6 +3,8 @@ import { Delta } from '../soak/deltas'
 import { SystemFaults } from '../systems/model'
 import { Rng } from '../systems/random'
 import { VesselProfile } from '../vessels/profile'
+import { bankChannels, bankPath } from '../switching/switches'
+import { inverterIds } from '../switching/inverters'
 
 /**
  * Things that go wrong on a real boat. A fault comes on, develops at the rate it would,
@@ -34,7 +36,9 @@ export const FAULT_KINDS = [
   'staleSensor',
   'anchorDragging',
   'autopilotFailure',
-  'navLightsFailure'
+  'navLightsFailure',
+  'inverterFailure',
+  'personOverboard'
 ] as const
 export type FaultKind = (typeof FAULT_KINDS)[number]
 
@@ -82,6 +86,8 @@ interface KindSpec {
   underWay?: boolean
   /** it can happen only from dusk, while the sun is down */
   night?: boolean
+  /** raised only by hand: the seed never throws it */
+  byHandOnly?: boolean
 }
 
 const combustion = (p: VesselProfile) =>
@@ -192,6 +198,20 @@ export const FAULT_SPECS: Record<FaultKind, KindSpec> = {
     targets: () => ['lights'],
     lastsMin: [10, 60],
     night: true
+  },
+  inverterFailure: {
+    title: 'Inverter failure',
+    description:
+      'The inverter trips to faulted: its AC goes to nothing and the loads it carries are shed, until it is reset',
+    targets: inverterIds,
+    lastsMin: [10, 60]
+  },
+  personOverboard: {
+    title: 'Person overboard',
+    description:
+      "Someone goes over the side: the server's Notifications API raises its MOB alarm at the position she was at, the pilot stands by, and the run tracks her bearing and distance from the person; cleared by hand when they are recovered",
+    targets: () => ['crew'],
+    byHandOnly: true
   }
 }
 
@@ -213,6 +233,11 @@ export interface Fault {
   heldAt?: string
   /** a start was asked of a generator and it would not start */
   crankedMs?: number
+  /** where she was when a person went over the side */
+  at?: { lat: number; lon: number }
+  /** the server's MOB alarm has been raised for it, with this notification id */
+  notified?: boolean
+  notificationId?: string
 }
 
 export interface FaultsState {
@@ -224,7 +249,7 @@ export interface FaultsState {
   nextMs: number | null
   rng: number
   faults: Fault[]
-  bilge: { litres: number; pumpOn: boolean; pumpRunS: number }
+  bilge: Bilge
   /** the boat lay at anchor at the last step */
   anchored?: boolean
   /** the boat lay alongside at the last step */
@@ -234,6 +259,15 @@ export interface FaultsState {
 }
 
 export const FAULTS_STATE_VERSION = 1
+
+/** the bilge: the water in its sump and its pump, which the crew may have switched off */
+interface Bilge {
+  litres: number
+  pumpOn: boolean
+  pumpRunS: number
+  /** switched off by hand, until switched on or the high water float closes */
+  heldOff?: boolean
+}
 
 export interface FaultsOptions {
   seed: number
@@ -265,7 +299,9 @@ export class Faults implements SystemFaults {
   private readonly rng: Rng
   private readonly sumpL: number
   private readonly pumpLph: number
-  private bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
+  private bilge: Bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
+  /** the bilge pump's switch bank channel */
+  private readonly bilgeChannel: number | undefined
   private anchored = false
   private atBerth = true
   private night = false
@@ -282,6 +318,7 @@ export class Faults implements SystemFaults {
     this.rng = new Rng(options.seed, 'faults')
     this.sumpL = SUMP_L_PER_M15 * profile.lengthM ** 1.5
     this.pumpLph = PUMP_L_PER_H + PUMP_L_PER_H_PER_M * profile.lengthM
+    this.bilgeChannel = bankChannels(profile).get('bilgePump')
     const state = options.state
     if (
       state?.version === FAULTS_STATE_VERSION &&
@@ -400,6 +437,10 @@ export class Faults implements SystemFaults {
     if (existing && existing.clearedMs === undefined) {
       throw new FaultError(`${faultId(existing)} is already on`)
     }
+    const at = k === 'personOverboard' ? this.position() : undefined
+    if (k === 'personOverboard' && !at) {
+      throw new FaultError('her position is not known yet')
+    }
     if (existing) this.faults.splice(this.faults.indexOf(existing), 1)
     const lasts = FAULT_SPECS[k].lastsMin
     const fault: Fault = {
@@ -410,7 +451,8 @@ export class Faults implements SystemFaults {
       clearsMs: lasts
         ? this.nowMs +
           Math.round(this.rng.between(lasts[0], lasts[1])) * MINUTE_MS
-        : undefined
+        : undefined,
+      ...(at && { at })
     }
     this.faults.push(fault)
     return this.active().find((v) => v.id === faultId(fault))!
@@ -427,6 +469,15 @@ export class Faults implements SystemFaults {
     const view = this.active().find((v) => v.id === faultId(f))!
     this.retire()
     return view
+  }
+
+  /** where she was at the latest position sent */
+  private position(): { lat: number; lon: number } | undefined {
+    const p = this.lastSent.get('navigation.position') as
+      { latitude?: unknown; longitude?: unknown } | undefined
+    return typeof p?.latitude === 'number' && typeof p.longitude === 'number'
+      ? { lat: p.latitude, lon: p.longitude }
+      : undefined
   }
 
   // ---- inside the systems model, at each of its steps -------------------------------
@@ -501,8 +552,28 @@ export class Faults implements SystemFaults {
     return this.on('anchorDragging', 'anchor') !== undefined
   }
 
+  /** a person in the water, until they are recovered: the fault itself, to note the alarm on */
+  overboard(): Fault | undefined {
+    return this.on('personOverboard', 'crew')
+  }
+
+  inverterFailed(inverterId: string): boolean {
+    return this.on('inverterFailure', inverterId) !== undefined
+  }
+
   bilgePumpW(): number {
     return this.bilge.pumpOn ? PUMP_W_PER_L_PER_H * this.pumpLph : 0
+  }
+
+  /**
+   * The crew at the bilge pump's switch. Off, it stays off with water in the bilge, a
+   * decision they made, until it is switched on again or the high water float closes; on,
+   * it runs until its float switch's off point.
+   */
+  bilgePumpByHand(on: boolean): void {
+    this.bilge.heldOff = !on
+    this.bilge.pumpOn = on
+    if (!on) this.bilge.pumpRunS = 0
   }
 
   private stepBilge(dt: number): void {
@@ -516,7 +587,9 @@ export class Faults implements SystemFaults {
         : 0
     const b = this.bilge
     const share = b.litres / this.sumpL
-    if (share >= PUMP_ON_SHARE) b.pumpOn = true
+    if (b.heldOff && share >= HIGH_WATER_SHARE) b.heldOff = false
+    if (b.heldOff) b.pumpOn = false
+    else if (share >= PUMP_ON_SHARE) b.pumpOn = true
     else if (share <= PUMP_OFF_SHARE) b.pumpOn = false
     const pumpedLph = b.pumpOn ? this.pumpLph : 0
     b.litres = Math.max(
@@ -525,7 +598,7 @@ export class Faults implements SystemFaults {
     )
     b.pumpRunS = b.pumpOn ? b.pumpRunS + dt : 0
     // what is left under the float switch's off point stays in the sump
-    if (!b.pumpOn && !f) b.litres = 0
+    if (!b.pumpOn && !b.heldOff && !f) b.litres = 0
   }
 
   /** the seed's own faults, at the set rate: a fault at random times, on a random target */
@@ -538,7 +611,7 @@ export class Faults implements SystemFaults {
     if (this.nowMs < this.nextMs) return
     this.nextMs = this.nowMs + gap()
     const free = this.available().flatMap((k) =>
-      k.targets
+      (FAULT_SPECS[k.kind].byHandOnly ? [] : k.targets)
         .filter((t) => !this.find(k.kind, t))
         .map((t) => ({ kind: k.kind, target: t }))
     )
@@ -562,7 +635,8 @@ export class Faults implements SystemFaults {
         return typeof c === 'number' && c - KELVIN < COOLANT_NORMAL_C
       }
       case 'bilgeFlooding':
-        return !this.bilge.pumpOn
+        // water the crew is keeping in the bilge is still the leak's
+        return !this.bilge.pumpOn && !this.bilge.heldOff
       case 'gnssLost':
         return this.nowMs - f.clearedMs! >= FIX_SETTLE_S * 1000
       default:
@@ -744,7 +818,15 @@ export class Faults implements SystemFaults {
             {
               path: 'electrical.switches.bilgeHighWater.state',
               value: highWater ? 1 : 0
-            }
+            },
+            ...(this.bilgeChannel === undefined
+              ? []
+              : [
+                  {
+                    path: bankPath(this.bilgeChannel),
+                    value: this.bilge.pumpOn ? 1 : 0
+                  }
+                ])
           ]
         }
       ]
@@ -847,6 +929,15 @@ export class Faults implements SystemFaults {
             )
           }
           break
+        case 'inverterFailure':
+          if (f.clearedMs === undefined) {
+            raise(
+              `electrical.inverters.${t}.inverterMode`,
+              'alarm',
+              'Inverter failure: no AC from the batteries'
+            )
+          }
+          break
       }
     }
     return out
@@ -905,6 +996,16 @@ export class Faults implements SystemFaults {
         parts.push(
           f.clearedMs === undefined ? 'dragging' : 'set again where it lies'
         )
+        break
+      case 'inverterFailure':
+        parts.push(
+          f.clearedMs === undefined
+            ? 'faulted, its loads shed'
+            : 'reset: inverting again'
+        )
+        break
+      case 'personOverboard':
+        parts.push(f.clearedMs === undefined ? 'in the water' : 'recovered')
         break
     }
     return parts.join(', ')
