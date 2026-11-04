@@ -133,6 +133,32 @@ describe('Simulator REST surface', () => {
     })
     expect(body.deck.stabilisers).to.equal(undefined)
     expect(body.nextPoint.bridge).to.equal(undefined)
+    // her switches in their bank's order, the inverter standing by with the generator
+    // or carrying the sockets, and nobody overboard
+    expect(
+      body.switches.map((s: { id: string; channel: number }) => [
+        s.id,
+        s.channel
+      ])
+    ).to.deep.equal([
+      ['navLights', 1],
+      ['anchorLight', 2],
+      ['deckLights', 3],
+      ['cabinLights', 4],
+      ['freshWaterPump', 5],
+      ['fridge', 6],
+      ['freezer', 7],
+      ['windlass', 8],
+      ['radar', 9],
+      ['bilgePump', 10]
+    ])
+    expect(
+      body.switches.find((s: { id: string }) => s.id === 'radar')
+    ).to.include({ name: 'Radar', state: 1 })
+    expect(body.inverters).to.have.length(1)
+    expect(body.inverters[0]).to.include({ id: 'inverter', bank: 'house' })
+    expect(body.inverters[0].mode).to.be.oneOf(['inverting', 'standby'])
+    expect(body.mob).to.deep.equal([])
   })
 
   it('pauses, sets the multiplier and jumps, and refuses a bad change', async () => {
