@@ -38,9 +38,14 @@ state, mode or target, and each alarm, goes to the API's `autopilotUpdate`, whic
   set to compass mode, the target is her heading then. The pilot turns her onto a new
   target at the rate her length and speed allow, about five lengths of turning radius.
 - **Auto, wind mode.** She holds the target apparent wind angle (positive to starboard, as
-  the specification signs it), her heading following the wind's shifts. A tack or a gybe
-  turns her through the wind to the same angle on the other side: a tack to port needs the
-  wind on the port bow, a gybe to port the wind on the starboard quarter.
+  the specification signs it), her heading following the wind's shifts: the pilot steers
+  for the heading that, with the true wind and her speed, puts the apparent wind nearest
+  the target. Where none does (in a light air her own speed brings the apparent wind ahead
+  of a wide target) she holds the heading that comes nearest rather than turning in search
+  of it, and the `wind` alarm says so. A tack or a gybe turns her through the wind to the
+  same angle on the other side, the way she is told, until the wind is on her other side:
+  a tack to port needs the wind on the port bow, a gybe to port the wind on the starboard
+  quarter.
 - **Dodge.** The rudder is put over by the dodge's angle (positive to starboard, at most
   20°) for as long as it is held, turning her as that rudder would at her speed; the mode
   is `dodge`. Ending it returns her to the mode she was in: compass and wind to their
@@ -70,14 +75,14 @@ The pilot raises the API's own alarms, through `autopilotUpdate`, which the serv
 `notifications.steering.autopilot.<alarm>` under the `simulator` source and holds in the
 notifications API.
 
-| Alarm             | When                                                                                                          | State and method                            | Cleared                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
-| `waypointAdvance` | in route mode, 30 seconds before the turn at a waypoint, or the stop at it                                    | alert, sound                                | 30 seconds on, or replaced by the next one |
-| `waypointArrival` | in route mode, abeam of a waypoint halfway round its turn, or on stopping there                               | alert, sound                                | 30 seconds on                              |
-| `routeComplete`   | in route mode, on arriving at the route's last point                                                          | alert, sound                                | two minutes on                             |
-| `xte`             | in route mode, past 100 m off the track: re-engaged off it, rejoining it                                      | warn, visual and sound                      | back within 80 m                           |
-| `heading`         | in compass mode, more than 20° off the target and not closing on it for 30 seconds; and a pilot fault (below) | warn, visual and sound; alarm for the fault | within 10°; or the fault cleared           |
-| `wind`            | in wind mode, the apparent wind more than 20° off the target and not closing for 30 seconds                   | warn, visual and sound                      | within 10°                                 |
+| Alarm             | When                                                                                                                                                    | State and method                            | Cleared                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
+| `waypointAdvance` | in route mode, 30 seconds before the turn at a waypoint, or the stop at it                                                                              | alert, sound                                | 30 seconds on, or replaced by the next one |
+| `waypointArrival` | in route mode, abeam of a waypoint halfway round its turn, or on stopping there                                                                         | alert, sound                                | 30 seconds on                              |
+| `routeComplete`   | in route mode, on arriving at the route's last point                                                                                                    | alert, sound                                | two minutes on                             |
+| `xte`             | in route mode, past 100 m off the track: re-engaged off it, rejoining it                                                                                | warn, visual and sound                      | back within 80 m                           |
+| `heading`         | in compass mode, more than 20° off the target and not closing on it for 30 seconds, a minute after any change of target; and a pilot fault (below)      | warn, visual and sound; alarm for the fault | within 10°; or the fault cleared           |
+| `wind`            | in wind mode, the apparent wind more than 20° off the target and not closing for 30 seconds, a minute after any change and never through a tack or gybe | warn, visual and sound                      | within 10°                                 |
 
 Each waypoint's advance and arrival are raised once. On the route the pilot holds the track
 to within a few metres, well inside the cross track limit, so `xte` comes only from
