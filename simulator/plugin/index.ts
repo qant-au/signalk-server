@@ -33,6 +33,14 @@ import {
   PilotSaved,
   PilotUpdate
 } from '../autopilot/pilot'
+import { VesselProfile } from '../vessels/profile'
+import {
+  bankChannels,
+  bankPath,
+  switchList,
+  switchPath,
+  switchValue
+} from '../switching/switches'
 
 /**
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
@@ -122,6 +130,41 @@ interface App {
    */
   signalk?: { deleteContext(context: string): void }
   deltaCache?: { deleteContext(context: string): void }
+  /** a PUT handler for a path, which the server marks `supportsPut` in its metadata */
+  registerPutHandler?(
+    context: string,
+    path: string,
+    handler: (
+      context: string,
+      path: string,
+      value: unknown,
+      callback: (result: ActionResult) => void
+    ) => ActionResult,
+    source?: string
+  ): void
+  /** the server's Notifications API, for the person overboard alarm */
+  notifications?: {
+    mob(message?: string): string
+    clear(id: string): void
+  }
+  subscriptionmanager?: {
+    subscribe(
+      command: {
+        context: string
+        subscribe: { path: string; policy?: string }[]
+      },
+      unsubscribes: (() => void)[],
+      errorCallback: (error: unknown) => void,
+      callback: (delta: Delta) => void
+    ): void
+  }
+}
+
+/** a PUT handler's answer, as the server's ActionResult has it */
+interface ActionResult {
+  state: 'COMPLETED' | 'PENDING' | 'FAILED'
+  statusCode?: number
+  message?: string
 }
 
 /** a short name for each identity field, for the status line */
@@ -428,6 +471,7 @@ export = function simulatorPlugin(app: App) {
           alarmsState: systemsState ? saved?.alarms : undefined,
           pilotState: systemsState ? saved?.pilot : undefined,
           autopilotUpdate: (u) => app.autopilotUpdate?.(PILOT_ID, u),
+          mob: mobAlarm(),
           collision: {
             distanceM: options.collisionDistanceM,
             timeS: options.collisionTimeMin * 60
@@ -450,6 +494,8 @@ export = function simulatorPlugin(app: App) {
       simulation = start(undefined)
     }
     if (restart?.paused) simulation.retime(Date.now(), { paused: true })
+    for (const [key, value] of heardMobs) simulation.heardMob(key, value)
+    if (scenario.profile) registerSwitches(scenario.profile)
     const adjusted = scenario.adjustments.filter(
       (a) => a.resolved && a.added
     ).length
@@ -582,6 +628,10 @@ export = function simulatorPlugin(app: App) {
         onBoard?.deck.night && onBoard.deck.lights !== 'off'
           ? `, lights: ${onBoard.deck.lights}`
           : ''
+      const overboard = simulation
+        .mobs()
+        .map((m) => (m.words ? `, ${m.words}` : ''))
+        .join('')
       const alarmed = alarms.length
         ? `, alarms: ${alarms.map((a) => `${a.message} (${a.state})`).join(', ')}`
         : ''
@@ -594,7 +644,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${water}${lights}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${overboard}${water}${lights}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -651,6 +701,122 @@ export = function simulatorPlugin(app: App) {
     } catch (error) {
       app.error(`autopilot: ${(error as Error).message}`)
     }
+  }
+
+  /**
+   * A PUT handler for every switch the boat sends, by its name and on its switch bank
+   * channel, as KIP and the NMEA 2000 switch displays PUT to them. A handler stays with
+   * the server until the plugin stops, so one for a switch this boat lacks says so.
+   */
+  const putPaths = new Set<string>()
+  function registerSwitches(profile: VesselProfile) {
+    if (!app.registerPutHandler) return
+    const channels = bankChannels(profile)
+    for (const s of switchList(profile)) {
+      const channel = channels.get(s.id)
+      const paths = [switchPath(s.id)]
+      if (channel !== undefined) paths.push(bankPath(channel))
+      for (const p of paths) {
+        if (putPaths.has(p)) continue
+        putPaths.add(p)
+        app.registerPutHandler(
+          'vessels.self',
+          p,
+          (_context, putPath, value) => throwSwitch(putPath, value),
+          PLUGIN_ID
+        )
+      }
+    }
+  }
+
+  /** a PUT to a switch, by its own path or its bank channel's */
+  function throwSwitch(putPath: string, value: unknown): ActionResult {
+    const refuse = (message: string): ActionResult => ({
+      state: 'COMPLETED',
+      statusCode: 400,
+      message
+    })
+    const systems = simulation?.systems
+    if (!systems) return refuse('the run has not started')
+    const profile = systems.profile
+    const channels = bankChannels(profile)
+    const id = switchList(profile).find(
+      (s) =>
+        switchPath(s.id) === putPath ||
+        (channels.has(s.id) && bankPath(channels.get(s.id)!) === putPath)
+    )?.id
+    if (!id) return refuse(`this boat has no switch at ${putPath}`)
+    const on = switchValue(value)
+    if (on === undefined)
+      return refuse('a switch takes 1 or 0, true or false, "on" or "off"')
+    const answer = systems.putSwitch(id, on)
+    return answer.ok
+      ? { state: 'COMPLETED', statusCode: 200, message: answer.message }
+      : refuse(answer.message)
+  }
+
+  /**
+   * The person overboard alarm through the server's Notifications API: raised at
+   * emergency on `notifications.mob.<id>`, and resolved as the person is recovered. With
+   * the server's notification management off it cannot clear one, so the plugin sends the
+   * notification back to normal itself.
+   */
+  const mobAlarm = () => {
+    const api = app.notifications
+    if (!api) return undefined
+    return {
+      raise: (message: string) => api.mob(message),
+      resolve: (id: string) => {
+        try {
+          api.clear(id)
+        } catch {
+          app.handleMessage(PLUGIN_ID, {
+            context: 'vessels.self',
+            updates: [
+              {
+                values: [
+                  {
+                    path: `notifications.mob.${id}`,
+                    value: {
+                      state: 'normal',
+                      method: [],
+                      message: 'Person recovered'
+                    }
+                  }
+                ]
+              }
+            ]
+          } as unknown as Partial<Delta>)
+        }
+      }
+    }
+  }
+
+  /** MOB alarms on the server from anyone, by notification id, as last heard */
+  const heardMobs = new Map<string, unknown>()
+  let unsubscribes: (() => void)[] = []
+  function listenForMob() {
+    app.subscriptionmanager?.subscribe(
+      {
+        context: 'vessels.self',
+        subscribe: [
+          { path: 'notifications.mob', policy: 'instant' },
+          { path: 'notifications.mob.*', policy: 'instant' }
+        ]
+      },
+      unsubscribes,
+      (error) => app.error(`MOB subscription: ${String(error)}`),
+      (delta) => {
+        for (const update of delta.updates ?? []) {
+          for (const v of update.values ?? []) {
+            if (!v.path.startsWith('notifications.mob')) continue
+            const key = v.path.replace(/^notifications\.mob\.?/, '') || v.path
+            heardMobs.set(key, v.value)
+            simulation?.heardMob(key, v.value)
+          }
+        }
+      }
+    )
   }
 
   /** what the REST surface and the page can read and do */
@@ -801,6 +967,7 @@ export = function simulatorPlugin(app: App) {
       stopped = false
       dropped = new DroppedTargets()
       app.registerDeltaInputHandler(holdBackDropped)
+      listenForMob()
       const options = { ...DEFAULTS, ...settings }
       run(options).catch((error: Error) => {
         app.setPluginError(error.message)
@@ -814,6 +981,10 @@ export = function simulatorPlugin(app: App) {
     stop() {
       stopped = true
       pilotRegistered = false
+      putPaths.clear()
+      for (const unsubscribe of unsubscribes) unsubscribe()
+      unsubscribes = []
+      heardMobs.clear()
       returnIdentity()
       stopRun()
       current = undefined
