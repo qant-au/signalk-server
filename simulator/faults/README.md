@@ -235,9 +235,9 @@ autopilot has a fault; clear it first"), which the page and the run view show.
 - **Paths:** `steering.autopilot.state` goes to `standby` and `engaged` to false, through
   the Autopilot API.
 - **Notification:** `notifications.steering.autopilot.heading`, alarm, `["visual",
-"sound"]`, "Autopilot failure: dropped out to standby, the helm has her", raised by
-  the pilot through the API as it drops out of auto (a pilot standing by has nothing to
-  drop), and sent as `normal` once the fault clears; the pilot can then be engaged again.
+"sound"]`, "Autopilot failure: dropped out to standby, the helm has her", raised by the
+  pilot through the API as it drops out of auto (a pilot standing by has nothing to drop),
+  and sent as `normal` once the fault clears; the pilot can then be engaged again.
 
 ## Raising and Clearing
 
