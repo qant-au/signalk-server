@@ -182,7 +182,14 @@ checks. The faults have their own tests, which run every one through its course.
   `["visual", "sound"]` for an alarm, and a `normal` one comes with the value out of
   every zone or no longer sent. Across the cases at least one tank's alarm is raised. The
   run ends with a table of every notification raised, case by case: the path, how many
-  times, its states, its message and when it first came.
+  times, its states, its message and when it first came. With Miami's tide on the depth,
+  the 45 m yacht's day out raises the shallow water alarm from 12:59 UTC rather than 15:26:
+  the tide is lower then, so the water stands below the grid's datum, and she draws 2.6 m.
+- **The autopilot steers each passage** in route mode, engaged from the tick after she gets
+  under way and again after each anchorage, for at least 98 % of the time she is under
+  way, raising the waypoint arrivals and one route complete and no cross track, heading or
+  wind alarm; on every day out the helm has her, the pilot never engages and says
+  nothing.
 - **The heading** stays on the course over the ground, off it only by what a knot of
   current across the track and a few degrees of yaw allow, and the speed through the
   water differs from the speed over the ground by at most a knot.

@@ -46,6 +46,10 @@ simulator runs them.
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
 speed and course at any moment (`positionAt`), holding at waypoints and stopping at the end.
+That is the helm: in standby it steers the route, and the [autopilot](../autopilot/README.md)
+in route mode is the same follower. Compass and wind modes and a dodge take her off the route;
+she rejoins it at the nearest point ahead, and its timing carries on from there, later by
+her time off it.
 Positions are interpolated along each leg, and at a waypoint the boat passes without
 stopping it swings onto the next leg on an arc tangent to both, at a rate of turn that
 suits its length and speed; the arc joins each leg where the boat on the straight legs
