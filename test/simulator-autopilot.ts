@@ -360,6 +360,20 @@ describe('Simulator autopilot', () => {
     })
   })
 
+  it('holds the nearest heading in a light air that cannot give the angle, and says so', () => {
+    const run = new Run(scenarioFor('sailing-yacht-15m', windFrom(315, 2)))
+    run.until(10)
+    run.pilot.engage()
+    run.pilot.setMode('wind')
+    run.pilot.setTarget(45 * RAD)
+    run.until(14)
+    const held = run.until(17).map((t) => deg(t, 'navigation.headingTrue'))
+    // she does not go round in circles chasing it: the heading moves only with the seed's
+    // gusts and shifts, which in a 2 kn air are as large as the wind itself
+    for (const h of held) expect(Math.abs(wrap(h - held[0]))).to.be.below(60)
+    expect(run.alarms('wind', 'warn')).to.have.length(1)
+  })
+
   describe('a dodge', () => {
     it('puts the rudder over for as long as it is held, then back to the target', () => {
       const run = new Run(scenarioFor('motor-yacht-20m'))

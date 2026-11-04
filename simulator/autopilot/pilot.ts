@@ -131,6 +131,10 @@ const SEARCH_STEP_MS = 10000
 const RUDDER_GAIN = 1.5
 const MAX_RUDDER_DEG = 20
 const WIND_MODE_DEFAULT_AWA_DEG = 45
+/** wind mode searches the headings this finely for the one nearest its target angle */
+const WIND_SEARCH_STEP_DEG = 1
+/** of two headings as near the target, the one less far to turn */
+const WIND_TURN_COST = 0.01
 /** a target that turns with the route goes to the API each time it has turned this far */
 const TARGET_SENT_DEG = 0.5
 
@@ -639,7 +643,7 @@ export class Autopilot {
     } else if (this.s.mode === 'compass') {
       toward(this.s.targetHeadingDeg)
     } else if (this.s.mode === 'wind') {
-      toward(f.headingDeg + this.awaDeg() - this.s.targetAwaDeg)
+      toward(this.windHeadingDeg(f.headingDeg, f.speedKn, ctx))
     } else {
       // dodge: the rudder over, turning her as it would at her speed
       const stw = f.speedKn * KNOT_MS
@@ -691,6 +695,40 @@ export class Autopilot {
       route: { ...route, sogKn: f.speedKn, anchored: false, finished: false },
       onRoute: false
     }
+  }
+
+  /**
+   * The heading that puts the apparent wind nearest the target angle, from the true wind
+   * and her speed through the water: the nearest such heading to hers, so she turns the
+   * short way, through the wind on a tack and through the stern on a gybe. Where no heading
+   * gives the target (a light air against her own speed brings the apparent wind ahead)
+   * it is the heading that comes nearest, which she holds while the wind alarm says so.
+   */
+  private windHeadingDeg(
+    headingDeg: number,
+    speedKn: number,
+    ctx: PilotContext
+  ): number {
+    const from = ctx.windDeg * RADIANS
+    const windE = -ctx.windKn * Math.sin(from)
+    const windN = -ctx.windKn * Math.cos(from)
+    let best = headingDeg
+    let bestCost = Infinity
+    for (let d = -180; d < 180; d += WIND_SEARCH_STEP_DEG) {
+      const h = headingDeg + d
+      const r = h * RADIANS
+      const e = windE - speedKn * Math.sin(r)
+      const n = windN - speedKn * Math.cos(r)
+      const awa = wrap180(Math.atan2(-e, -n) / RADIANS - h)
+      const cost =
+        Math.abs(wrap180(awa - this.s.targetAwaDeg)) +
+        WIND_TURN_COST * Math.abs(d)
+      if (cost < bestCost) {
+        bestCost = cost
+        best = h
+      }
+    }
+    return norm360(best)
   }
 
   private dropOut(): void {
