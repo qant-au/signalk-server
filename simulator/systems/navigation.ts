@@ -186,6 +186,18 @@ export class Navigation {
     return this.offsetM
   }
 
+  /** the current at the latest step: its speed and the direction it runs towards */
+  get current(): { kn: number; toDeg: number } {
+    return {
+      kn: clamp(
+        this.currentKn + this.drifts.currentSpeed.value,
+        0,
+        CURRENT_LIMIT_KN
+      ),
+      toDeg: norm360(this.currentSetDeg + this.drifts.currentSet.value)
+    }
+  }
+
   get heading(): number {
     return this.headingDeg ?? this.cogDeg
   }

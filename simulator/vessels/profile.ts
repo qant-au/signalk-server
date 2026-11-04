@@ -143,6 +143,9 @@ export interface AlarmZone {
   message: string
 }
 
+/** a boat this long carries an autopilot; a smaller one is hand steered */
+const AUTOPILOT_FROM_M = 7
+
 export interface VesselProfile {
   id: string
   name: string
@@ -184,6 +187,8 @@ export interface VesselProfile {
   sounders: SounderProfile[]
   radars: { id: string; displayName: string }[]
   wind: boolean
+  /** an autopilot, which the server's Autopilot API drives (simulator/autopilot) */
+  autopilot: boolean
   zones: ZoneProfile[]
   /**
    * The boat's own alarm bands, by path, where they differ from the defaults for her kind
@@ -478,6 +483,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
               { id: 'radarS', displayName: 'S-band radar' }
             ],
     wind: L >= 7,
+    autopilot: L >= AUTOPILOT_FROM_M,
     zones: defaultZones(L),
     alarmZones: {},
     ...p,

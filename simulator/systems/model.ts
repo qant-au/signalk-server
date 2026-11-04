@@ -74,8 +74,12 @@ export interface SystemsOptions {
 
 /** what the faults on board do to the systems, asked at each of the model's steps */
 export interface SystemFaults {
-  /** moves each fault on its course to this scenario time; `anchored` while the boat lies at anchor */
-  step(nowMs: number, dt: number, anchored: boolean): void
+  /** moves each fault on its course to this scenario time, knowing where the boat lies */
+  step(
+    nowMs: number,
+    dt: number,
+    at: { anchored: boolean; atBerth: boolean }
+  ): void
   /** the engine's raw-water intake is blocked: its coolant heats while it runs */
   intakeBlocked(engineId: string): boolean
   /** the generator will not start; asking is a start that failed */
@@ -88,6 +92,8 @@ export interface SystemFaults {
   bilgePumpW(): number
   /** the anchor is dragging */
   anchorDragging(): boolean
+  /** the autopilot is out of action */
+  autopilotFailed(): boolean
 }
 
 type Scalar = number | boolean | string | null
@@ -911,7 +917,10 @@ export class SystemsModel {
   private step(dt: number, motion: Motion): void {
     this.motion = motion
     const anchored = motion.anchored === true
-    this.options.faults?.step(this.nowMs, dt, anchored)
+    this.options.faults?.step(this.nowMs, dt, {
+      anchored,
+      atBerth: motion.atBerth
+    })
     this.stepWeather(dt)
     this.anchorage.step(
       dt,
@@ -985,6 +994,26 @@ export class SystemsModel {
       report.currentRadiusM,
       watchRadiusM(report, this.options.anchorWatchRadiusM)
     )
+  }
+
+  /** what the autopilot steers by: her heading, the true wind, the current, a fault */
+  pilotContext(): {
+    headingDeg: number
+    windKn: number
+    windDeg: number
+    currentKn: number
+    currentToDeg: number
+    failed: boolean
+  } {
+    const current = this.navigation.current
+    return {
+      headingDeg: this.navigation.heading,
+      windKn: this.windKn,
+      windDeg: this.windDeg,
+      currentKn: current.kn,
+      currentToDeg: current.toDeg,
+      failed: this.options.faults?.autopilotFailed() === true
+    }
   }
 
   /** the anchor as the boat reports it, with the watch's radius, while it is down */

@@ -32,7 +32,8 @@ export const FAULT_KINDS = [
   'gnssLost',
   'windInstrumentFrozen',
   'staleSensor',
-  'anchorDragging'
+  'anchorDragging',
+  'autopilotFailure'
 ] as const
 export type FaultKind = (typeof FAULT_KINDS)[number]
 
@@ -76,6 +77,8 @@ interface KindSpec {
   lastsMin?: [number, number]
   /** it can happen only while the boat lies at anchor, and ends when the anchor comes up */
   atAnchor?: boolean
+  /** it can happen only under way: neither alongside nor at anchor */
+  underWay?: boolean
 }
 
 const combustion = (p: VesselProfile) =>
@@ -170,6 +173,14 @@ export const FAULT_SPECS: Record<FaultKind, KindSpec> = {
     targets: () => ['anchor'],
     lastsMin: [10, 20],
     atAnchor: true
+  },
+  autopilotFailure: {
+    title: 'Autopilot failure',
+    description:
+      'Under way only: the autopilot drops out to standby with its alarm and the helm takes over; it cannot be engaged again until the fault clears',
+    targets: (p) => (p.autopilot ? ['autopilot'] : []),
+    lastsMin: [10, 30],
+    underWay: true
   }
 }
 
@@ -205,6 +216,8 @@ export interface FaultsState {
   bilge: { litres: number; pumpOn: boolean; pumpRunS: number }
   /** the boat lay at anchor at the last step */
   anchored?: boolean
+  /** the boat lay alongside at the last step */
+  atBerth?: boolean
 }
 
 export const FAULTS_STATE_VERSION = 1
@@ -241,6 +254,7 @@ export class Faults implements SystemFaults {
   private readonly pumpLph: number
   private bilge = { litres: 0, pumpOn: false, pumpRunS: 0 }
   private anchored = false
+  private atBerth = true
   /** the latest value sent on each path, as an alarm panel reads it */
   private readonly lastSent = new Map<string, unknown>()
   /** the systems model's satellites and dilution, before a lost fix changes them */
@@ -274,6 +288,7 @@ export class Faults implements SystemFaults {
           : undefined
       this.bilge = { ...state.bilge }
       this.anchored = state.anchored === true
+      this.atBerth = state.atBerth !== false
     }
   }
 
@@ -287,7 +302,8 @@ export class Faults implements SystemFaults {
       rng: this.rng.save(),
       faults: this.faults.map((f) => ({ ...f })),
       bilge: { ...this.bilge },
-      anchored: this.anchored
+      anchored: this.anchored,
+      atBerth: this.atBerth
     }
   }
 
@@ -295,11 +311,19 @@ export class Faults implements SystemFaults {
     return FAULT_SPECS[kind].targets(this.profile)
   }
 
-  /** what it can happen to now: nothing, for a fault of the anchorage while under way */
+  /** why it cannot happen now: a fault of the anchorage under way, or of passage-making at rest */
+  private notNow(kind: FaultKind): string | undefined {
+    const spec = FAULT_SPECS[kind]
+    if (spec.atAnchor && !this.anchored)
+      return `${kind} happens only while the boat lies at anchor`
+    if (spec.underWay && (this.anchored || this.atBerth))
+      return `${kind} happens only under way`
+    return undefined
+  }
+
+  /** what it can happen to now */
   private targetsNow(kind: FaultKind): string[] {
-    return FAULT_SPECS[kind].atAnchor && !this.anchored
-      ? []
-      : this.targetsOf(kind)
+    return this.notNow(kind) ? [] : this.targetsOf(kind)
   }
 
   /** every fault this boat can have, with what it can happen to */
@@ -343,9 +367,8 @@ export class Faults implements SystemFaults {
       throw new FaultError(`no fault called ${kind}`)
     }
     const k = kind as FaultKind
-    if (FAULT_SPECS[k].atAnchor && !this.anchored) {
-      throw new FaultError(`${kind} happens only while the boat lies at anchor`)
-    }
+    const why = this.notNow(k)
+    if (why) throw new FaultError(why)
     const targets = this.targetsOf(k)
     const on = target ?? targets[0]
     if (on === undefined || !targets.includes(on)) {
@@ -390,9 +413,15 @@ export class Faults implements SystemFaults {
 
   // ---- inside the systems model, at each of its steps -------------------------------
 
-  step(nowMs: number, dt: number, anchored: boolean): void {
+  step(
+    nowMs: number,
+    dt: number,
+    at: { anchored: boolean; atBerth: boolean }
+  ): void {
+    const anchored = at.anchored
     this.nowMs = nowMs
     this.anchored = anchored
+    this.atBerth = at.atBerth
     for (const f of this.faults) {
       if (f.clearedMs !== undefined) continue
       if (f.clearsMs !== undefined && nowMs >= f.clearsMs) {
@@ -439,6 +468,10 @@ export class Faults implements SystemFaults {
 
   chargerFailed(bankId: string): boolean {
     return this.on('chargerFailure', bankId) !== undefined
+  }
+
+  autopilotFailed(): boolean {
+    return this.on('autopilotFailure', 'autopilot') !== undefined
   }
 
   anchorDragging(): boolean {
@@ -823,6 +856,13 @@ export class Faults implements SystemFaults {
         break
       case 'gnssLost':
         parts.push(this.gnssPhase() ?? 'settled')
+        break
+      case 'autopilotFailure':
+        parts.push(
+          f.clearedMs === undefined
+            ? 'the helm has her; the pilot cannot be engaged'
+            : 'cleared: the pilot can be engaged'
+        )
         break
       case 'anchorDragging':
         parts.push(
