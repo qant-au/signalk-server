@@ -368,9 +368,8 @@ describe('Simulator autopilot', () => {
     run.pilot.setTarget(45 * RAD)
     run.until(14)
     const held = run.until(17).map((t) => deg(t, 'navigation.headingTrue'))
-    // she does not go round in circles chasing it: the heading moves only with the seed's
-    // gusts and shifts, which in a 2 kn air are as large as the wind itself
-    for (const h of held) expect(Math.abs(wrap(h - held[0]))).to.be.below(60)
+    // she does not go round in circles chasing it, but holds the heading nearest it
+    for (const h of held) expect(Math.abs(wrap(h - held[0]))).to.be.below(20)
     expect(run.alarms('wind', 'warn')).to.have.length(1)
   })
 

@@ -133,8 +133,8 @@ const MAX_RUDDER_DEG = 20
 const WIND_MODE_DEFAULT_AWA_DEG = 45
 /** wind mode searches the headings this finely for the one nearest its target angle */
 const WIND_SEARCH_STEP_DEG = 1
-/** of two headings as near the target, the one less far to turn */
-const WIND_TURN_COST = 0.01
+/** a degree of turn costs this much of a degree off the target: in a calm she holds her heading */
+const WIND_TURN_COST = 0.05
 /** a target that turns with the route goes to the API each time it has turned this far */
 const TARGET_SENT_DEG = 0.5
 
