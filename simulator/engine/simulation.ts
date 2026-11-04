@@ -39,6 +39,7 @@ import {
   closestApproach,
   deadReckon
 } from '../ais/collision'
+import { MobFix, MobPosition, mobFix, mobWords } from '../switching/mob'
 
 /**
  * Runs a scenario: each tick works out the scenario time from the clock, moves the own
@@ -83,6 +84,28 @@ export interface SimulationOptions {
   pilotState?: PilotSaved
   /** what the autopilot tells the server's Autopilot API */
   autopilotUpdate?: (update: PilotUpdate) => void
+  /** the server's Notifications API, which raises the MOB alarm and resolves it */
+  mob?: MobAlarm
+}
+
+/** what the run asks of the server's Notifications API for a person overboard */
+export interface MobAlarm {
+  /** raises `notifications.mob.<id>` at emergency, giving the notification's id */
+  raise(message: string): string | undefined
+  /** resolves it: the person is recovered */
+  resolve(id: string): void
+}
+
+/** a person overboard as the run view and the status line show them */
+export interface MobView {
+  /** raised by the personOverboard fault, or heard from another source on the server */
+  by: 'fault' | 'notification'
+  notificationId?: string
+  at: MobPosition
+  /** when they went in: scenario time for the fault's, as the notification says for another */
+  since?: string
+  fix?: MobFix
+  words?: string
 }
 
 /** an AIS target as last heard, for the plugin's page */
@@ -142,6 +165,13 @@ export class Simulation {
   private ticks = 0
   /** the wall time of the latest send, which a target lost between sends is cleared at */
   private lastWallMs: number
+  /** the MOB alarm the server raised for the personOverboard fault, until it is resolved */
+  private overboardId: string | undefined
+  /** MOB alarms raised by anyone else on the server, by notification id or path */
+  private readonly heardMobs = new Map<
+    string,
+    { at: MobPosition; createdAt?: string }
+  >()
 
   constructor(
     readonly scenario: Scenario,
@@ -197,6 +227,7 @@ export class Simulation {
           options.systemsState ? options.pilotState : undefined
         )
       }
+      this.overboardId = this.faults.overboard()?.notificationId
       this.alarms = new AlarmPanel(
         alarmBands(scenario.profile, options.shallowM ?? DEFAULT_SHALLOW_M),
         options.systemsState ? options.alarmsState : undefined
@@ -277,6 +308,95 @@ export class Simulation {
   /** the route's own time at a scenario time: held back while the pilot has her off it */
   routeMs(scenarioMs: number): number {
     return scenarioMs - (this.pilot?.routeOffsetMs ?? 0)
+  }
+
+  /**
+   * A person overboard: the server raises its MOB alarm as the fault comes on, with the
+   * time she was at, and the pilot stands by; the alarm is resolved as the fault is
+   * cleared, the person recovered
+   */
+  private followOverboard(): void {
+    const f = this.faults?.overboard()
+    if (f && !f.notified) {
+      f.notified = true
+      const time = new Date(f.raisedMs).toISOString().slice(11, 19)
+      f.notificationId = this.options.mob?.raise(
+        `Person overboard at ${time} UTC`
+      )
+      this.overboardId = f.notificationId
+      if (this.pilot?.engaged) this.pilot.disengage()
+    } else if (!f && this.overboardId !== undefined) {
+      this.options.mob?.resolve(this.overboardId)
+      this.overboardId = undefined
+    }
+  }
+
+  /**
+   * A MOB notification on the server, from a display or anyone else: kept while it is
+   * raised, so the run shows her bearing and distance from it too, and dropped as it
+   * goes back to normal
+   */
+  heardMob(key: string, value: unknown): void {
+    const v = value as {
+      state?: unknown
+      position?: { latitude?: unknown; longitude?: unknown } | null
+      createdAt?: unknown
+    } | null
+    const p = v?.position
+    if (
+      !v ||
+      v.state === 'normal' ||
+      v.state === 'nominal' ||
+      typeof p?.latitude !== 'number' ||
+      typeof p.longitude !== 'number'
+    ) {
+      this.heardMobs.delete(key)
+      return
+    }
+    this.heardMobs.set(key, {
+      at: { lat: p.latitude, lon: p.longitude },
+      createdAt: typeof v.createdAt === 'string' ? v.createdAt : undefined
+    })
+  }
+
+  /** every person overboard, with her bearing and distance from each as she goes on */
+  mobs(): MobView[] {
+    const position = this.last?.position
+    const headingDeg =
+      this.systems?.pilotContext().headingDeg ?? position?.cogDeg ?? 0
+    const view = (v: Omit<MobView, 'fix' | 'words'>): MobView => {
+      if (!position) return v
+      const fix = mobFix(
+        { lat: position.lat, lon: position.lon, headingDeg },
+        v.at
+      )
+      return { ...v, fix, words: mobWords(fix) }
+    }
+    const out: MobView[] = []
+    const f = this.faults?.overboard()
+    if (f?.at) {
+      out.push(
+        view({
+          by: 'fault',
+          notificationId: f.notificationId,
+          at: f.at,
+          since: new Date(f.raisedMs).toISOString()
+        })
+      )
+    }
+    for (const [key, m] of this.heardMobs) {
+      // the server's own alarm for the fault comes back as a notification too
+      if (key === this.overboardId) continue
+      out.push(
+        view({
+          by: 'notification',
+          notificationId: key,
+          at: m.at,
+          since: m.createdAt
+        })
+      )
+    }
+    return out
   }
 
   /** forgets every target still heard, as a receiver switched off does */
@@ -474,6 +594,7 @@ export class Simulation {
       )
       this.notifyAll = false
       if (notes) this.emit(notes)
+      this.followOverboard()
     }
     this.ticks++
 
