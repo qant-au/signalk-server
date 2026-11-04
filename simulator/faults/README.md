@@ -37,6 +37,7 @@ picks its length within the range when it is raised.
 | [`staleSensor`](#stale-sensor-value)              | a path (see below)                              | after 10 to 20 minutes                                  | none                                                                                         |
 | [`anchorDragging`](#anchor-dragging)              | `anchor`, only while the boat lies at anchor    | the crew re-anchors after 10 to 20 minutes              | `navigation.anchor` emergency, from the anchor watch, once she is past its radius            |
 | [`autopilotFailure`](#autopilot-failure)          | `autopilot`, on a boat with one, only under way | after 10 to 30 minutes                                  | `steering.autopilot.heading` alarm, through the Autopilot API                                |
+| [`navLightsFailure`](#navigation-lights-failure)  | `lights`, only from dusk                        | after 10 to 60 minutes                                  | `navigation.lights` alarm, until they are back                                               |
 
 A **warn** goes out with method `["visual"]`, an **alarm** with `["visual", "sound"]`, and
 a cleared notification as `normal` with no method, keeping its message. Faults with no
@@ -239,6 +240,20 @@ autopilot has a fault; clear it first"), which the page and the run view show.
   pilot through the API as it drops out of auto (a pilot standing by has nothing to drop),
   and sent as `normal` once the fault clears; the pilot can then be engaged again.
 
+### Navigation Lights Failure
+
+The navigation lights go out: a blown fuse or a corroded connection. It can happen only
+from dusk, while the sun is down (sunset to sunrise, as the [lights](../deck/README.md#the-navigation-lights)
+follow it): the seed throws it only then, a hand raise by day is refused
+(`navLightsFailure happens only from dusk, while the sun is down`), and the page and
+`GET /faults` offer it only then. Once raised it runs its course, into the day if it
+must.
+
+- **Paths:** `navigation.lights` goes to `fault`, and their draw on the house bank stops.
+- **Notification:** `notifications.navigation.lights`, alarm, `["visual", "sound"]`,
+  "Navigation lights failure: showing no lights", sent as `normal` once the fault clears
+  and the lights are back as they were.
+
 ## Raising and Clearing
 
 By REST (full reference in the [plugin README](../plugin/README.md#controlling-the-run)):
@@ -287,4 +302,5 @@ seed's faults and that everything sent validates against the Signal K schema (th
 switches aside). `test/simulator-anchor.ts` runs the dragging anchor: only at anchor, by
 hand or the seed, the drag's pace and direction, the alarm, and the re-anchoring when it
 clears by hand, at the end of its course, or as she weighs. `test/simulator-control.ts`
-checks the REST surface.
+checks the REST surface. `test/simulator-deck.ts` runs the lights failure: refused by day,
+taken after dusk, its alarm, and the lights back once it is cleared by hand.

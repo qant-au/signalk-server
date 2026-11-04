@@ -13,6 +13,32 @@
 
 `route.json`: Coquina (MMSI 367555210), a 20 m motor yacht, 22.5 nm berth to berth in 3 h 48 min as planned (22.7 nm, 3 h 52 min once adjusted for depth), including four bridge-opening holds, at 3 kn in the marinas, 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md) for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
 
+### Bridges
+
+The four holds wait for bascule bridges over the Intracoastal Waterway, named in the
+route's `bridges` list (and in `sample.json`'s `route.bridges`, which `derive` copies
+in). Each was matched to its hold by position against OpenStreetMap's bridges; the
+clearances are the closed vertical clearance at the centre of the span:
+
+| Hold        | Bridge                                     | ICW mile | Closed clearance | The hold                  |
+| ----------- | ------------------------------------------ | -------- | ---------------- | ------------------------- |
+| waypoint 7  | 79th Street Causeway (JFK Causeway) bridge | 1084.6   | 25 ft, 7.6 m     | 2 min 21 s, 440 m south   |
+| waypoint 9  | Broad Causeway (NE 123rd Street) bridge    | 1081.4   | 16 ft, 4.9 m     | 4 min 30 s, at the bridge |
+| waypoint 18 | Hollywood Boulevard (State Route 820)      | 1072.2   | 25 ft, 7.6 m     | 9 min 50 s, 65 m north    |
+| waypoint 20 | Dania Beach Boulevard (State Route A1A)    | 1069.4   | 22 ft, 6.7 m     | 17 min 17 s, 50 m north   |
+
+- **Source:** U.S. Coast Pilot 4, chapter 12, Intracoastal Waterway (NOAA Office of Coast
+  Survey, edition of 1 November 2026, read 4 November 2026):
+  https://nauticalcharts.noaa.gov/publications/coast-pilot/files/cp4/CPB4_C12_WEB.pdf.
+  Positions from OpenStreetMap, read the same day through the Overpass API.
+- **Coquina clears three of them closed.** Her air height is 5.9 m, from the profile's
+  length; only the Broad Causeway bridge, at 4.9 m, has to open for her. The source
+  vessel waited at all four, so it was taller; the holds keep its timing, and the status
+  line says where she would have cleared.
+- **Two holds are just north of their bridges.** The source vessel ran the passage
+  southward, so it waited on the north side; run northward, Coquina holds just past the
+  Hollywood Boulevard and Dania Beach Boulevard bridges.
+
 ## Data
 
 ### AIS: `open/ais.csv`
@@ -133,4 +159,5 @@ degree. The simulator reads between the grid points to send `navigation.headingM
 AIS: NOAA Office for Coastal Management and BOEM, MarineCadastre.gov Nationwide AIS. Depth:
 NOAA Office of Coast Survey, BlueTopo. Weather and tides: NOAA NDBC and NOAA CO-OPS.
 Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
-Reference Field (IAGA).
+Reference Field (IAGA). Bridge clearances: NOAA Office of Coast Survey, U.S. Coast Pilot 4;
+bridge positions: OpenStreetMap contributors (ODbL).

@@ -104,7 +104,7 @@ checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 
-- **Every delta** the run produces (82,986 in all) validates
+- **Every delta** the run produces (83,012 in all) validates
   against `@signalk/signalk-schema` 1.8.2, envelope and full model.
 - **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0
   to 100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
@@ -179,7 +179,8 @@ checks. The faults have their own tests, which run every one through its course.
   load whenever the sun is above 30°.
 - **The notifications** a case raises are the ones its day should, and nothing else: with
   no fault on board, only a tank running low or a holding tank filling, a bank run down,
-  and shallow water may raise one. Each notification matches its zone: a raised one
+  and shallow water may raise one, besides the lights failure the soak raises itself (see
+  below), which has no zone. Each notification matches its zone: a raised one
   carries a zone's state and message for the value its path had just sent (within the
   zone's margin, as a held alarm may be), with method `["visual"]` for a warning and
   `["visual", "sound"]` for an alarm, and a `normal` one comes with the value out of
@@ -205,6 +206,23 @@ checks. The faults have their own tests, which run every one through its course.
   she is under sail alone more than the next morning, and from 03:30 to 07:30 on the next
   morning, its legs dead to windward, the engine runs at least 90 % of the time. The run
   prints what it found.
+- **The navigation lights follow the sun and what she is doing**, in every case: never lit
+  by day or alongside, and always lit at night, `anchored` at anchor, `sailing` under
+  sail alone and `motoring` otherwise, to within a quarter of a degree of sunset. The
+  soak tries to fail them at every tick until the faults take it: each try by day is
+  refused, the one that takes comes after dusk, the lights show `fault` exactly while it
+  lasts, and its alarm is raised.
+- **The chain** is sent only from a boat with a windlass, and is 0 whenever she is not at
+  anchor; lying to her anchor it is never more than five times the depth there and the
+  bow's height, and the windlass runs only at ticks where the chain has moved. Every case
+  with a windlass that anchors runs it, and its draw is in the house bank's books.
+- **Only an outboard trims**: `drive` paths come only from an engine with an outboard,
+  tilted up (1) alongside, and each outboard goes right down (0) and right up in the day.
+- **The stabilisers** are sent only by the 34 m and 45 m yachts, and cut the roll: each
+  case is run again without them, and the roll while they work is less than half of what
+  it is then. It prints what it found (both a third: the 34 m's on for 391 of its 1,440
+  ticks, the 45 m's, at anchor too, for 1,019).
+- **Each radar transmits only under way**, on standby alongside and at anchor.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also

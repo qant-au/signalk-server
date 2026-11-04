@@ -42,6 +42,7 @@ simulator runs them.
 | `waypoints[].speedKn`        | speed on the leg **leaving** this waypoint. Speed belongs to the leg, not the boat, so marinas, channels and no-wake zones stay slow and open water stays fast. The last waypoint has none.                                                                                                                        |
 | `waypoints[].holdS`          | seconds to wait at this waypoint before leaving (a bridge opening)                                                                                                                                                                                                                                                 |
 | `waypoints[].anchor`         | the boat lies at anchor here (engines off, no shore power) while it holds, before it leaves a first waypoint or after it reaches a last one; without it a hold is under way and a route's ends are berths                                                                                                          |
+| `bridges`                    | the bridge each opening hold waits for: `waypoint` (the index of the holding waypoint), `name` and `closedClearanceM`, its vertical clearance closed; optional, see [Bridges](#bridges)                                                                                                                            |
 | `waypoints[].name`, `note`   | for people reading the route; optional                                                                                                                                                                                                                                                                             |
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
@@ -168,6 +169,29 @@ go and arrival it gives (`navigation.course.calcValues.velocityMadeGood`, `timeT
 and `performance.velocityMadeGoodToWaypoint`) go out as `null`, as for a boat not making for
 it: worked from her swing they would have her arriving some hours on. Distance and bearing
 to the next point, true wherever she lies, go out as they are.
+
+## Bridges
+
+A hold under way is usually a bridge opening, and `bridges` says which: one entry per
+opening hold, naming the waypoint that holds, the bridge and its vertical clearance closed,
+at the centre of the span, as the Coast Pilot or the chart gives it. The route loader
+refuses a bridge on a waypoint that does not hold. A hold need not have a bridge (a lock, a
+wait for traffic), and a bridge need not be one she must wait for: while she holds, the
+status line and the run view compare her air height with its closed clearance and say
+whether she is waiting for it to open or would clear it closed ([deck
+README](../deck/README.md#bridges)). The hold's time is the route's either way.
+
+A derived route takes its bridges from `route.bridges` in the sample's `sample.json`, in
+the order she comes to the holds; `derive` gives each the index of its hold, and refuses a
+list whose length differs from the holds'. The depth adjustment can add waypoints to the
+legs sailed, so a bridge is found among them by its holding waypoint's position, not its
+index.
+
+**Miami's four holds** wait for the 79th Street Causeway (JFK Causeway) bridge, the Broad
+Causeway bridge, the Hollywood Boulevard bridge and the Dania Beach Boulevard bridge, all
+bascules over the Intracoastal Waterway; see the [sample README](../samples/miami-icw-2024-03-16/README.md#bridges)
+for their clearances and source. Coquina, at 5.9 m air height, would clear three of them
+closed; the vessel the route was taken from waited at all four.
 
 ## Depth and Route Adjustment
 
