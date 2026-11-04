@@ -42,6 +42,10 @@ JSON format (one object per point).
   dataset's own GFS fields join them when they have been downloaded. The sample has no
   water temperature, waves or water level, so the depth is the grid's, at LAT, and no tide
   is sent. See [the weather README](../../weather/README.md).
+- **No current:** neither source gives a current, and Open-Meteo's marine archive returns
+  no ocean current for the gulf in July 2018 (every hour empty, checked 4 November 2026), so
+  the boat sails on the model's own seeded current, a tenth to four tenths of a knot (see
+  [sailing](../../sailing/README.md#the-current)).
 
 ### AIS and Dataset Weather: `restricted/` (downloaded by the user)
 

@@ -25,7 +25,10 @@ Every provider method is implemented: `getData`, `getState`, `setState`, `getMod
 or cannot do now, is refused with a 400 and a message that says why: wind mode on a motor
 boat, a tack outside wind mode, a target in route mode (the route sets it). Each change of
 state, mode or target, and each alarm, goes to the API's `autopilotUpdate`, which sends the
-`steering.autopilot.*` deltas.
+`steering.autopilot.*` deltas. The server lists a device, and picks its default, only once
+the device has sent something, so the pilot sends its state, mode and target as they stand
+when a run starts and again after a restart: `GET /autopilots` lists `simulator` as the
+default, and the `steering.autopilot` paths are set, before anyone engages it.
 
 ## What the Boat Does in Each State
 
@@ -42,17 +45,22 @@ state, mode or target, and each alarm, goes to the API's `autopilotUpdate`, whic
   for the heading that, with the true wind and her speed, puts the apparent wind nearest
   the target. Where none does (in a light air her own speed brings the apparent wind ahead
   of a wide target) she holds the heading that comes nearest rather than turning in search
-  of it, and the `wind` alarm says so. A tack or a gybe turns her through the wind to the
-  same angle on the other side, the way she is told, until the wind is on her other side:
-  a tack to port needs the wind on the port bow, a gybe to port the wind on the starboard
-  quarter.
+  of it, and the `wind` alarm says so. Her [polar](../sailing/README.md#wind-mode-and-the-polar)
+  keeps her outside the beat: a target inside the polar's beat angle is held at the beat,
+  the `wind` alarm saying why. A tack or a gybe turns her through the wind onto the
+  polar's angle on her other side (the beat for a tack, the gybe angle for a gybe), the way
+  she is told, until the wind is on her other side: a tack to port needs the wind on the
+  port bow, a gybe to port the wind on the starboard quarter. Under 3 kn of true wind, wind
+  mode, a tack and a gybe are refused, and in wind mode she holds her heading until the
+  wind fills in.
 - **Dodge.** The rudder is put over by the dodge's angle (positive to starboard, at most
   20°) for as long as it is held, turning her as that rudder would at her speed; the mode
   is `dodge`. Ending it returns her to the mode she was in: compass and wind to their
   targets, route to the route.
 
 Off the route (compass, wind or dodge), she is sailed by dead reckoning: on the heading the
-pilot holds, at the speed she had on the route, set by the current, and the route's own
+pilot holds and the leeway she makes, at the speed she had on the route, set by the
+current, and the route's own
 timing stands still. Engaging at the berth or at anchor is refused ("she is alongside her
 berth: get under way first", "she is at anchor: weigh first"); the run view and the page
 show the refusal, and arriving alongside or anchoring stands the pilot by.
@@ -75,14 +83,14 @@ The pilot raises the API's own alarms, through `autopilotUpdate`, which the serv
 `notifications.steering.autopilot.<alarm>` under the `simulator` source and holds in the
 notifications API.
 
-| Alarm             | When                                                                                                                                                    | State and method                            | Cleared                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
-| `waypointAdvance` | in route mode, 30 seconds before the turn at a waypoint, or the stop at it                                                                              | alert, sound                                | 30 seconds on, or replaced by the next one |
-| `waypointArrival` | in route mode, abeam of a waypoint halfway round its turn, or on stopping there                                                                         | alert, sound                                | 30 seconds on                              |
-| `routeComplete`   | in route mode, on arriving at the route's last point                                                                                                    | alert, sound                                | two minutes on                             |
-| `xte`             | in route mode, past 100 m off the track: re-engaged off it, rejoining it                                                                                | warn, visual and sound                      | back within 80 m                           |
-| `heading`         | in compass mode, more than 20° off the target and not closing on it for 30 seconds, a minute after any change of target; and a pilot fault (below)      | warn, visual and sound; alarm for the fault | within 10°; or the fault cleared           |
-| `wind`            | in wind mode, the apparent wind more than 20° off the target and not closing for 30 seconds, a minute after any change and never through a tack or gybe | warn, visual and sound                      | within 10°                                 |
+| Alarm             | When                                                                                                                                                                                                            | State and method                            | Cleared                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------- |
+| `waypointAdvance` | in route mode, 30 seconds before the turn at a waypoint, or the stop at it                                                                                                                                      | alert, sound                                | 30 seconds on, or replaced by the next one            |
+| `waypointArrival` | in route mode, abeam of a waypoint halfway round its turn, or on stopping there                                                                                                                                 | alert, sound                                | 30 seconds on                                         |
+| `routeComplete`   | in route mode, on arriving at the route's last point                                                                                                                                                            | alert, sound                                | two minutes on                                        |
+| `xte`             | in route mode, past 100 m off the track: re-engaged off it, rejoining it                                                                                                                                        | warn, visual and sound                      | back within 80 m                                      |
+| `heading`         | in compass mode, more than 20° off the target and not closing on it for 30 seconds, a minute after any change of target; and a pilot fault (below)                                                              | warn, visual and sound; alarm for the fault | within 10°; or the fault cleared                      |
+| `wind`            | in wind mode, the apparent wind more than 20° off the target and not closing for 30 seconds, a minute after any change and never through a tack or gybe; and a target inside the polar's beat, held at the beat | warn, visual and sound                      | within 10°; held at the beat, a target set outside it |
 
 Each waypoint's advance and arrival are raised once. On the route the pilot holds the track
 to within a few metres, well inside the cross track limit, so `xte` comes only from
@@ -137,9 +145,11 @@ or "off the route" when she is.
 `test/simulator-autopilot.ts` checks the provider's data for a motor and a sailing profile
 and the 4 m boat's none, each state change and the refusals, the arrival standing the pilot
 by, compass mode holding its target within a degree once settled, adjusting the target,
-wind mode following a 30° shift, a tack through the wind, a dodge and its rudder, leaving and
+wind mode following a 30° shift, a tack through the wind, the state announced as it stands, a dodge and its rudder, leaving and
 rejoining the route with the cross track alarm, a restart off the route, each waypoint's
 alarms raised once at the right moment on the Miami route with the route complete at its
-end, the heading and wind alarms, the fault, and the schema. The
+end, the heading and wind alarms, the fault, and the schema; `test/simulator-sailing.ts`
+checks wind mode against the polar's beat, its tack and gybe onto the polar's angles, and
+the calm refusal. The
 [systems soak](../soak/README.md#what-it-checks) sails every passage on the pilot in route
 mode and every day out by the helm.

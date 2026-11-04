@@ -2,7 +2,8 @@
 
 What the boat's instruments show of the weather and the water comes from each sample's own
 data, read at the boat's position and the scenario time: the true wind, the air pressure,
-the air and water temperature, the humidity, the waves, and the water level on the depth.
+the air and water temperature, the humidity, the waves, the water level on the depth, and
+the tidal or ocean current.
 Where a sample has none of a quantity, the boat's systems model supplies it as it always
 has, and the tide is not invented: a sample with no water level sends no tide.
 
@@ -12,49 +13,53 @@ and between their times.
 
 ## What Each Sample Gives
 
-| Quantity            | Miami ICW                                                    | Saronic Gulf                                                                | Manly to Hamilton Island                                                   |
-| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Wind and gusts      | CO-OPS Virginia Key and South Port Everglades, 6-minute      | Open-Meteo ERA5, hourly, 5 points; the dataset's GFS fields when downloaded | Open-Meteo ECMWF IFS, hourly, 9 points                                     |
-| Air pressure        | the same CO-OPS stations                                     | as the wind                                                                 | as the wind                                                                |
-| Air temperature     | NDBC VAKF1 and PEGF1, 6-minute, 16 March only                | as the wind                                                                 | as the wind                                                                |
-| Humidity            | none: no station reports a dew point                         | as the wind                                                                 | as the wind                                                                |
-| Water temperature   | NDBC VAKF1 and the 41122 buoy                                | none: the model's own                                                       | the four wave buoys and Open-Meteo's sea surface temperature, 9 points     |
-| Waves               | the 41122 buoy, significant height                           | none: the model's sea, from the wind                                        | the four wave buoys and Open-Meteo ECMWF WAM, 9 points                     |
-| Water level (depth) | CO-OPS observations, the predictions where they run out      | none                                                                        | Open-Meteo's sea level, including the tide, 9 points                       |
-| Tide height         | above MLLW, the next high and low water from the predictions | none                                                                        | none: the sea level is above mean sea level, not a chart datum (see below) |
+| Quantity            | Miami ICW                                                                                    | Saronic Gulf                                                                | Manly to Hamilton Island                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Wind and gusts      | CO-OPS Virginia Key and South Port Everglades, 6-minute                                      | Open-Meteo ERA5, hourly, 5 points; the dataset's GFS fields when downloaded | Open-Meteo ECMWF IFS, hourly, 9 points                                     |
+| Air pressure        | the same CO-OPS stations                                                                     | as the wind                                                                 | as the wind                                                                |
+| Air temperature     | NDBC VAKF1 and PEGF1, 6-minute, 16 March only                                                | as the wind                                                                 | as the wind                                                                |
+| Humidity            | none: no station reports a dew point                                                         | as the wind                                                                 | as the wind                                                                |
+| Water temperature   | NDBC VAKF1 and the 41122 buoy                                                                | none: the model's own                                                       | the four wave buoys and Open-Meteo's sea surface temperature, 9 points     |
+| Waves               | the 41122 buoy, significant height                                                           | none: the model's sea, from the wind                                        | the four wave buoys and Open-Meteo ECMWF WAM, 9 points                     |
+| Water level (depth) | CO-OPS observations, the predictions where they run out                                      | none                                                                        | Open-Meteo's sea level, including the tide, 9 points                       |
+| Tide height         | above MLLW, the next high and low water from the predictions                                 | none                                                                        | none: the sea level is above mean sea level, not a chart datum (see below) |
+| Current             | CO-OPS current predictions at Government Cut and the 17th Street Bridge on the ICW, 6-minute | none: the model's own seeded current                                        | Open-Meteo's ocean current (MeteoFrance SMOC), 9 points                    |
 
 The files, in each sample's `open/weather/` (the Saronic GFS in `restricted/`):
 
-| Sample     | File                                                                     | Format       | Gives                                    |
-| ---------- | ------------------------------------------------------------------------ | ------------ | ---------------------------------------- |
-| Miami      | `coops_8723214_{wind,air_pressure,water_level,predictions}_20240316.csv` | CO-OPS CSV   | wind, gusts, pressure, tide, water level |
-| Miami      | `coops_8722956_…_20240316.csv`                                           | CO-OPS CSV   | the same                                 |
-| Miami      | `ndbc-vakf1-2024-03-16.txt`                                              | NDBC text    | air and water temperature                |
-| Miami      | `ndbc-pegf1-2024-03-16.txt`                                              | NDBC text    | air temperature                          |
-| Miami      | `ndbc-41122-2024-03-16.txt`                                              | NDBC text    | water temperature, wave height           |
-| Saronic    | `open-meteo-era5.json`                                                   | Open-Meteo   | wind, gusts, pressure, air, humidity     |
-| Saronic    | `restricted/weather-gfs.csv` (when downloaded)                           | GFS CSV      | the same, 3-hourly at 45 grid points     |
-| Queensland | `open-meteo-ecmwf-ifs.json`                                              | Open-Meteo   | wind, gusts, pressure, air, humidity     |
-| Queensland | `open-meteo-ecmwf-wam.json`                                              | Open-Meteo   | wave height                              |
-| Queensland | `open-meteo-marine.json`                                                 | Open-Meteo   | sea level, sea surface temperature       |
-| Queensland | `buoys/{brisbane,mooloolaba,emu-park,mackay}-2026-08-20_24.csv`          | QLD buoy CSV | wave height, sea surface temperature     |
+| Sample     | File                                                                     | Format       | Gives                                       |
+| ---------- | ------------------------------------------------------------------------ | ------------ | ------------------------------------------- |
+| Miami      | `coops_8723214_{wind,air_pressure,water_level,predictions}_20240316.csv` | CO-OPS CSV   | wind, gusts, pressure, tide, water level    |
+| Miami      | `coops_8722956_…_20240316.csv`                                           | CO-OPS CSV   | the same                                    |
+| Miami      | `coops_{MIH0901,PEV0903}_currents_predictions_20240316.csv`              | CO-OPS CSV   | current                                     |
+| Miami      | `ndbc-vakf1-2024-03-16.txt`                                              | NDBC text    | air and water temperature                   |
+| Miami      | `ndbc-pegf1-2024-03-16.txt`                                              | NDBC text    | air temperature                             |
+| Miami      | `ndbc-41122-2024-03-16.txt`                                              | NDBC text    | water temperature, wave height              |
+| Saronic    | `open-meteo-era5.json`                                                   | Open-Meteo   | wind, gusts, pressure, air, humidity        |
+| Saronic    | `restricted/weather-gfs.csv` (when downloaded)                           | GFS CSV      | the same, 3-hourly at 45 grid points        |
+| Queensland | `open-meteo-ecmwf-ifs.json`                                              | Open-Meteo   | wind, gusts, pressure, air, humidity        |
+| Queensland | `open-meteo-ecmwf-wam.json`                                              | Open-Meteo   | wave height                                 |
+| Queensland | `open-meteo-marine.json`                                                 | Open-Meteo   | sea level, sea surface temperature, current |
+| Queensland | `buoys/{brisbane,mooloolaba,emu-park,mackay}-2026-08-20_24.csv`          | QLD buoy CSV | wave height, sea surface temperature        |
 
 Queensland's `open-meteo-gfs.json` is left unread: the ECMWF IFS covers the same points, and
 two models pooled would give their mean, which neither forecast.
 
 ## The Stations
 
-| Station                               | Position              | Source                                                                                      |
-| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
-| CO-OPS 8723214, Virginia Key          | 25.7314 N, 80.1618 W  | NOAA CO-OPS station metadata                                                                |
-| CO-OPS 8722956, South Port Everglades | 26.0817 N, 80.1167 W  | NOAA CO-OPS station metadata                                                                |
-| NDBC VAKF1, Virginia Key              | 25.731 N, 80.162 W    | NDBC station page (the same site as 8723214)                                                |
-| NDBC PEGF1, Port Everglades           | 26.086 N, 80.116 W    | NDBC station page (the same site as 8722956)                                                |
-| NDBC 41122, Hollywood Beach           | 26.001 N, 80.096 W    | NDBC station page                                                                           |
-| Brisbane wave buoy                    | 27.4895 S, 153.6332 E | Queensland Government live wave data, the buoy's reported positions averaged, November 2026 |
-| Mooloolaba wave buoy                  | 26.5671 S, 153.1813 E | the same                                                                                    |
-| Emu Park wave buoy                    | 23.3028 S, 151.0721 E | the same                                                                                    |
-| Mackay wave buoy                      | 21.0358 S, 149.5479 E | the same                                                                                    |
+| Station                                                | Position               | Source                                                                                      |
+| ------------------------------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------- |
+| CO-OPS 8723214, Virginia Key                           | 25.7314 N, 80.1618 W   | NOAA CO-OPS station metadata                                                                |
+| CO-OPS 8722956, South Port Everglades                  | 26.0817 N, 80.1167 W   | NOAA CO-OPS station metadata                                                                |
+| CO-OPS MIH0901, Miami Harbor Entrance (Government Cut) | 25.76405 N, 80.13394 W | NOAA CO-OPS current station metadata                                                        |
+| CO-OPS PEV0903, Port Everglades 17th Street Bridge     | 26.09973 N, 80.1191 W  | NOAA CO-OPS current station metadata                                                        |
+| NDBC VAKF1, Virginia Key                               | 25.731 N, 80.162 W     | NDBC station page (the same site as 8723214)                                                |
+| NDBC PEGF1, Port Everglades                            | 26.086 N, 80.116 W     | NDBC station page (the same site as 8722956)                                                |
+| NDBC 41122, Hollywood Beach                            | 26.001 N, 80.096 W     | NDBC station page                                                                           |
+| Brisbane wave buoy                                     | 27.4895 S, 153.6332 E  | Queensland Government live wave data, the buoy's reported positions averaged, November 2026 |
+| Mooloolaba wave buoy                                   | 26.5671 S, 153.1813 E  | the same                                                                                    |
+| Emu Park wave buoy                                     | 23.3028 S, 151.0721 E  | the same                                                                                    |
+| Mackay wave buoy                                       | 21.0358 S, 149.5479 E  | the same                                                                                    |
 
 The Open-Meteo files carry their own grid points; the GFS file carries its grid.
 
@@ -122,6 +127,20 @@ a tide gauge and a tide table give them. When the weather holds the water above 
 predicted tide they disagree: on Miami's afternoon the observations run about 0.1 m above
 the predictions, so the height now can stand above the next predicted high water.
 
+## The Current
+
+The current is read like the tide: each source a station, read in time and blended between
+stations by inverse distance squared, as a vector like the wind, holding its first or last
+reading past the edges of the data. It acts on the water: the route gives the course and
+speed over the ground, and the current the heading she holds against it and her speed
+through the water (see [sailing](../sailing/README.md#the-current)).
+
+| Sample     | Current                                                                                                                                                             | Read as                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Miami      | CO-OPS predictions at Miami Harbor Entrance (Government Cut, MIH0901, 8 ft bin) and the 17th Street Bridge on the ICW (PEV0903, 6 ft bin), 16 and 17 March          | the speed along each station's major axis, flood positive: towards its mean flood direction, else its ebb |
+| Queensland | Open-Meteo's `ocean_current_velocity` and `ocean_current_direction` (MeteoFrance SMOC), hourly at the 9 marine points, 20 to 24 August, in `open-meteo-marine.json` | km/h, towards the direction given                                                                         |
+| Saronic    | none in the sample                                                                                                                                                  | the seeded current the model has always had: a tenth to four tenths of a knot, wandering slowly           |
+
 ## What the Wind Feeds
 
 The sample's wind is the true wind, and the seed's gusts and shifts ride on it: a speed that
@@ -130,10 +149,11 @@ hour, drawn from the run's seed, so a run repeats exactly for a seed and start. 
 sample's wind the model's own seeded breeze, with its afternoon sea breeze, is used as
 before. The true wind then feeds:
 
-- **Sailing:** a sailing yacht sails when the true wind is 6 kn or more and her leg speed 3.5
-  kn or more, and motors otherwise. Her speed is the route's; there is no leeway in the
-  model.
-- **Heel:** from the apparent wind across her, under sail.
+- **Sailing:** a sailing yacht sails, motor-sails or motors as her polar gives the leg's
+  speed, all of it, some of it or too little, and sets the sails the true wind calls for;
+  her speed is the route's (see [sailing](../sailing/README.md#sail-or-motor)).
+- **Heel and leeway:** from the apparent wind's pressure and the sails she has set (see
+  [sailing](../sailing/README.md#heel-and-leeway)).
 - **The apparent wind:** from the true wind and her own motion over the ground, off her bow.
 - **The wind turbine:** its output from the apparent wind.
 - **The anchor swing:** she lies downwind on her chain, out to its reach in 20 kn or more.

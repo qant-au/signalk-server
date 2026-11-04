@@ -84,6 +84,23 @@ and Port Everglades (8722956).
   `?begin_date=20240316&end_date=20240317&station=8723214&product=water_level&datum=MLLW&time_zone=gmt&units=metric&format=csv`.
 - **Licence:** US government work, public domain.
 
+### Current: `open/weather/coops_{MIH0901,PEV0903}_currents_predictions_20240316.csv`
+
+NOAA CO-OPS 6-minute current predictions for 16 and 17 March (UTC), knots, at two harmonic
+current stations: Miami Harbor Entrance, at Government Cut (MIH0901, 25.76405 N 80.13394 W,
+the 8 ft bin), and Port Everglades, 17th Street Bridge, on the ICW beside Pier 66 (PEV0903,
+26.09973 N 80.1191 W, the 6 ft bin). Each row gives the speed along the channel's major
+axis, flood positive and ebb negative, with the station's mean flood and ebb directions
+(293° and 114° at Government Cut, 22° and 184° at the bridge).
+
+- **Used for:** the current under the boat, blended between the two stations; see
+  [sailing](../../sailing/README.md#the-current). The flood at Government Cut runs at up to
+  1.7 kn on the afternoon of the passage.
+- **Source:** https://api.tidesandcurrents.noaa.gov/api/prod/datagetter, for example
+  `?product=currents_predictions&station=MIH0901&bin=9&begin_date=20240316&end_date=20240317&time_zone=gmt&units=english&interval=6&format=csv`,
+  fetched on 4 November 2026.
+- **Licence:** US government work, public domain.
+
 ### Depth: `cache/BlueTopo_*.tiff` (fetched)
 
 NOAA BlueTopo, the National Bathymetric Source compilation of hydrographic surveys: 27 tiles

@@ -104,13 +104,16 @@ checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 
-- **Every delta** the run produces (82,988 in all) validates
+- **Every delta** the run produces (82,986 in all) validates
   against `@signalk/signalk-schema` 1.8.2, envelope and full model.
 - **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0
   to 100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
   revolutions within the engine's or generator's maximum, AC voltage and frequency, battery
   voltage for the bank's nominal, inside temperatures for living spaces, engine rooms,
-  fridges and freezers, wind, depth, air and water. A path with no band, a NaN, a missing
+  fridges and freezers, wind, depth, air and water, the current (to 2.5 kn), the speed
+  through the water and its components, the leeway (none under power, at most 10°), the
+  sails and their areas, and every performance path within what the polar can give. A path
+  with no band, a NaN, a missing
   value or a string where a number belongs fails the run.
 - **Nothing goes missing**: every value present at the start is present at every tick,
   apart from those that only exist some of the time (time remaining while discharging,
@@ -191,8 +194,17 @@ checks. The faults have their own tests, which run every one through its course.
   wind alarm; on every day out the helm has her, the pilot never engages and says
   nothing.
 - **The heading** stays on the course over the ground, off it only by what a knot of
-  current across the track and a few degrees of yaw allow, and the speed through the
-  water differs from the speed over the ground by at most a knot.
+  current across the track and a few degrees of yaw allow.
+- **The speed through the water agrees** with the speed over the ground less the current,
+  to a centimetre a second, at every tick she is under way.
+- **The sails are set only on a sailing boat, and only under way**: no motor boat sends a
+  `sails` or `performance` path, the area set is 0 alongside and at anchor, and every
+  sailing case sets sail at some point.
+- **The Saronic passage sails her afternoon and motors her morning**: by local solar time,
+  from 12:30 to 15:00 on the first afternoon her sails are set more than half the time and
+  she is under sail alone more than the next morning, and from 03:30 to 07:30 on the next
+  morning, its legs dead to windward, the engine runs at least 90 % of the time. The run
+  prints what it found.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also
