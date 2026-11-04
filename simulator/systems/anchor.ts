@@ -84,7 +84,7 @@ const KNOT_MS = 1852 / 3600
 /** chain paid out per metre of depth plus bow height, as cruising yachts anchor on chain */
 export const SCOPE = 5
 /** the bow roller's height above the water, per metre of length */
-const BOW_HEIGHT_PER_LENGTH = 0.08
+export const BOW_HEIGHT_PER_LENGTH = 0.08
 /** the GNSS antenna sits aft of the bow by this share of the length */
 const GNSS_AFT_SHARE = 0.5
 /** with no depth data for the anchorage, the depth a crew would anchor in */

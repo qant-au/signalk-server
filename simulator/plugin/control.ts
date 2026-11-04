@@ -5,6 +5,7 @@ import { Scenario } from '../engine/scenario'
 import { Simulation } from '../engine/simulation'
 import { FaultError, Faults } from '../faults/faults'
 import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
+import { BOW_HEIGHT_PER_LENGTH } from '../systems/anchor'
 
 /**
  * The plugin's REST surface, under /plugins/signalk-simulator: the run (where the boat
@@ -248,7 +249,8 @@ export function runView(control: Control) {
         ? 'arrived'
         : position.anchored
           ? 'anchored'
-          : position.sogKn > 0
+          : // holding for a bridge she is still under way, stopped in the water
+            routeMs !== undefined && routeMs >= departMs
             ? 'under way'
             : 'alongside'
     },
@@ -321,10 +323,15 @@ export function runView(control: Control) {
       lights: summary.deck.lights,
       night: summary.deck.night,
       chainM: round(summary.deck.chainM, 1),
-      /** the scope she is lying to: the chain out over the depth at the anchor */
+      /** the scope she is lying to: the chain out over the depth and the bow roller's height */
       scope:
         anchor && summary.deck.chainM > 0
-          ? round(summary.deck.chainM / anchor.depthM, 1)
+          ? round(
+              summary.deck.chainM /
+                (anchor.depthM +
+                  BOW_HEIGHT_PER_LENGTH * (scenario.profile?.lengthM ?? 0)),
+              1
+            )
           : undefined,
       windlass: summary.deck.windlass,
       trim: summary.deck.trim,
