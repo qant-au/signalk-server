@@ -273,5 +273,6 @@ deleted on stop: the resources belong to the sample, and a plotter keeps them.
 
 ## Next
 
-- Tides: depths are relative to each grid's datum, with no tide applied.
+- Tides on the plan: the route is adjusted against the grid's depth alone; the water level the
+  sounders follow is not applied to the planning.
 - Speeds tuned against wind, sea state and the vessel's polar, rather than fixed per leg.
