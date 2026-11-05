@@ -306,6 +306,11 @@ going overboard away from a berth.
 
 ### Runs So Far
 
+5 November 2026, with the resources along the routes: 46 checks passing in 13 minutes, the
+resources of each sample on or beside its route, every waypoint and note on a route point
+and the dead slow regions' corners at most 104 m (Miami), 117 m (Queensland) and 141 m
+(the Saronic Gulf) from their legs; the largest record 16.8 MiB as before.
+
 5 November 2026, with the Weather and History APIs: 45 checks passing in 12 minutes, 83,012
 deltas validated, every bank's books balancing to within 0.001 %; the largest record, the
 45 m's day out, 251 paths and 16.8 MiB. The first run failed one check: the 4 m boat has
@@ -366,7 +371,7 @@ bin/simulator-busy <sample> [--hours N] [--multiplier N] [--subscribers N] [--re
 | `--subscribers` | 10      | WebSocket clients subscribed to the full stream                            |
 | `--readers`     | 3       | REST clients reading `/signalk/v1/api/vessels`, each once a second         |
 | `--start-at`    | 0       | start this many minutes into the route                                     |
-| `--port`        | 3100    | the server's HTTP port; the next two take its NMEA 0183 and TCP stream out |
+| `--port`        | 4773    | the server's HTTP port; the next two take its NMEA 0183 and TCP stream out |
 
 It builds the plugin first. The server runs from `.simulator-busy/` in the checkout
 (ignored by git), made fresh on every run, and listens on localhost only; its log and the
@@ -514,12 +519,13 @@ the scenario span and the file's size, and exits non-zero on a failure.
 bin/simulator-replay <file> [--port N]
 ```
 
-It starts this server with no simulator plugin, from its own configuration directory,
-`.simulator-replay/` (ignored by git), made fresh on every run from
+It starts this server with no simulator plugin running, from its own configuration
+directory, `.simulator-replay/` (ignored by git), made fresh on every run from
 `settings/simulator-replay.json`: one piped provider, `providers/simple` of type
-`FileStream`, data type `Multiplexed`, reading the log once through. The server's file
+`FileStream`, data type `Multiplexed`, reading the log once through. The plugin is
+installed on this checkout, so the Admin UI lists it, but that directory never enables it. The server's file
 playback sends each line at its time, from the first line's time at the moment it starts.
-It listens on port 4775 by default, its NMEA 0183 and TCP streams on the next two, so a
+It listens on port 4776 by default, its NMEA 0183 and TCP streams on the next two, so a
 running `bin/simulator` is left alone.
 
 A server keeps the own vessel's name, MMSI, dimensions and antenna offsets in its own vessel

@@ -3,7 +3,7 @@
 # The busy run (simulator/soak/README.md#busy-run): starts this server with the simulator
 # plugin on a sample, traffic on, at x24, with WebSocket subscribers and REST readers, and
 # measures whether it keeps up. The server runs from its own configuration directory,
-# .simulator-busy/ (ignored by git), made fresh on every run, on port 3100 by default, so a
+# .simulator-busy/ (ignored by git), made fresh on every run, on port 4773 by default, so a
 # running bin/simulator is left alone.
 #
 #   bin/simulator-busy <sample> [--hours N] [--multiplier N] [--subscribers N] [--readers N]

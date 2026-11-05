@@ -10,7 +10,7 @@
  *   --readers N       REST clients polling the vessels tree (default 3)
  *   --start-at N      start N minutes into the route (default 0)
  *   --port N          the server's HTTP port; the next two take its NMEA 0183 and TCP
- *                     streams (default 3100)
+ *                     streams (default 4773)
  *
  * Writes a JSON report to simulator/soak/reports/ and exits non-zero if the run failed.
  */
@@ -25,7 +25,7 @@ const DEFAULTS = {
   subscribers: 10,
   readers: 3,
   startAt: 0,
-  port: 3100
+  port: 4773
 }
 const READ_INTERVAL_S = 1
 const SEED = 1

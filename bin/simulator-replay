@@ -5,7 +5,7 @@
 # Multiplexed), which sends each delta at the time it was logged. The server runs from its
 # own configuration directory, .simulator-replay/ (ignored by git), made fresh on every
 # run from settings/simulator-replay.json, with the own boat's identity from the log in its
-# vessel settings (simulator/tools/replay-settings.ts), on port 4775 by default (its NMEA 0183 and TCP
+# vessel settings (simulator/tools/replay-settings.ts), on port 4776 by default (its NMEA 0183 and TCP
 # streams on the next two), so a running bin/simulator is left alone. See
 # simulator/soak/README.md#recording-and-replaying-a-run.
 #
@@ -21,7 +21,7 @@ if [ -z "${FILE}" ] || [ ! -f "${FILE}" ]; then
   exit 2
 fi
 FILE="$(cd "$(dirname "${FILE}")" && pwd)/$(basename "${FILE}")"
-PORT=4775
+PORT=4776
 if [ "$2" = "--port" ]; then PORT="$3"; fi
 
 rm -rf "${RUN}"
