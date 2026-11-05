@@ -127,6 +127,13 @@ interface RunView {
   }
   /** the record the History API answers from */
   history?: { from?: string; to?: string; rows: number; bytes: number }
+  /** what the run published to the Resources API */
+  resources?: {
+    routes: number
+    waypoints: number
+    notes: number
+    regions: number
+  }
   weather?: {
     /** the Weather API at the boat: its latest observation, in SI */
     observation?: {
@@ -302,6 +309,16 @@ interface RunView {
           ],
           ['Profile', run.boat.description],
           ['Sample', `${run.sample}: ${run.route}`],
+          [
+            'Resources',
+            run.resources &&
+              (['routes', 'waypoints', 'notes', 'regions'] as const)
+                .map((t) => {
+                  const n = run.resources![t]
+                  return `${n} ${n === 1 ? t.slice(0, -1) : t}`
+                })
+                .join(', ')
+          ],
           ['Scenario time', time(c.time)],
           [
             'Along the route',

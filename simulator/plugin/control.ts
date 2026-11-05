@@ -8,6 +8,7 @@ import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 import { BOW_HEIGHT_PER_LENGTH } from '../systems/anchor'
 import { bankChannels, switchList } from '../switching/switches'
 import { RunRecord } from '../history/record'
+import { ResourceCounts } from '../routes/resources'
 import { SampleWeather } from '../weather/provider'
 
 /**
@@ -58,6 +59,8 @@ export interface Control {
     record?: RunRecord
     /** the sample's weather, for the Weather API */
     weather?: SampleWeather
+    /** what the run published to the Resources API */
+    resources?: ResourceCounts
   }
   setRun(change: RunChange): Promise<void>
   faults(): Faults
@@ -176,7 +179,8 @@ function runChange(control: Control, body: unknown): RunChange {
 
 /** the run as GET /run gives it */
 export function runView(control: Control) {
-  const { options, scenario, simulation, record, weather } = control.run()
+  const { options, scenario, simulation, record, weather, resources } =
+    control.run()
   const result = simulation.last
   const legs = scenario.legs
   const departMs = legs[0].departMs
@@ -234,6 +238,8 @@ export function runView(control: Control) {
   return {
     sample: options.sample,
     route: scenario.route.name,
+    /** the route and what is along it, as published to the Resources API */
+    resources,
     boat: {
       name: vessel.name,
       mmsi: vessel.mmsi,

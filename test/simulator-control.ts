@@ -90,7 +90,8 @@ describe('Simulator REST surface', () => {
         scenario: s,
         simulation,
         record,
-        weather
+        weather,
+        resources: { routes: 1, waypoints: 9, notes: 5, regions: 3 }
       }),
       async setRun(change) {
         if (change.paused !== undefined || change.timeMultiplier !== undefined)
@@ -194,6 +195,16 @@ describe('Simulator REST surface', () => {
     expect(body.weather.warnings).to.deep.equal([])
     // the instruments' weather alongside it
     expect(body.weather.windKn).to.be.a('number')
+  })
+
+  it('counts what the run published to the Resources API', async () => {
+    const { body } = await call('GET', '/run')
+    expect(body.resources).to.deep.equal({
+      routes: 1,
+      waypoints: 9,
+      notes: 5,
+      regions: 3
+    })
   })
 
   it('pauses, sets the multiplier and jumps, and refuses a bad change', async () => {
