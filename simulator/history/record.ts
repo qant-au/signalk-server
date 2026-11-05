@@ -17,10 +17,10 @@ import type { Delta } from '../soak/deltas'
 export const RECORD_STEP_MS = 10_000
 /** a day of rows at ten seconds */
 export const RECORD_ROWS = 8640
-export const TARGET_ROWS_MAX = 1_000_000
+const TARGET_ROWS_MAX = 1_000_000
 const TARGET_ROWS_START = 4096
 /** a target row: its slot and target as 32-bit integers, its position in doubles, its speed and course in floats */
-export const TARGET_ROW_BYTES = 4 + 4 + 8 + 8 + 4 + 4
+const TARGET_ROW_BYTES = 4 + 4 + 8 + 8 + 4 + 4
 
 /** the most a record takes: a day of each own path, its slots and position, and every target row */
 export function recordBoundBytes(ownPaths: number): number {
@@ -31,7 +31,7 @@ export function recordBoundBytes(ownPaths: number): number {
 }
 export const OWN_CONTEXT = 'vessels.self'
 export const POSITION = 'navigation.position'
-export const TARGET_PATHS = [
+const TARGET_PATHS = [
   POSITION,
   'navigation.speedOverGround',
   'navigation.courseOverGroundTrue'

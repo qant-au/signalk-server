@@ -84,7 +84,7 @@ export const DEFAULT_COLLISION_LIMITS: CollisionLimits = {
  * its moorings or drifting, and raises no alarm, as a plotter's target filters keep a
  * waterway lined with berths quiet
  */
-export const ALARM_MIN_SPEED_KN = 1
+const ALARM_MIN_SPEED_KN = 1
 /** AIS navigational statuses: at anchor, moored */
 const AT_REST = new Set([1, 5])
 /** a raised alarm holds until its approach is this share wider, or this much later */

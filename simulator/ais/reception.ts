@@ -40,10 +40,10 @@ export interface TargetDescription {
 
 // ITU-R M.1371: Class A transmits at 12.5 W; Class B "CS" units, which nearly all
 // recreational fits are, at 2 W.
-export const CLASS_A_POWER_W = 12.5
-export const CLASS_B_POWER_W = 2
-export const DEFAULT_SENSITIVITY_DBM = -107
-export const DEFAULT_SYSTEM_LOSS_DB = 6
+const CLASS_A_POWER_W = 12.5
+const CLASS_B_POWER_W = 2
+const DEFAULT_SENSITIVITY_DBM = -107
+const DEFAULT_SYSTEM_LOSS_DB = 6
 
 // Radio horizon over a smooth sea with the standard 4/3 Earth-radius refraction:
 // d (nm) = 2.23 * (sqrt(h1) + sqrt(h2)), heights in metres.
@@ -56,7 +56,7 @@ const EARTH_RADIUS_NM = 3440.065
 // 90% at 80% of it and about 7% at 120%.
 const RANGE_FADE_FRACTION = 0.08
 // Reports lost to slot collisions and interference even well inside range.
-export const DEFAULT_BASE_LOSS = 0.02
+const DEFAULT_BASE_LOSS = 0.02
 
 // Reporting intervals, ITU-R M.1371-5 Table 1 (Class A) and Class B "CS".
 const CLASS_A_MOORED_S = 180
@@ -84,8 +84,8 @@ const STATIONARY_KN = 0.5
 // sooner than this floor, so one missed report from a fast ship does not drop it. Both
 // keep a lost target well inside the server's own hourly clean-up (pruneContextsMinutes,
 // default 60), which no real boat has.
-export const LOST_AFTER_REPORTS = 3
-export const LOST_FLOOR_S = 180
+const LOST_AFTER_REPORTS = 3
+const LOST_FLOOR_S = 180
 
 type Category = 'large' | 'workboat' | 'sailing' | 'pleasure' | 'unknown'
 

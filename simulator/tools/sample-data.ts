@@ -33,13 +33,13 @@ export interface SampleConfig {
 }
 
 const SIMULATOR_DIR = path.resolve(__dirname, '..')
-export const DOWNLOADS_DIR = path.join(SIMULATOR_DIR, 'downloads')
+const DOWNLOADS_DIR = path.join(SIMULATOR_DIR, 'downloads')
 
 export function sampleDir(id: string): string {
   return path.join(SIMULATOR_DIR, 'samples', id)
 }
 
-export async function loadSample(id: string): Promise<SampleConfig> {
+async function loadSample(id: string): Promise<SampleConfig> {
   return JSON.parse(
     await readFile(path.join(sampleDir(id), 'sample.json'), 'utf8')
   )
@@ -83,7 +83,7 @@ async function download(item: Download, cacheDir: string): Promise<void> {
   }
 }
 
-export async function fetchSample(id: string): Promise<void> {
+async function fetchSample(id: string): Promise<void> {
   const config = await loadSample(id)
   const cacheDir = path.join(sampleDir(id), 'cache')
   await mkdir(cacheDir, { recursive: true })
@@ -92,7 +92,7 @@ export async function fetchSample(id: string): Promise<void> {
   }
 }
 
-export async function prepareSample(id: string): Promise<void> {
+async function prepareSample(id: string): Promise<void> {
   const config = await loadSample(id)
   const restricted = config.restricted
   if (!restricted) {

@@ -265,7 +265,7 @@ const GENERATOR_ID = /^generator\d+$/
 const round = (x: number, step: number) => Math.round(x / step) * step
 
 /** total tankage by length: fitted to typical boats from 4 m to 45 m */
-export function defaultCapacityL(type: TankType, lengthM: number): number {
+function defaultCapacityL(type: TankType, lengthM: number): number {
   const fresh = Math.max(0, 0.28 * lengthM ** 2.86)
   switch (type) {
     case 'fuel':
@@ -279,7 +279,7 @@ export function defaultCapacityL(type: TankType, lengthM: number): number {
   }
 }
 
-export function defaultTankCount(type: TankType, lengthM: number): number {
+function defaultTankCount(type: TankType, lengthM: number): number {
   switch (type) {
     case 'fuel':
       return lengthM < TWIN_ENGINE_FROM_M ? 1 : lengthM < 20 ? 2 : 4
@@ -551,7 +551,7 @@ export function resolveProfile(p: ProfileFile): VesselProfile {
   return profile
 }
 
-export function validateProfile(p: VesselProfile): void {
+function validateProfile(p: VesselProfile): void {
   const ids = new Set<string>()
   const unique = (kind: string, id: string) => {
     const key = `${kind}:${id}`

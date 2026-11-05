@@ -21,7 +21,7 @@ export interface AlarmsState {
   notified: Record<string, NotificationValue>
 }
 
-export const ALARMS_STATE_VERSION = 1
+const ALARMS_STATE_VERSION = 1
 
 /** a watched path's metadata: its zones, and the method each state of them calls for */
 export interface ZoneMeta {

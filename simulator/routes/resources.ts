@@ -238,7 +238,7 @@ export function countWords(counts: ResourceCounts): string {
  * The runs of consecutive legs planned at `DEAD_SLOW_KN` or less, each as a polygon around
  * the legs sailed, named for the nearest named waypoint at or before its start.
  */
-export function deadSlowRegions(sailed: Route): Published<RegionResource>[] {
+function deadSlowRegions(sailed: Route): Published<RegionResource>[] {
   const wps = sailed.waypoints
   const runs: [number, number][] = []
   for (let i = 0; i < wps.length - 1; i++) {

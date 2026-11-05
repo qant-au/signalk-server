@@ -18,7 +18,7 @@ import DeltaEditor from '../../src/deltaeditor'
 import { Delta } from '../soak/deltas'
 
 /** the own vessel paths a server takes from its vessel settings alone (src/staticDataFilter.ts) */
-export const SERVER_IDENTITY_PATHS: ReadonlySet<string> = new Set([
+const SERVER_IDENTITY_PATHS: ReadonlySet<string> = new Set([
   '',
   'design.aisShipType',
   'design.beam',
@@ -30,7 +30,7 @@ export const SERVER_IDENTITY_PATHS: ReadonlySet<string> = new Set([
 ])
 
 /** the own boat's identity values in a log's first lines: those at its first time */
-export async function logIdentity(
+async function logIdentity(
   file: string
 ): Promise<{ path: string; value: unknown }[]> {
   const found: { path: string; value: unknown }[] = []

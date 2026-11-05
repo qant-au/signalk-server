@@ -131,7 +131,7 @@ const COMPLETE_STANDS_MS = 120000
 export const XTE_ALARM_M = 100
 const XTE_CLEAR_M = 80
 /** off target: raised when the error is past this and has not closed for the time */
-export const OFF_TARGET_DEG = 20
+const OFF_TARGET_DEG = 20
 const OFF_TARGET_CLEAR_DEG = 10
 export const OFF_TARGET_MS = 30000
 /** after a change of state, mode or target the off-target alarms wait this long */
@@ -153,7 +153,7 @@ const WIND_SEARCH_STEP_DEG = 1
 /** a degree of turn costs this much of a degree off the target: in a calm she holds her heading */
 const WIND_TURN_COST = 0.05
 /** under this much true wind, knots, there is too little to steer by: wind mode is refused */
-export const CALM_KN = 3
+const CALM_KN = 3
 /** steering, a target is held at the beat once the beat has moved this far outside it */
 const BEAT_MARGIN_DEG = 3
 /** a target that turns with the route goes to the API each time it has turned this far */
@@ -1121,7 +1121,7 @@ export class Autopilot {
 }
 
 /** the apparent wind angle off the bow for a true wind angle, at a true wind and boat speed */
-export function apparentAngleDeg(
+function apparentAngleDeg(
   twsKn: number,
   twaDeg: number,
   boatKn: number

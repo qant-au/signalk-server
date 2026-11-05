@@ -178,7 +178,7 @@ function runChange(control: Control, body: unknown): RunChange {
 }
 
 /** the run as GET /run gives it */
-export function runView(control: Control) {
+function runView(control: Control) {
   const { options, scenario, simulation, record, weather, resources } =
     control.run()
   const result = simulation.last

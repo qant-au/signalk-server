@@ -75,7 +75,7 @@ const MEBIBYTES: Record<string, number> = {
 
 const run = promisify(execFile)
 
-export async function containerMemoryMiB(
+async function containerMemoryMiB(
   container: string
 ): Promise<number | undefined> {
   try {

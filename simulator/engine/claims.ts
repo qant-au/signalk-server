@@ -7,7 +7,7 @@
  * for it; the distance and bearing to the next point, which are true wherever she lies,
  * pass as they are.
  */
-export const ARRIVAL_CLAIMS: ReadonlySet<string> = new Set([
+const ARRIVAL_CLAIMS: ReadonlySet<string> = new Set([
   'navigation.course.calcValues.velocityMadeGood',
   'performance.velocityMadeGoodToWaypoint',
   'navigation.course.calcValues.timeToGo',

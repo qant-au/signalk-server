@@ -107,10 +107,7 @@ export function durationMs(d: Duration): number {
 }
 
 /** a time range in scenario milliseconds, from inclusive and to exclusive */
-export function rangeMs(
-  q: TimeRange,
-  nowMs: number
-): { from: number; to: number } {
+function rangeMs(q: TimeRange, nowMs: number): { from: number; to: number } {
   const span = q.duration === undefined ? undefined : durationMs(q.duration)
   if (q.from && q.to) {
     return { from: q.from.epochMilliseconds, to: q.to.epochMilliseconds }

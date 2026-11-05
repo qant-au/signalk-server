@@ -30,7 +30,7 @@ export interface DeriveConfig {
 const METRES_PER_DEGREE_LAT = 111_320
 const HALF_KNOT = 0.5
 
-export function inBox(
+function inBox(
   lat: number,
   lon: number,
   [west, south, east, north]: Box

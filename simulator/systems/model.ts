@@ -173,7 +173,7 @@ export interface SystemsState {
   pumpOuts: Record<string, number>
 }
 
-export const SYSTEMS_STATE_VERSION = 9
+const SYSTEMS_STATE_VERSION = 9
 
 /** where each bank's energy went over the run, in joules, and what fuel was burned */
 export interface EnergyBooks {
@@ -3075,18 +3075,14 @@ const RESTING_C = 0.001
 const SOC_FLOOR = 0.02
 
 /** a 12 V block's open-circuit voltage at a state of charge */
-export function openCircuitVolts(chemistry: string, soc: number): number {
+function openCircuitVolts(chemistry: string, soc: number): number {
   return chemistry === 'LiFePO4'
     ? 12.9 + 0.5 * (soc - 0.5) + Math.max(0, soc - 0.97) * 15
     : 11.8 + 1.0 * soc
 }
 
 /** energy stored in a bank at a state of charge: its open-circuit voltage integrated over its charge */
-export function storedEnergyJ(
-  bank: BankProfile,
-  health: number,
-  soc: number
-): number {
+function storedEnergyJ(bank: BankProfile, health: number, soc: number): number {
   const integral =
     bank.chemistry === 'LiFePO4'
       ? 12.9 * soc +

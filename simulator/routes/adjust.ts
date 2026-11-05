@@ -105,7 +105,7 @@ export class DepthCheck {
 }
 
 /** A* over grid cells from a to b inside a box `marginM` around them. */
-export function findPath(
+function findPath(
   check: DepthCheck,
   a: Point,
   b: Point,
@@ -219,7 +219,7 @@ export function findPath(
 }
 
 /** Keeps the fewest points of a path such that every straight segment stays in safe water. */
-export function straighten(check: DepthCheck, path: Point[]): Point[] {
+function straighten(check: DepthCheck, path: Point[]): Point[] {
   const out = [path[0]]
   let i = 0
   while (i < path.length - 1) {

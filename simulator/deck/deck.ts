@@ -52,10 +52,7 @@ export function isNight(ms: number, lat: number, lon: number): boolean {
 }
 
 /** the lights she should show: none by day or alongside, otherwise as she is going */
-export function lightsShown(
-  night: boolean,
-  state: NavigationStateValue
-): LightsValue {
+function lightsShown(night: boolean, state: NavigationStateValue): LightsValue {
   return !night || state === 'moored' ? 'off' : state
 }
 

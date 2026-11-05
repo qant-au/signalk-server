@@ -22,7 +22,7 @@ import { inverterIds } from '../switching/inverters'
  * the deltas as they go out. Either way a run depends only on the seed, the scenario
  * times and the faults raised, never on the time multiplier.
  */
-export const FAULT_KINDS = [
+const FAULT_KINDS = [
   'engineOverheat',
   'generatorNoStart',
   'batteryCellFailure',
@@ -101,7 +101,7 @@ const STALE_PATHS = (p: VesselProfile) => [
   ...combustion(p).map((id) => `propulsion.${id}.coolantTemperature`)
 ]
 
-export const FAULT_SPECS: Record<FaultKind, KindSpec> = {
+const FAULT_SPECS: Record<FaultKind, KindSpec> = {
   engineOverheat: {
     title: 'Engine overheating',
     description:
@@ -258,7 +258,7 @@ export interface FaultsState {
   night?: boolean
 }
 
-export const FAULTS_STATE_VERSION = 1
+const FAULTS_STATE_VERSION = 1
 
 /** the bilge: the water in its sump and its pump, which the crew may have switched off */
 interface Bilge {

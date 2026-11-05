@@ -37,11 +37,11 @@ export const DEFAULT_SHALLOW_M = 1.5
 const SHALLOW_MARGIN_M = 0.3
 
 /** an engine panel's coolant warning and alarm, degrees C */
-export const COOLANT_WARN_C = 95
-export const COOLANT_ALARM_C = 100
+const COOLANT_WARN_C = 95
+const COOLANT_ALARM_C = 100
 const COOLANT_MARGIN_C = 2
 /** an engine panel's low oil pressure alarm, while running */
-export const OIL_PRESSURE_ALARM_BAR = 1
+const OIL_PRESSURE_ALARM_BAR = 1
 const OIL_PRESSURE_MARGIN_BAR = 0.3
 /** an exhaust gas temperature gauge's warning and alarm: full load runs near 500 degrees C */
 const EXHAUST_WARN_C = 550

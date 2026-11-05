@@ -8,9 +8,9 @@ import type { VesselProfile } from '../vessels/profile'
  */
 
 /** the channels an NMEA 2000 switch bank instance carries that a display reads here */
-export const BANK_CHANNELS = 16
+const BANK_CHANNELS = 16
 /** the bank instance the converter numbers these switches under */
-export const BANK_INSTANCE = 0
+const BANK_INSTANCE = 0
 
 /** anchor lights, deck lights and a fresh water pump come with a boat this long */
 const ANCHOR_LIGHT_FROM_M = 7

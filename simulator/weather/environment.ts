@@ -50,7 +50,7 @@ export interface WeatherConfig {
 }
 
 /** a gap in a station's record longer than this is not read across */
-export const MAX_GAP_MS = 4 * 3600 * 1000
+const MAX_GAP_MS = 4 * 3600 * 1000
 /** a station's weight fades over this much at each end of its record */
 const EDGE_FADE_MS = 3600 * 1000
 /** a boat this close to a station reads it alone */

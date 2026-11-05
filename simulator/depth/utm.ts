@@ -11,7 +11,7 @@ const EP2 = E2 / (1 - E2)
 const FALSE_EASTING = 500000
 const FALSE_NORTHING_SOUTH = 10000000
 
-export function utmZoneCentralMeridian(zone: number): number {
+function utmZoneCentralMeridian(zone: number): number {
   return zone * 6 - 183
 }
 

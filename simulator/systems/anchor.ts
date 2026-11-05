@@ -104,7 +104,7 @@ const SLACK_SHARE = 0.6
 const TAUT_WIND_KN = 20
 /** chain paid out and heaved in, metres a second, at a windlass's pace */
 const PAY_OUT_M_S = 0.3
-export const HEAVE_M_S = 0.3
+const HEAVE_M_S = 0.3
 /** she sheers this far either side of the wind, over this period for a 10 m boat */
 const SHEER_DEG = 15
 const SHEER_PERIOD_S_AT_10M = 240

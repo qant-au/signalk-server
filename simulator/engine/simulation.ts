@@ -125,7 +125,7 @@ export interface TargetSeen {
 }
 
 /** the anchor watch's notification, where the anchor alarm plugin raises it */
-export const ANCHOR_NOTIFICATION = 'notifications.navigation.anchor'
+const ANCHOR_NOTIFICATION = 'notifications.navigation.anchor'
 
 /** electrical, tanks and the spaces inside are sent every this many ticks */
 const SLOW_EVERY_TICKS = 5
