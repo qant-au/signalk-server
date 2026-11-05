@@ -93,3 +93,6 @@ simulator/plugin/public/
 
 # bin/simulator-busy configuration directory
 /.simulator-busy/
+
+# bin/simulator-replay configuration directory
+/.simulator-replay/

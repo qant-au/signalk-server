@@ -1,0 +1,21 @@
+{
+  "pruneContextsMinutes": 20,
+  "pipedProviders": [
+    {
+      "id": "replay",
+      "pipeElements": [
+        {
+          "type": "providers/simple",
+          "options": {
+            "type": "FileStream",
+            "subOptions": {
+              "dataType": "Multiplexed",
+              "filename": "",
+              "keepRunning": false
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
