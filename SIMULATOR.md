@@ -25,6 +25,13 @@ project to carry unfinished work.
 - Everything outside the simulator is upstream's code, documentation and licence, unchanged.
   For the server itself, read the [main README](README.md) and the [official
   documentation](https://demo.signalk.org/documentation/).
+- Last brought in step on 5 November 2026, with upstream v2.36.0 and the three commits
+  after it, as a merge commit. The merge was clean: the fork's `zonesNotifiedBy` sits beside
+  upstream's own switch that stops the zones engine where notifications are not managed. On
+  the merged tree the server's suite passes (2,073 tests) but for four rate-limit tests
+  that fail on macOS alone, where a thousand connections opened at once to 0.0.0.0 are
+  reset by the system before the limiter sees them; the simulator's fast tests, its systems
+  soak and a live run all passed.
 
 ## The Simulator Already in Signal K Server
 
