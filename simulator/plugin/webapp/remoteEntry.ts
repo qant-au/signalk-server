@@ -125,7 +125,18 @@ interface RunView {
     totalAreaM2: number
     polar?: { speedKn: number; ratio: number }
   }
+  /** the record the History API answers from */
+  history?: { from?: string; to?: string; rows: number; bytes: number }
   weather?: {
+    /** the Weather API at the boat: its latest observation, in SI */
+    observation?: {
+      date: string
+      outside?: { temperature?: number; pressure?: number }
+      wind?: { speedTrue?: number; directionTrue?: number; gust?: number }
+      water?: { temperature?: number; level?: number }
+    }
+    forecastTo?: string
+    warnings?: { startTime: string; endTime: string; details: string }[]
     windKn: number
     windDeg: number
     pressureHpa: number
@@ -491,6 +502,60 @@ interface RunView {
             ]
           ])
         )
+
+      // what the History and Weather APIs answer from: the record, and the sample at the boat
+      const rec = run.history
+      const obs = run.weather?.observation
+      const kn = (ms?: number) =>
+        ms === undefined ? undefined : (ms * 3600) / 1852
+      const fromDeg = (rad?: number) =>
+        rad === undefined
+          ? undefined
+          : String(Math.round((rad * 180) / Math.PI) % 360).padStart(3, '0')
+      const apis = card(
+        'History and Weather',
+        facts([
+          [
+            'Record',
+            rec?.from
+              ? `from ${time(rec.from)}, ${rec.rows} rows, ${(rec.bytes / 1048576).toFixed(1)} MiB`
+              : 'empty'
+          ],
+          [
+            'Observation',
+            obs &&
+              [
+                time(obs.date),
+                obs.wind?.speedTrue !== undefined &&
+                  `wind ${kn(obs.wind.speedTrue)!.toFixed(0)} kn from ${fromDeg(obs.wind.directionTrue)}°`,
+                obs.outside?.pressure !== undefined &&
+                  `${(obs.outside.pressure / 100).toFixed(0)} hPa`,
+                obs.outside?.temperature !== undefined &&
+                  `air ${(obs.outside.temperature - 273.15).toFixed(1)} °C`,
+                obs.water?.temperature !== undefined &&
+                  `water ${(obs.water.temperature - 273.15).toFixed(1)} °C`
+              ]
+                .filter(Boolean)
+                .join(', ')
+          ],
+          [
+            'Forecasts to',
+            run.weather?.forecastTo && time(run.weather.forecastTo)
+          ],
+          [
+            'Warnings',
+            run.weather?.warnings &&
+              (run.weather.warnings.length
+                ? run.weather.warnings
+                    .map(
+                      (w) =>
+                        `${w.details}, ${time(w.startTime)} to ${time(w.endTime)}`
+                    )
+                    .join('; ')
+                : 'none')
+          ]
+        ])
+      )
 
       const d = run.deck
       const onOff = (on: boolean | undefined, yes: string, no: string) =>
@@ -985,6 +1050,7 @@ interface RunView {
             where,
             pilotCard,
             systems,
+            apis,
             deck
           ),
           h('div', { className: 'col-lg-6' }, switchCard, faults, traffic)
