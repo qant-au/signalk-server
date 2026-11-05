@@ -192,6 +192,11 @@ export interface MetaValue {
     upper: number
   }
   zones?: Zone[]
+  /**
+   * The provider that raises `notifications.<path>` from these zones itself. The
+   * server raises none of its own for the path while this is set.
+   */
+  zonesNotifiedBy?: string
   supportsPut?: boolean
   displayUnits?: {
     category: string

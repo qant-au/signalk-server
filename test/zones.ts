@@ -372,5 +372,51 @@ describe('Zones', () => {
         )
       }
     })
+    it('raises nothing for zones whose provider notifies them itself', () => {
+      const zones: Zone[] = [
+        { lower: 0, upper: 10, state: ALARM_STATE.alarm, message: 'Too low' }
+      ]
+      const mockBus = new Bacon.Bus()
+      const valueStream = new Bacon.Bus()
+      const mockStreambundle: MockStreambundle = {
+        getSelfMetaBus: () => mockBus,
+        getSelfStream: (_path: Path) => valueStream
+      }
+      const deltas: Delta[] = []
+      new Zones(mockStreambundle as never, (delta: Delta) => deltas.push(delta))
+
+      mockBus.push({
+        path: 'test.depth' as Path,
+        value: { zones, zonesNotifiedBy: 'a-plugin' }
+      })
+      valueStream.push(5)
+      valueStream.push(50)
+      expect(deltas).to.deep.equal([])
+    })
+
+    it('stops raising for a watched path once its provider notifies it itself', () => {
+      const zones: Zone[] = [
+        { lower: 0, upper: 10, state: ALARM_STATE.alarm, message: 'Too low' }
+      ]
+      const mockBus = new Bacon.Bus()
+      const valueStream = new Bacon.Bus()
+      const mockStreambundle: MockStreambundle = {
+        getSelfMetaBus: () => mockBus,
+        getSelfStream: (_path: Path) => valueStream
+      }
+      const deltas: Delta[] = []
+      new Zones(mockStreambundle as never, (delta: Delta) => deltas.push(delta))
+
+      mockBus.push({ path: 'test.depth' as Path, value: { zones } })
+      valueStream.push(5)
+      expect(deltas.length).to.equal(1)
+      mockBus.push({
+        path: 'test.depth' as Path,
+        value: { zones, zonesNotifiedBy: 'a-plugin' }
+      })
+      valueStream.push(50)
+      valueStream.push(4)
+      expect(deltas.length).to.equal(1)
+    })
   })
 })
