@@ -168,7 +168,63 @@ Where the sample measures the significant wave height, it is the sea the boat mo
 place of the sea the model builds from the wind: roll, pitch and the helm's error off the
 track grow with it, sheltered alongside and at anchor as before.
 
+## The Weather API
+
+The plugin registers the sample's weather with `app.registerWeatherProvider`
+(`provider.ts`), so the server's own Weather API answers from it:
+`/signalk/v2/api/weather/observations`, `/forecasts/point`, `/forecasts/daily` and
+`/warnings`, each with `lat` and `lon`, and `count` and `date` where they apply. The first
+provider registered is the server's default; `/signalk/v2/api/weather/_providers` lists it.
+Every answer is the server's `WeatherData`, in SI as the data model has it, read from the
+same records as the instruments, at the position asked for:
+
+- **Observations:** the records at the scenario time, then on each hour before it, newest
+  first, back to the start of the records (at most a week without `count`). `date`
+  (`YYYY-MM-DD`) gives those from that day on.
+- **Point forecasts:** the records on each hour ahead of the scenario time, oldest first,
+  to the end of the records; `date` starts them at that midnight.
+- **Daily forecasts:** one a local day (midnight in the position's nominal time zone, a
+  whole number of hours from UTC), from the day the run is in to the last the records
+  reach: the day's lowest and highest air temperature, its mean wind speed, the
+  direction of its mean wind and its strongest gust, and the sunrise and sunset. Today's
+  covers only what is still ahead.
+- **Warnings:** a strong wind warning wherever the records ahead have the wind at
+  22 kn or more for an hour or more, looked at every ten minutes: its start and end, the
+  strongest wind in it, and the sample's name as its source. None of the samples has one
+  at the boat, so each answers an empty list.
+- **Every entry** has the sunrise and sunset of its local day, worked out from the sun
+  (`systems/sun.ts`, within a minute or two of the almanac).
+
+What each entry has is what the sample has (see [the table above](#what-each-sample-gives)),
+and nothing else: `outside.temperature`, `pressure`, `relativeHumidity` and
+`dewPointTemperature` (worked out from the air and the humidity, where the sample has
+both); `water.temperature`, `level` (the tide above chart datum, Miami only),
+`surfaceCurrentSpeed` and `surfaceCurrentDirection` (the way it runs),
+`waveSignificantHeight`; `wind.speedTrue`, `directionTrue` (where it comes from) and
+`gust`. The instruments put the seed's gusts and shifts on the sample's wind; the API gives
+the sample's wind as recorded. The other quantities match the instruments at the same
+moment, which the systems soak checks.
+
+The forecast is as good as the record: the samples' records run on past the voyage, so a
+plotter asking for tomorrow sees the weather the boat will meet.
+
+| Sample     | Records from (UTC) | To (UTC)        |
+| ---------- | ------------------ | --------------- |
+| Miami      | 16 March 00:00     | 17 March 23:54  |
+| Saronic    | 13 July 00:00      | 14 July 23:00   |
+| Queensland | 19 August 14:00    | 24 August 23:00 |
+
+**The edges.** A position outside a sample's area answers what its stations give there,
+the nearest dominating, as the instruments read it past the edges. Before the records
+begin there are no observations, past their end no forecasts, and a sample without
+weather answers empty lists.
+
 ## Tests
+
+`test/simulator-weather-api.ts` checks each Weather API method on each sample (the
+ordering, `count`, `date`, the values against the records, the edges in place and time),
+the sunrise and sunset against the almanac, and the warning on a made-up record that has
+the wind for one and then not for long enough.
 
 `test/simulator-weather.ts`, in `npm test`, reads known values straight from the sample
 files: a buoy's reading at its position and hour, Virginia Key's wind, pressure and tide at

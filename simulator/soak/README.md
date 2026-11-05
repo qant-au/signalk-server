@@ -246,6 +246,26 @@ checks. The faults have their own tests, which run every one through its course.
   manager raises `notifications.mob.<id>` at `emergency` and resolves it to `normal`, and
   the boat's own notifications are the same as in the run without one.
 - **The books still balance** with the new loads in them (see above).
+- **The Weather API observes what the instruments showed**: every fifteenth tick of each
+  case, the observation at the boat's position and that scenario time gives the outside
+  temperature and the water temperature within 0.05 K of what the boat sent, the pressure
+  within 5 Pa, the humidity within half a percent and the tide within 5 mm. The
+  instruments put the seed's gusts and shifts on the sample's wind, so the wind is checked
+  over the day: the mean difference in speed under 1.5 kn and in direction under 15°. A
+  boat with no wind instrument (the 4 m) has none to compare.
+- **Forecasts are in order and warnings earned**: at the start and halfway, the point
+  forecasts are an hour apart, the daily ones a day apart, and a warning comes only where
+  an independent look at the record every five minutes has the wind at 22 kn or more for an
+  hour; none of the samples does, so there are none.
+- **The record holds every path sent**, and the History API gives the sent values back: at
+  a minute's resolution, average, first and last each give each tick's own speed over
+  ground, position (as `[longitude, latitude]`) and pressure exactly; at five minutes, the
+  average is the mean of the ticks in the bucket. Each tick is matched to the record's row
+  by its ten seconds, since a day out departs at an odd second.
+- **The record survives a resume and holds a day within its bound**: the record saved
+  halfway, read back as a resume reads it, holds the speed and position each tick sent;
+  the record spans less than a day, and its memory is within `recordBoundBytes` for its
+  paths. It prints the largest: the 45 m day out, 251 paths, 16.8 MiB.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also
