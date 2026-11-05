@@ -77,7 +77,8 @@ test/server-test-config/debug
 Makefile.local
 
 # Simulator: gated source data and large downloads stay on the machine that fetched them
-simulator/downloads/
+simulator/downloads/*
+!simulator/downloads/README.md
 simulator/samples/*/restricted/
 simulator/samples/*/cache/
 
