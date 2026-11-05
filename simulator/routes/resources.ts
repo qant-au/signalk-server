@@ -113,7 +113,7 @@ export function routeResourceId(route: Route): string {
   return stableId(`simulator-route`, route.name)
 }
 
-export function resourceId(
+function resourceId(
   route: Route,
   type: Exclude<ResourceType, 'routes'>,
   name: string
