@@ -8,7 +8,7 @@ import {
   positionAt,
   routeLegs
 } from '../routes/route'
-import { publishRoute } from '../routes/resource'
+import { publishRoute } from '../routes/resources'
 import { ScenarioClock } from './clock'
 import path from 'path'
 

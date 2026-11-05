@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { Route } from '../simulator/routes/route'
-import { routeResource, routeResourceId } from '../simulator/routes/resource'
+import { routeResource, routeResourceId } from '../simulator/routes/resources'
 import { ScenarioClock } from '../simulator/soak/clock'
 import {
   degreesToRadians,

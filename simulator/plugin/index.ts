@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import path from 'path'
-import { routeResource, routeResourceId } from '../routes/resource'
+import {
+  RESOURCE_TYPES,
+  ResourceCounts,
+  countWords,
+  routeResourceId,
+  sampleResources
+} from '../routes/resources'
 import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 import {
   DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
@@ -57,7 +63,8 @@ import { recordWords } from '../history/record'
  * Admin UI (Server, Plugin Config, Signal K Simulator); saving them restarts the run with
  * the new settings, carrying on from the scenario time it had reached.
  *
- * The route the boat sails is published as a resource and made the server's active route
+ * The route the boat sails is published as a resource, with the waypoints, notes and dead
+ * slow regions along it, and the route is made the server's active route
  * through the Course API, so `navigation.course.*` follows the passage: the next point
  * moves on in the tick the boat passes it, before that tick's position goes out.
  */
@@ -338,6 +345,8 @@ export = function simulatorPlugin(app: App) {
   let recordMs = 0
   /** the run's sample weather, for the Weather API */
   let sampleWeather: SampleWeather | undefined
+  /** what the run published to the Resources API */
+  let publishedCounts: ResourceCounts | undefined
   const scenarioNow = () => simulation?.scenarioMs ?? recordMs
 
   const heldBackNote = () =>
@@ -415,13 +424,49 @@ export = function simulatorPlugin(app: App) {
     }
   }
 
-  async function publishRoute(scenario: Scenario) {
-    const route = scenario.route
-    await app.resourcesApi.setResource(
-      'routes',
-      routeResourceId(route),
-      routeResource(route) as unknown as Record<string, unknown>
-    )
+  /**
+   * The route, then the waypoints, notes and dead slow regions along it (resources.ts).
+   * The course follows the route, so whether it went is returned; the others are left to
+   * the plotter. Nothing is deleted on stop: they belong to the sample.
+   */
+  async function publishResources(scenario: Scenario): Promise<boolean> {
+    const resources = sampleResources(scenario.plannedRoute, scenario.route)
+    const counts: ResourceCounts = {
+      routes: 0,
+      waypoints: 0,
+      notes: 0,
+      regions: 0
+    }
+    publishedCounts = counts
+    let failure: string | undefined
+    for (const type of RESOURCE_TYPES) {
+      for (const { id, value } of resources[type]) {
+        try {
+          await app.resourcesApi.setResource(
+            type,
+            id,
+            value as unknown as Record<string, unknown>
+          )
+          counts[type]++
+        } catch (error) {
+          failure ??= (error as Error).message
+          // with no route there is no provider to take the rest
+          if (type === 'routes') break
+        }
+      }
+      if (type === 'routes' && !counts.routes) break
+    }
+    if (failure) {
+      app.error(
+        counts.routes
+          ? `could not publish every resource: ${failure}`
+          : `could not publish the route or its resources: ${failure}`
+      )
+    }
+    if (counts.routes) {
+      console.log(`${PLUGIN_ID}: published ${countWords(counts)}`)
+    }
+    return counts.routes > 0
   }
 
   /**
@@ -477,13 +522,7 @@ export = function simulatorPlugin(app: App) {
       receiverAntennaHeightM: options.receiverAntennaHeightM
     })
     if (stopped) return
-    let published = true
-    try {
-      await publishRoute(scenario)
-    } catch (error) {
-      published = false
-      app.error(`could not publish the route: ${(error as Error).message}`)
-    }
+    const published = await publishResources(scenario)
 
     const departure = scenario.legs[0].departMs
     const saved = restart ? undefined : readState()
@@ -947,7 +986,8 @@ export = function simulatorPlugin(app: App) {
         ...current,
         simulation,
         record: keeper.record,
-        weather: sampleWeather
+        weather: sampleWeather,
+        resources: publishedCounts
       }
     },
     async setRun(change) {

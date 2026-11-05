@@ -5,7 +5,7 @@ import { mock } from 'node:test'
 import os from 'os'
 import path from 'path'
 import simulatorPlugin from '../simulator/plugin/index'
-import { routeResourceId } from '../simulator/routes/resource'
+import { routeResourceId } from '../simulator/routes/resources'
 import {
   Route,
   Waypoint,
