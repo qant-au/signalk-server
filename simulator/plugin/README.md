@@ -3,9 +3,9 @@
 The simulator as a Signal K Server plugin. It sails a sample scenario on the server it runs
 in: the own boat on its route with its systems and their [faults](../faults/README.md), the
 depth under it, and the AIS traffic it would hear. The [test rig](../rig/README.md) builds
-and enables it; its settings are in the Admin UI under **Server, Plugin Config, Signal K
-Simulator**, and the run itself can be watched and steered on its page or through its REST
-surface ([Controlling the Run](#controlling-the-run)).
+and enables it; its settings are in the Admin UI under **Apps & Plugins, Configuration,
+Signal K Simulator**, and the run itself can be watched and steered on its page or through
+its REST surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 

@@ -33,7 +33,7 @@ not be exposed beyond the machine running it.
 - **Node** is `node:24-bookworm`, pinned by digest in the `Dockerfile`.
 - **The simulator plugin** (`simulator/plugin`) is built and installed, and enabled by
   default: the rig starts sailing the Miami sample as soon as it is up. Its settings are in
-  the Admin UI under Server, Plugin Config, Signal K Simulator, and its page, with the
+  the Admin UI under Apps & Plugins, Configuration, Signal K Simulator, and its page, with the
   run's controls and faults, under Webapps, Signal K Simulator; see
   [the plugin README](../plugin/README.md).
 - **The samples** are mounted from `simulator/samples`, so the depth grids fetched and the

@@ -79,6 +79,37 @@ organisation, on 2 November 2026:
 - Log replay issues (for example #313, #415 and #3043) concern playing back recorded files,
   which this fork does not change.
 
+## Running It
+
+Requires Node 22 or later. From a clone of this repository:
+
+```shell
+npm install
+npm run build:all       # the server, its Admin UI and the other packages
+npx ts-node simulator/tools/sample-data.ts fetch miami-icw-2024-03-16   # the Miami depth, 214 MB
+bin/simulator
+```
+
+`bin/simulator` builds the simulator plugin and starts the server with it on the Miami
+sample, at x1, on the server's default port. Open http://localhost:3000/admin/:
+
+- **Webapps, Signal K Simulator** is the run's page: the boat, the clock and its controls,
+  the systems, the faults and the targets in range.
+- **Apps & Plugins, Configuration, Signal K Simulator** holds its settings: the sample, the
+  time multiplier, traffic on or off, and the rest
+  ([the plugin README](simulator/plugin/README.md#settings)).
+- Freeboard (http://localhost:3000/@signalk/freeboard-sk/) and KIP
+  (http://localhost:3000/@mxtommy/kip/) come with the server and show the boat, its route
+  and its instruments.
+
+The Miami sample ships everything else it needs. The Saronic Gulf and Queensland samples
+need their AIS downloaded by hand into `simulator/downloads/` and prepared with one command,
+as each sample's README says, and Queensland's depth fetched
+([simulator/README.md](simulator/README.md#getting-the-data)). The soaks, the busy run and
+recording a run for replay are in [simulator/soak/README.md](simulator/soak/README.md); the
+test rig, a container with Freeboard and KIP, is in
+[simulator/rig/README.md](simulator/rig/README.md).
+
 ## Current Status
 
 **Early stage: the simulator runs all three samples, with depth, traffic and collision

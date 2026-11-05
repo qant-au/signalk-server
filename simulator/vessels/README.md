@@ -59,7 +59,7 @@ sample's `route.json`; the dimensions from the profile.
 
 **The server's own settings win.** Before sending, the plugin reads what the owner has
 already said about the boat: the server's base deltas, which is where the Admin UI's vessel
-page (Server, Settings, Vessel) keeps the name, MMSI and dimensions, and a name or MMSI in
+page (Server, Settings, Vessel Base Data) keeps the name, MMSI and dimensions, and a name or MMSI in
 a `vessel` block of settings.json. Anything given there is left alone, and the status line
 says what the plugin set or sent and what it left. Someone running the simulator beside
 their own boat's configuration never finds their boat renamed or resized. This server has

@@ -26,7 +26,7 @@ time are the [busy run](#busy-run)'s; full-route runs come next.
 
 ### Running One
 
-Start the rig and **disable the simulator plugin** first (Admin UI, Server, Plugin Config),
+Start the rig and **disable the simulator plugin** first (Admin UI, Apps & Plugins, Configuration),
 or the plugin and the soak run will both be sailing the own boat. Then:
 
 ```shell

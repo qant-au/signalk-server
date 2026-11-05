@@ -60,8 +60,8 @@ import { recordWords } from '../history/record'
 
 /**
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
- * Admin UI (Server, Plugin Config, Signal K Simulator); saving them restarts the run with
- * the new settings, carrying on from the scenario time it had reached.
+ * Admin UI (Apps & Plugins, Configuration, Signal K Simulator); saving them restarts the
+ * run with the new settings, carrying on from the scenario time it had reached.
  *
  * The route the boat sails is published as a resource, with the waypoints, notes and dead
  * slow regions along it, and the route is made the server's active route
