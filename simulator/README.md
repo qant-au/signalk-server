@@ -73,8 +73,9 @@ GIS software: they read the publishers' ZIP archives and Shapefile tables direct
 The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0 like the
 rest of this repository. **Each dataset keeps its own licence**, stated in its sample's
 README with the attribution it requires. Only data whose licence allows redistribution is
-committed. Data under a non-commercial licence is never committed; the only share-alike material
-committed is a few berth and bridge positions from OpenStreetMap (ODbL), credited in each
-sample's README. The ignore rules keep `downloads/`, `cache/` and `restricted/` out of git.
+committed. Data under a non-commercial licence is never committed; the only share-alike
+material committed is a few berth and bridge positions from OpenStreetMap (ODbL), credited
+in each sample's README. The ignore rules keep `downloads/`, `cache/` and `restricted/` out
+of git.
 
 None of this data is for navigation.
