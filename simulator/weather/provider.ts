@@ -161,11 +161,7 @@ export class SampleWeather {
   /** a point forecast on each hour from `from`, inclusive, to `to` */
   private points(position: Position, from: number, to: number): WeatherData[] {
     const out: WeatherData[] = []
-    for (
-      let t = Math.ceil(from / HOUR_MS) * HOUR_MS;
-      t <= to;
-      t += HOUR_MS
-    ) {
+    for (let t = Math.ceil(from / HOUR_MS) * HOUR_MS; t <= to; t += HOUR_MS) {
       out.push(this.at(position, t, 'point'))
     }
     return out
