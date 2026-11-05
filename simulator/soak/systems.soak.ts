@@ -7,7 +7,19 @@ import { expect } from 'chai'
 import path from 'path'
 import { DepthModel } from '../depth/depth'
 import { Simulation } from '../engine/simulation'
-import { Scenario } from '../engine/scenario'
+import {
+  DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
+  DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
+  Scenario,
+  listSamples,
+  loadScenario
+} from '../engine/scenario'
+import {
+  DEAD_SLOW_KN,
+  countWords,
+  resourceCounts,
+  sampleResources
+} from '../routes/resources'
 import {
   Route,
   Waypoint,
@@ -62,6 +74,10 @@ const schema = require(
 
 const SIMULATOR = path.join(__dirname, '..')
 const SAMPLES = path.join(SIMULATOR, 'samples')
+/** metres in a degree of latitude, on the sphere the route legs are measured on */
+const METRES_PER_DEG = (6371000 * Math.PI) / 180
+/** a resource's place */
+type Point = { lat: number; lon: number }
 const VESSELS = path.join(SIMULATOR, 'vessels')
 const HOUR_MS = 3600000
 const DAY_MS = 24 * HOUR_MS
@@ -2625,4 +2641,60 @@ describe('Simulator systems soak', function () {
       expect(sim!.mobs(), r.soak.name).to.deep.equal([])
     })
   )
+
+  it('publishes resources on or beside each sample route', async function () {
+    this.timeout(60000)
+    const near = (a: Point, b: Point) =>
+      Math.hypot(
+        (a.lat - b.lat) * METRES_PER_DEG,
+        (a.lon - b.lon) * METRES_PER_DEG * Math.cos(a.lat * (Math.PI / 180))
+      )
+    const toLeg = (p: Point, a: Point, b: Point) => {
+      const cos = Math.cos(a.lat * (Math.PI / 180))
+      const bx = (b.lon - a.lon) * METRES_PER_DEG * cos
+      const by = (b.lat - a.lat) * METRES_PER_DEG
+      const px = (p.lon - a.lon) * METRES_PER_DEG * cos
+      const py = (p.lat - a.lat) * METRES_PER_DEG
+      const len2 = bx * bx + by * by
+      const t = len2 ? Math.max(0, Math.min(1, (px * bx + py * by) / len2)) : 0
+      return Math.hypot(px - t * bx, py - t * by)
+    }
+    for (const sample of listSamples(SAMPLES)) {
+      const scenario = await loadScenario(SAMPLES, sample, {
+        minDepthUnderKeelM: DEFAULT_MIN_DEPTH_UNDER_KEEL_M,
+        receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M
+      })
+      const r = sampleResources(scenario.plannedRoute, scenario.route)
+      const points = scenario.route.waypoints
+      const onRoute = (p: Point) =>
+        Math.min(...points.map((w) => near(p, w))) < 1
+      for (const w of r.waypoints) {
+        const [lon, lat] = w.value.feature.geometry.coordinates
+        expect(onRoute({ lat, lon }), `${sample} ${w.value.name}`).to.equal(
+          true
+        )
+      }
+      for (const n of r.notes) {
+        const { latitude: lat, longitude: lon } = n.value.position
+        expect(onRoute({ lat, lon }), `${sample} ${n.value.name}`).to.equal(
+          true
+        )
+      }
+      const slow: [Point, Point][] = []
+      for (let i = 0; i < points.length - 1; i++)
+        if (points[i].speedKn! <= DEAD_SLOW_KN)
+          slow.push([points[i], points[i + 1]])
+      let farthest = 0
+      for (const region of r.regions) {
+        for (const [lon, lat] of region.value.feature.geometry.coordinates[0]) {
+          const m = Math.min(...slow.map(([a, b]) => toLeg({ lat, lon }, a, b)))
+          farthest = Math.max(farthest, m)
+          expect(m, `${sample} ${region.value.name}`).to.be.at.most(150)
+        }
+      }
+      console.log(
+        `${sample}: ${countWords(resourceCounts(r))}, region corners at most ${farthest.toFixed(0)} m from their legs`
+      )
+    }
+  })
 })
