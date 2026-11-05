@@ -12,7 +12,7 @@ with no other plugin. `pilot.ts` is the pilot; the plugin's `index.ts` registers
 
 A boat of 7 m or more carries an autopilot (`autopilot` in her
 [profile](../vessels/README.md#the-profiles), from her length unless the profile says);
-the 4 m boat has none, registers nothing, and is hand steered as before.
+the 4 m boat has none, registers nothing, and is hand steered: the helm follows the route.
 
 | Boat                                  | States        | Modes                | Actions                                                    |
 | ------------------------------------- | ------------- | -------------------- | ---------------------------------------------------------- |
@@ -32,7 +32,7 @@ default, and the `steering.autopilot` paths are set, before anyone engages it.
 
 ## What the Boat Does in Each State
 
-- **Standby.** The helm steers the route, as it always has: the route follower is the helm.
+- **Standby.** The helm steers the route: the route follower is the helm.
 - **Auto, route mode.** The pilot steers the active route: the same route follower, holding
   the track to within a few metres, turning on its arcs at the waypoints, stopping at the
   holds. The pilot is that follower, not a second one; what it adds are the autopilot's

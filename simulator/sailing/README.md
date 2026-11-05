@@ -22,7 +22,7 @@ vector, holding the first or last reading past the edges of the data (see
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Miami      | CO-OPS current predictions, 6-minute, at Miami Harbor Entrance (Government Cut, MIH0901, 8 ft bin) and Port Everglades 17th Street Bridge on the ICW (PEV0903, 6 ft bin): the flood and ebb along each station's major axis |
 | Queensland | Open-Meteo's ocean current (MeteoFrance SMOC), hourly at the 9 marine points, in the marine file beside the sea level                                                                                                       |
-| Saronic    | none in the sample: the seeded current, as before, a tenth to four tenths of a knot, setting in a seeded direction and wandering slowly about both                                                                          |
+| Saronic    | none in the sample: a seeded current, a tenth to four tenths of a knot, setting in a seeded direction and wandering slowly about both                                                                                       |
 
 A CO-OPS prediction gives the speed along the channel's major axis, positive on the flood
 and negative on the ebb, with each station's mean flood and ebb direction; the simulator
@@ -107,7 +107,8 @@ From the table, at each true wind speed: the **beat angle**, the angle from 30°
 makes the most towards the wind (speed × cos angle), with its speed and velocity made good;
 and the **gybe angle**, the angle from 90° to 180° that makes the most away from it. For the
 15 m yacht the beat is 45° in 6 kn of wind, 42.5° in 10 kn and 39.5° in 16 kn, and the gybe
-155° to 172°: she points higher as the breeze freshens, and runs deep, as a cruiser does.
+155.5° in 6 kn to 171.5° in 16 kn: she points higher as the breeze freshens, and runs deep,
+as a cruiser does.
 
 ## Sail or Motor
 

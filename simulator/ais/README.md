@@ -8,8 +8,8 @@ simulator would put every target in the source on the server at once, from a hun
 away.
 
 `reception.ts` holds the model. `targets.ts` reads each sample's AIS file into one shape,
-using the `ais` mapping in its `sample.json`. Both are pure functions with tests
-(`test/simulator-ais.ts`); nothing runs them on a route yet.
+using the `ais` mapping in its `sample.json`. The plugin's traffic
+(`simulator/engine/traffic.ts`) uses both on every run; `test/simulator-ais.ts` tests them.
 
 ## How a Report Is Judged
 
@@ -242,10 +242,10 @@ The Queensland case shows why this matters most there: AMSA's coastal network se
 a thousand craft along the coast at once, and a boat 30 nm offshore at night hears almost
 none of them.
 
-## Not Modelled Yet
+## Not Modelled
 
-- **Land.** Islands and headlands block VHF; the model treats every path as open sea. The
-  depth data can supply a coastline once routes exist.
+- **Land.** Islands and headlands block VHF; the model treats every path as open sea, though
+  the depth grid the routes are adjusted against could supply a coastline.
 - **Ducting.** Warm, still conditions sometimes carry AIS far past the horizon. The model
   never does.
 - **Congestion.** Busy waters lose more reports to slot collisions than the flat 2% here.

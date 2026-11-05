@@ -207,8 +207,9 @@ each time a run starts (`routes/adjust.ts`):
 
 1. Every leg is sampled every half grid cell against the sample's depth grid
    (`depth.sources` in `sample.json`).
-2. A point is safe when the water there is at least the boat's draft (`vessel.draftM` in the
-   route) plus the minimum depth under the keel (a plugin setting, 1 m by default).
+2. A point is safe when the water there is at least the boat's draft (from her vessel
+   profile, or `vessel.draftM` in a route without one) plus the minimum depth under the keel
+   (a plugin setting, 1 m by default).
 3. Any stretch of a leg that is not safe is re-routed by an A* search over grid cells around
    that stretch alone, checking each step between cells as well as the cells. The path is
    then straightened into as few legs as stay in safe water, and the new waypoints keep the
