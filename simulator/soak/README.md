@@ -447,6 +447,20 @@ which is why the counts are taken only once the server is quiet.
 
 ### Runs So Far
 
+After the update to upstream 2.36.0, later on 5 November 2026 and on the same machine:
+Miami for the five hours of its traffic at x24, then Queensland for a day, with the memory
+bounds in force. Upstream had changed the server's delta fanout (the WebSocket interface,
+the subscription manager and the delta cache), so these are the regression check on it.
+Both passed: every subscriber received every delta the server sent, the status count of
+targets agreed with the tree in every minute, none of the 14,487 reader requests failed,
+the scenario clock was never more than 1 s behind, and the own boat never went
+more than 1.1 s between deltas.
+
+| Sample            | Deltas Handled | Held Back | Each Subscriber Received | Peak Deltas a Second | Targets in Range, Peak | Event Loop p99, Max | Heap           | Resident Peak | Server CPU, Mean and Peak | Slowest Plugin List, Vessels Tree |
+| ----------------- | -------------- | --------- | ------------------------ | -------------------- | ---------------------- | ------------------- | -------------- | ------------- | ------------------------- | --------------------------------- |
+| Miami, 5 h        | 82,108         | 5,417     | 76,691                   | 123                  | 508                    | 33 ms, 680 ms       | 184 to 195 MiB | 520 MiB       | 13 %, 21 %                | 21 ms, 662 ms                     |
+| Queensland, a day | 60,330         | 13,549    | 46,781                   | 55                   | 234                    | 19 ms, 254 ms       | 193 to 193 MiB | 475 MiB       | 4 %, 11 %                 | 13 ms, 253 ms                     |
+
 5 November 2026, with everything built, on the same machine as below: each sample for a day
 of scenario time from its departure at x24, traffic on, 10 subscribers and 3 readers, one
 after another. All three passed, every subscriber received every delta the server sent, the
