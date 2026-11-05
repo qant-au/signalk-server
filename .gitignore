@@ -84,7 +84,6 @@ simulator/samples/*/cache/
 
 # Soak test reports are per run and per machine
 simulator/soak/reports/
-.gstack/
 
 # the simulator plugin's page, built from simulator/plugin/webapp
 simulator/plugin/public/
