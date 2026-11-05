@@ -64,8 +64,9 @@ npx ts-node simulator/tools/soak.ts miami-icw-2024-03-16 --minutes 30 --start-at
 The console shows a summary; the full run, with every check, is written as JSON to
 `simulator/soak/reports/` (ignored by git). The run **fails** (exit code 1) if any send
 fails, the position read back is wrong or the server does not answer, or the route cannot be
-published. Memory is reported (first, last and peak) but not yet judged: how much growth
-over a long run counts as a leak is for the full-route soak tests to decide.
+published. The server's memory (first, last and peak) is held to the [busy run's
+bounds](#when-it-fails): the peak at any check, and on a run of an hour or more the rise
+from the first quarter to the last, the first minute left out.
 
 ### Runs So Far
 
@@ -410,7 +411,7 @@ Each row shows:
 | heap/rss MiB   | the server's heap after a garbage collection, and its resident memory                 |
 | cpu            | the server's share of one core                                                        |
 | targets        | AIS targets in range in the plugin's status, and vessels in the tree besides the boat |
-| plugins ms     | the Admin UI's plugin list (`/skServer/plugins`)                                      |
+| plugins ms     | the Admin UI's plugin list (`/skServer/plugins`), timed by the run's own process      |
 | tree ms        | the vessels tree (`/signalk/v1/api/vessels`)                                          |
 | readers ms     | the slowest of the readers' requests in the minute                                    |
 
@@ -423,6 +424,13 @@ The run **fails** (exit code 1) if:
   by the server's backpressure, or is disconnected;
 - memory grows without levelling off: the heap's mean over the last quarter of the run is
   more than 10 MiB and 10 % above its mean over the third;
+- the heap ends the run more than 25 MiB above where it began: its mean over the last
+  quarter against its mean over the first, the first minute left out (the plugin loads its
+  scenario then). A day on each sample moved it by at most 1 MiB, so 25 MiB is a leak of a
+  megabyte an hour, far above the noise and far below what troubles a Raspberry Pi;
+- resident memory passes 768 MiB at any minute. A day on each sample peaked at 464 to
+  523 MiB on this machine; the bound is half as much again, and a Raspberry Pi, which
+  reports less for the same server, is not what set it;
 - any answer takes longer than a second, or any request fails;
 - the server exits during the run, or does not go quiet within 12 minutes of the plugin
   stopping.
@@ -438,6 +446,34 @@ that is what each subscriber is held to, exactly. The server's statistics come e
 which is why the counts are taken only once the server is quiet.
 
 ### Runs So Far
+
+5 November 2026, with everything built, on the same machine as below: each sample for a day
+of scenario time from its departure at x24, traffic on, 10 subscribers and 3 readers, one
+after another. All three passed, every subscriber received every delta the server sent, the
+status count of targets agreed with the tree in every minute, none of the 32,169 reader
+requests failed, the scenario clock was never more than 1.8 s behind, and the own boat never
+went more than 1.03 s between deltas. The heap did not move: its mean over the last quarter
+of each run was within 1 MiB of its mean over the first, and the memory bounds above were
+set from these runs.
+
+| Sample       | Deltas Handled | Held Back | Each Subscriber Received | Peak Deltas a Second | Targets in Range, Peak | Event Loop p99, Max | Heap           | Resident Peak | Server CPU, Mean and Peak | Slowest Plugin List, Vessels Tree |
+| ------------ | -------------- | --------- | ------------------------ | -------------------- | ---------------------- | ------------------- | -------------- | ------------- | ------------------------- | --------------------------------- |
+| Miami        | 112,392        | 28,454    | 83,938                   | 123                  | 508                    | 27 ms, 653 ms       | 182 to 185 MiB | 523 MiB       | 3 %, 13 %                 | 68 ms, 647 ms                     |
+| Saronic Gulf | 88,019         | 20,874    | 67,145                   | 52                   | 209                    | 19 ms, 83 ms        | 264 to 266 MiB | 464 MiB       | 4 %, 10 %                 | 19 ms, 66 ms                      |
+| Queensland   | 60,344         | 13,588    | 46,756                   | 55                   | 234                    | 20 ms, 242 ms       | 192 to 193 MiB | 478 MiB       | 3 %, 9 %                  | 19 ms, 234 ms                     |
+
+**The first minute is the slowest, and only the first.** The event loop maximum and the
+slowest tree read of every run are in wall minute 1, while the plugin loads its scenario
+and the first few hundred targets arrive (Miami: 653 ms and 647 ms; Queensland: 242 ms and
+234 ms). From minute 2 on, the event loop never stalled past 84 ms on Miami or 50 ms on the
+other two, and no tree read took more than 156 ms. The memory bounds leave the first minute
+out for the same reason.
+
+**The plugin list column is the client's time.** It is timed by the run's own process, so
+it includes the connection and the run's own event loop. On Queensland it sat at 4 ms, read
+13 to 19 ms from wall minute 40 to 59, and was 4 ms again at minute 60, while the server's
+own timing of the same request stayed between 1.6 and 2.8 ms throughout: the extra was in
+the run's process, not the server.
 
 3 November 2026, on an Apple M3 Ultra (32 cores, 256 GiB) under macOS 27.0.1 with Node
 v26.12.1: each sample for a day of scenario time from its departure at x24, traffic on, 10

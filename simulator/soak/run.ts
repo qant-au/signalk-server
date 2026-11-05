@@ -9,6 +9,7 @@ import {
   routeLegs
 } from '../routes/route'
 import { publishRoute } from '../routes/resources'
+import { memoryOutOfBounds } from './busy'
 import { ScenarioClock } from './clock'
 import path from 'path'
 
@@ -66,6 +67,8 @@ export interface SoakReport {
 }
 
 const METRES_PER_NM = 1852
+const MINUTE_S = 60
+const HOUR_S = 3600
 const MEBIBYTES: Record<string, number> = {
   B: 1 / 1048576,
   KiB: 1 / 1024,
@@ -273,6 +276,15 @@ export async function soak(
       last: memory[memory.length - 1],
       peak: Math.max(...memory)
     }
+    // the rise is judged on a run of an hour or more; a short run is still warming up
+    const rise = options.durationS >= HOUR_S ? memory : []
+    report.problems.push(
+      ...memoryOutOfBounds(
+        rise,
+        memory,
+        Math.ceil(MINUTE_S / options.checkIntervalS)
+      )
+    )
   }
   report.passed = report.problems.length === 0 && report.deltasSent > 0
   return report

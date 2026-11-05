@@ -6,6 +6,7 @@ import {
   heapStillGrowing,
   heldBackInLog,
   judge,
+  memoryOutOfBounds,
   stalledBehindMs,
   targetsInStatus
 } from '../simulator/soak/busy'
@@ -87,6 +88,30 @@ describe('simulator busy run', () => {
     expect(heapStillGrowing([20, 20, 21, 22, 23, 24, 25, 26])).to.equal(
       undefined
     )
+  })
+
+  it('fails a heap that ends a day well above where it began, and memory past the bound', () => {
+    const flat = Array.from({ length: 60 }, (_, i) => 180 + (i % 3))
+    const rss = Array.from({ length: 60 }, () => 480)
+    expect(memoryOutOfBounds(flat, rss, 1)).to.deep.equal([])
+    // a leak of a megabyte a minute, from a heap that began the same
+    const leaking = flat.map((h, i) => h + i)
+    expect(memoryOutOfBounds(leaking, rss, 1)[0]).to.contain(
+      'rose from 189 MiB over the first quarter to 234 MiB'
+    )
+    // the first minute is left out: the start is the plugin loading its scenario
+    expect(memoryOutOfBounds([400, ...flat], rss, 1)).to.deep.equal([])
+    expect(memoryOutOfBounds(flat, [...rss, 800], 1)[0]).to.contain(
+      'resident memory reached 800 MiB'
+    )
+    expect(
+      judge(
+        [row(), row({ rssMiB: LIMITS.rssPeakMiB + 1 })],
+        1000,
+        all(1000),
+        0
+      )[0]
+    ).to.contain('resident memory')
   })
 
   it('reads the target count from the plugin status', () => {

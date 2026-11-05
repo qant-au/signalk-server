@@ -83,7 +83,14 @@ export const LIMITS = {
   responseMs: 1000,
   /** the heap's mean over the last quarter of the run against the quarter before */
   heapGrowthShare: 0.1,
-  heapGrowthMiB: 10
+  heapGrowthMiB: 10,
+  /**
+   * the heap's mean over the last quarter of the run against its first quarter, the
+   * first minute left out: a day on each sample moved it by at most 1 MiB
+   */
+  heapRiseMiB: 25,
+  /** resident memory at any minute: a day on each sample peaked at 464 to 523 MiB */
+  rssPeakMiB: 768
 }
 
 const PLUGIN_ID = 'signalk-simulator'
@@ -133,6 +140,43 @@ export function judge(
     problems.push(`${failedRequests} requests failed or went unanswered`)
   const growth = heapStillGrowing(rows.map((r) => r.heapUsedMiB))
   if (growth) problems.push(growth)
+  problems.push(
+    ...memoryOutOfBounds(
+      rows.map((r) => r.heapUsedMiB),
+      rows.map((r) => r.rssMiB),
+      1
+    )
+  )
+  return problems
+}
+
+/**
+ * whether the heap ended the run more than LIMITS.heapRiseMiB above where it began, or
+ * resident memory ever passed LIMITS.rssPeakMiB. The first `settle` samples are left out
+ * of the rise: the plugin loads its scenario then, and the heap settles after it.
+ */
+export function memoryOutOfBounds(
+  heapMiB: number[],
+  rssMiB: number[],
+  settle: number
+): string[] {
+  const problems: string[] = []
+  const settled = heapMiB.slice(settle)
+  const quarter = Math.floor(settled.length / 4)
+  if (quarter >= 1) {
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+    const first = mean(settled.slice(0, quarter))
+    const last = mean(settled.slice(-quarter))
+    if (last - first > LIMITS.heapRiseMiB)
+      problems.push(
+        `the heap rose from ${first.toFixed(0)} MiB over the first quarter to ${last.toFixed(0)} MiB over the last (limit ${LIMITS.heapRiseMiB} MiB)`
+      )
+  }
+  const peak = Math.max(0, ...rssMiB)
+  if (peak > LIMITS.rssPeakMiB)
+    problems.push(
+      `resident memory reached ${peak.toFixed(0)} MiB (limit ${LIMITS.rssPeakMiB} MiB)`
+    )
   return problems
 }
 
