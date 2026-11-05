@@ -13,9 +13,9 @@ There are two soaks and a busy run here, and they answer different questions:
 | Takes        | as long as you ask it to run                                            | about ten minutes                                                                                                                                       | an hour for a day, and up to 12 minutes more to settle                                                                                                  |
 | Run it       | after a change to how the plugin or the server handles deltas           | after a change to a vessel profile or the systems model                                                                                                 | after a change to the plugin's traffic, its send path or the server's delta fanout                                                                      |
 
-None is part of `npm test`. The fast systems tests (`test/simulator-systems.ts`, a few
-seconds) run there and check one of each shape; the systems soak runs the same model for
-days and checks everything it sends.
+None is part of `npm test`. The simulator's fast tests (`test/simulator-*.ts`, under a
+minute, `npm run test:simulator` on their own) run there; the systems ones check one of each
+shape, and the systems soak runs the same model for days and checks everything it sends.
 
 ## Rig Soak
 

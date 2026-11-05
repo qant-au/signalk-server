@@ -102,7 +102,9 @@ sample, at x1, on the server's default port. Open http://localhost:3000/admin/:
   (http://localhost:3000/@mxtommy/kip/) come with the server and show the boat, its route
   and its instruments.
 
-The Miami sample ships everything else it needs. The Saronic Gulf and Queensland samples
+`npm run test:simulator` runs the simulator's fast tests on their own (under a minute);
+`npm test` runs them with the rest of the server's. The Miami sample ships everything else
+it needs. The Saronic Gulf and Queensland samples
 need their AIS downloaded by hand into `simulator/downloads/` and prepared with one command,
 as each sample's README says, and Queensland's depth fetched
 ([simulator/README.md](simulator/README.md#getting-the-data)). The soaks, the busy run and
