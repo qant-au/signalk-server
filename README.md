@@ -3,18 +3,22 @@
 > [!IMPORTANT]
 > **This is the Signal K Simulator fork, maintained deliberately alongside
 > [SignalK/signalk-server](https://github.com/SignalK/signalk-server).** It is kept in step
-> with upstream through regular updates, and it is being built into a full simulator for
-> Signal K: realistic AIS traffic, depth and weather, so systems, events, alarms and plugins
-> can be tested without being on a vessel or relying on recorded logs. It is intended to be
-> offered upstream as a pull request when ready, and is run as a separate project until then.
+> with upstream through regular updates, and it adds a full simulator for Signal K:
+> realistic AIS traffic, depth, weather and tides, the boat's own systems and their faults,
+> so systems, events, alarms and plugins can be tested without being on a vessel or relying
+> on recorded logs. It is intended to be offered upstream as a pull request, and is run as a
+> separate project until then.
 >
 > Signal K Server has carried simulator scaffolding since 2017 (a start script and a
 > one-value plugin) but no working simulator. This fork builds on that planned feature; it
 > does not replace it.
 >
-> **Status: early stage (the simulator plugin runs all three samples with depth, AIS
-> traffic and the boat's own systems, and `bin/simulator` starts it).** Three sample
-> scenarios and their data are in [simulator/](simulator/README.md): one ships everything,
+> **Status: complete and proven (5 November 2026). The plugin sails all three samples with
+> depth, AIS traffic, weather and tides, the boat's own systems and faults, an autopilot,
+> and the server's Weather, History, Resources and Autopilot APIs; `bin/simulator` starts
+> it, and it has been run from a fresh clone, for a day on each sample under load, and on a
+> test rig with Freeboard, KIP and an anchor watch.** Three sample scenarios and their data
+> are in [simulator/](simulator/README.md): one ships everything,
 > and two ship their open data with instructions for the licensed AIS the user downloads.
 > Each sample sails a vessel from the [profile library](simulator/vessels/README.md).
 > The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0.

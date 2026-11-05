@@ -518,6 +518,33 @@ wall-clock timers, and each mark brought the vessel back. The plugin now holds t
 back (see [the AIS README](../ais/README.md#5-losing-a-target)); the held-back column counts
 them, and the subscribers are held to the server's count less them.
 
+## Timing
+
+The scenario clock against the wall clock, measured once on `bin/simulator` on 5 November
+2026 (Miami, traffic on, an Apple M3 Ultra, Node v26.12.1). Once a minute a reader took
+`navigation.datetime` from the vessels tree by REST, with the run view, and set the scenario
+time against the wall time elapsed times the multiplier. The plugin publishes
+`navigation.datetime` once a second, in whole seconds, so a reading is up to a second
+behind, which is up to 24 s of scenario at x24 and 60 s at x60; the figures below include
+that.
+
+| Run                                  | Advance                                                                              | Furthest from wall time × multiplier | Own-boat deltas a second |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------ | ------------------------ |
+| an hour at x1                        | 3,600 s of scenario in 3,600.7 s of wall, x1.000                                     | 0.71 s, at the end                   | 11.7                     |
+| ten minutes at x24                   | 14,398 s in 600.1 s, x23.99                                                          | 13.7 s of scenario, 0.6 s of wall    | 11.0                     |
+| ten minutes at x60                   | 36,058 s in 600.1 s, x60.08                                                          | 49.7 s of scenario, 0.8 s of wall    | 11.0                     |
+| x24, paused five minutes at minute 2 | held at 06:40:20 for the 300 s, 0 ms of movement, then 7,194 s in 300.1 s of running | 11.1 s of scenario, 0.5 s of wall    | 11.0                     |
+
+At x1 the scenario clock kept wall time for the hour: the reading at the sixtieth minute
+was 3,600 s on from the first to the second, and the 0.71 s is the reader's own loop falling
+behind its minute. At x24 and x60 the difference stayed within one reading (a wall second at
+the multiplier) and swung from ahead to behind with the reader's phase against the
+once-a-second publish, which marks it as measurement and not the clock. The pause held the
+clock still, to the millisecond, for the five minutes, and the run carried on from the held
+time. The own boat's send rate is a wall-clock rate, not a scenario one: 11.7 deltas a
+second at x1 and 11.0 at x24 and x60, with `navigation.datetime` going out 1.03 times a
+second in every run. The server log had no errors.
+
 ## Recording and Replaying a Run
 
 A run can be recorded as the server's own data log and replayed on a plain Signal K server
