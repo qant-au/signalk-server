@@ -17,6 +17,7 @@ docker compose -f simulator/rig/docker-compose.yml down            # stop and re
 | What            | Where                                        |
 | --------------- | -------------------------------------------- |
 | Freeboard       | http://127.0.0.1:4770/@signalk/freeboard-sk/ |
+| KIP             | http://127.0.0.1:4770/@mxtommy/kip/          |
 | Admin UI        | http://127.0.0.1:4770/                       |
 | Signal K REST   | http://127.0.0.1:4770/signalk/v1/api/        |
 | Signal K stream | ws://127.0.0.1:4770/signalk/v1/stream        |
@@ -40,7 +41,14 @@ not be exposed beyond the machine running it.
   licensed AIS prepared on this machine are available to the plugin without being in the
   image.
 - **Freeboard** is installed into the server's configuration directory at a pinned version
-  (`FREEBOARD_VERSION` in the `Dockerfile`), the way the App Store installs a webapp.
+  (`FREEBOARD_VERSION` in the `Dockerfile`), the way the App Store installs a webapp. KIP
+  comes with the server itself.
+- **Two plugins a boat would run** are installed the same way, each pinned in the
+  `Dockerfile` and enabled by its file in `config/plugin-config-data/`:
+  `signalk-vessels-to-ais`, which sends the targets out as NMEA 0183 (see [A Chart
+  Plotter](#a-chart-plotter)), and `signalk-anchoralarm-plugin`, the anchor watch, set to
+  take the anchor from the simulator's chain counter (`navigation.anchor.rodeCounterLength`,
+  rode length activation, the counter as the alarm radius, a 1.2 m bow).
 - **Configuration** (`config/`) is baked into the image: no data connections, no security.
   It starts fresh every time the container is created, so one run cannot leak into the next.
 - `Dockerfile.dockerignore` sets the build context for this image only. The repository's
