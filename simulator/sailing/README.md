@@ -2,8 +2,8 @@
 
 How the boat moves through the water rather than over the ground: the tidal or ocean current
 under her, and, on a sailing boat, her sails, her polar, the leeway she makes, and whether
-she sails, motor-sails or motors. `polar.ts` reads a polar; `sailing.ts` keeps the sail plan;
-the systems model (`simulator/systems`) uses both in its two-second steps, and the
+she sails, motor-sails or motors. `polar.ts` reads a polar; `sailing.ts` keeps the sail
+plan; the systems model (`simulator/systems`) uses both in its two-second steps, and the
 navigation turns them into headings and speeds.
 
 ## The Current
@@ -24,12 +24,13 @@ vector, holding the first or last reading past the edges of the data (see
 | Queensland | Open-Meteo's ocean current (MeteoFrance SMOC), hourly at the 9 marine points, in the marine file beside the sea level                                                                                                       |
 | Saronic    | none in the sample: the seeded current, as before, a tenth to four tenths of a knot, setting in a seeded direction and wandering slowly about both                                                                          |
 
-A CO-OPS prediction gives the speed along the channel's major axis, positive on the flood and
-negative on the ebb, with each station's mean flood and ebb direction; the simulator reads it
-as running towards the flood direction at the flood speed, or the ebb direction at the ebb
-speed. Open-Meteo gives the speed in km/h and the direction the current runs towards. On
-Miami's passage the flood at Government Cut runs at up to 1.7 kn setting 293° between 15:00
-and 17:00 UTC, blended with the 17th Street Bridge's much weaker current further north.
+A CO-OPS prediction gives the speed along the channel's major axis, positive on the flood
+and negative on the ebb, with each station's mean flood and ebb direction; the simulator
+reads it as running towards the flood direction at the flood speed, or the ebb direction at
+the ebb speed. Open-Meteo gives the speed in km/h and the direction the current runs
+towards. On Miami's passage the flood at Government Cut runs at up to 1.7 kn setting 293°
+between 15:00 and 17:00 UTC, blended with the 17th Street Bridge's much weaker current
+further north.
 
 `environment.current` carries the current as the specification has it: `drift` in m/s,
 `setTrue` (the direction it runs towards) and `setMagnetic` where the sample has the
@@ -40,9 +41,9 @@ magnetic variation, every five seconds. The course provider keeps its own values
 
 A sailing profile lists its sails under `sails`, each with an id (the key under
 `sails.inventory`), a name, a type, an area, and the true wind it is set in. A reef is an
-entry of the main's type with the area the reef leaves. Of each type, the largest entry whose
-wind range takes the true wind is set: full sail to a fresh breeze (Beaufort 5, to 21 kn),
-reefed above it, and nothing she cannot carry.
+entry of the main's type with the area the reef leaves. Of each type, the largest entry
+whose wind range takes the true wind is set: full sail to a fresh breeze (Beaufort 5, to 21
+kn), reefed above it, and nothing she cannot carry.
 
 | Profile             | Sail                     | Type  | Area  | True wind   |
 | ------------------- | ------------------------ | ----- | ----- | ----------- |
@@ -53,18 +54,18 @@ reefed above it, and nothing she cannot carry.
 | `sailing-yacht-9m`  | `main`, Main             | main  | 21 m² | 0 to 21 kn  |
 |                     | `jib`, Jib               | jib   | 17 m² | 0 to 30 kn  |
 
-So the 15 m yacht carries her main and genoa to 21 kn, the first reef and the genoa to 27 kn,
-and the second reef alone to 34 kn; the 9 m yacht, with no reef, carries her jib alone above
-21 kn. `sails.area.total` is the full sail plan (the largest of each type: 132 m² and 38 m²)
-and `sails.area.active` the area set, nothing alongside, at anchor or under power.
+So the 15 m yacht carries her main and genoa to 21 kn, the first reef and the genoa to 27
+kn, and the second reef alone to 34 kn; the 9 m yacht, with no reef, carries her jib alone
+above 21 kn. `sails.area.total` is the full sail plan (the largest of each type: 132 m² and
+38 m²) and `sails.area.active` the area set, nothing alongside, at anchor or under power.
 
 ## The Polars
 
 Each sailing profile carries a polar: her speed through the water, knots, at each true wind
 speed (columns) and true wind angle (rows), in `polar` in the profile's file. It is read
 linearly between its points; below its lightest wind the speed falls in proportion to
-nothing in a calm, above its strongest it holds, and inside its closest angle (30°) the sails
-do not draw and it gives nothing.
+nothing in a calm, above its strongest it holds, and inside its closest angle (30°) the
+sails do not draw and it gives nothing.
 
 `sailing-yacht-15m`, a 15 m cruising yacht with a hull speed near 9 kn:
 
@@ -128,12 +129,12 @@ and handing the sails coming in to a stop, are done at once. The engine's power,
 runs, goes with the leg's speed cubed less the polar's speed cubed (the propeller law), so
 motor-sailing burns less than motoring.
 
-On the Saronic, with the sample as downloaded (ERA5 and the dataset's GFS grid together), the
-passage leaving Zea at 14:00 local is under sail or motor-sailing through the afternoon's 4
-to 7 kn northerly, motors through the calm near 16:00 local, and motors the next morning's
-legs, which run dead to windward. The 10 kn sea breeze ERA5 shows off Piraeus at 14:00 to
-15:00 UTC is not in the pooled wind: the GFS grid's 45 points outweigh ERA5's 5 and give 4 to
-5 kn from the north-east there, so the boat does not see it.
+On the Saronic, with the sample as downloaded (ERA5 and the dataset's GFS grid together),
+the passage leaving Zea at 14:00 local is under sail or motor-sailing through the
+afternoon's 4 to 7 kn northerly, motors through the calm near 16:00 local, and motors the
+next morning's legs, which run dead to windward. The 10 kn sea breeze ERA5 shows off Piraeus
+at 14:00 to 15:00 UTC is not in the pooled wind: the GFS grid's 45 points outweigh ERA5's 5
+and give 4 to 5 kn from the north-east there, so the boat does not see it.
 
 ## Heel and Leeway
 
@@ -185,9 +186,9 @@ The autopilot's wind mode ([the autopilot](../autopilot/README.md)) uses the pol
 - **The beat.** A target apparent wind angle inside the beat (the apparent angle of the
   polar's beat at the true wind and her speed) is held at the beat, and the `wind` alarm
   says why: "Inside the beat angle: holding 28° apparent, the polar's beat of 41° true at 12
-  kn" (at 6 kn through the water). The held target then follows the beat as the wind changes it; a target set outside
-  the beat clears the alarm. Steering, a target the crew set is held at the beat only once
-  the beat has moved 3° outside it.
+  kn" (at 6 kn through the water). The held target then follows the beat as the wind changes
+  it; a target set outside the beat clears the alarm. Steering, a target the crew set is
+  held at the beat only once the beat has moved 3° outside it.
 - **Tack and gybe** come out on the polar's angle on her other side: a tack on the beat, a
   gybe on the gybe angle, each then followed as the wind changes it.
 - **A calm.** Under 3 kn of true wind, wind mode, a tack and a gybe are refused ("cannot

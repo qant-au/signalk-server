@@ -45,27 +45,27 @@ the server log, and the run starts fresh rather than failing.
 
 The status line on the plugin page shows whether the run is under way, at anchor, paused or
 arrived, the scenario time, the multiplier, the boat's speed, the length of the record the
-History API answers from ("record 2 h 14 min"; see [history](../history/README.md)), each person overboard with
-their distance, side and bearing from her ("person overboard, 120 m astern, bearing 263°";
-see [switching](../switching/README.md#a-person-overboard)), how she makes her way under
-way on a sailing boat and her speed through the water ("under sail, main and genoa, 6.2 kn
-through the water", "motor-sailing, main and genoa, 5.8 kn through the water", "motoring,
-6.0 kn through the water"; a motor boat gives only the speed through the water), the
-current ("current 0.8 kn setting 170°"), the navigation lights at night ("lights:
-motoring", "lights: anchored", "lights: fault"), the autopilot when it steers
-("on autopilot, route", "on autopilot, holding 045°", "on autopilot, wind 40° to port",
-"on autopilot, dodging 10° to starboard") and where she is off the route ("rejoining the
-route 0.35 nm ahead", "off the route"), at a bridge hold which bridge and why ("holding
-for the Broad Causeway bridge to open: 5.9 m air height against 4.9 m closed clearance",
-or "holding at the 79th Street Causeway bridge, though she clears it closed: ..."), at
-anchor the chain she lies to, her distance from the anchor with the radius she swings in
-and the watch's ("at anchor on 32 m of chain in 6.8 m, 38 m from it, swinging in 47 m,
-watch 57 m"), the depth under her, the weather and the tide ("wind 9 kn from 176°,
-1016 hPa, air 25.6 °C, water 25.0 °C, tide 0.48 m"), how many AIS targets she currently
-hears, the faults on board, the alarms on board with their state, the collision and anchor
-alarms among them ("alarms: Shallow water (alarm), LUCY GOOSE: closest approach alarm
-(alarm), Anchor Alarm - Emergency (emergency)"), and anything that limits the run (a leg
-that could not be cleared of shallow water, or AIS not available on this machine).
+History API answers from ("record 2 h 14 min"; see [history](../history/README.md)), each
+person overboard with their distance, side and bearing from her ("person overboard, 120 m
+astern, bearing 263°"; see [switching](../switching/README.md#a-person-overboard)), how she
+makes her way under way on a sailing boat and her speed through the water ("under sail, main
+and genoa, 6.2 kn through the water", "motor-sailing, main and genoa, 5.8 kn through the
+water", "motoring, 6.0 kn through the water"; a motor boat gives only the speed through the
+water), the current ("current 0.8 kn setting 170°"), the navigation lights at night
+("lights: motoring", "lights: anchored", "lights: fault"), the autopilot when it steers ("on
+autopilot, route", "on autopilot, holding 045°", "on autopilot, wind 40° to port", "on
+autopilot, dodging 10° to starboard") and where she is off the route ("rejoining the route
+0.35 nm ahead", "off the route"), at a bridge hold which bridge and why ("holding for the
+Broad Causeway bridge to open: 5.9 m air height against 4.9 m closed clearance", or "holding
+at the 79th Street Causeway bridge, though she clears it closed: ..."), at anchor the chain
+she lies to, her distance from the anchor with the radius she swings in and the watch's ("at
+anchor on 32 m of chain in 6.8 m, 38 m from it, swinging in 47 m, watch 57 m"), the depth
+under her, the weather and the tide ("wind 9 kn from 176°, 1016 hPa, air 25.6 °C, water 25.0
+°C, tide 0.48 m"), how many AIS targets she currently hears, the faults on board, the alarms
+on board with their state, the collision and anchor alarms among them ("alarms: Shallow
+water (alarm), LUCY GOOSE: closest approach alarm (alarm), Anchor Alarm - Emergency
+(emergency)"), and anything that limits the run (a leg that could not be cleared of shallow
+water, or AIS not available on this machine).
 
 **Shallow water alarm** is the depth sounder's own alarm, raised as
 `notifications.environment.depth.belowKeel` when the depth under the keel is below it and
@@ -155,35 +155,35 @@ security is on; with security off, as on the rig, anyone who can reach the serve
 Admin UI opens it inside the Admin UI's own frame (at `/admin/#/e/signalk-simulator`). It
 shows the run (the boat, the resources it published, as "1 route, 8 waypoints, 4 notes, 2
 regions", the scenario time and how far along the route, the multiplier and whether it is
-paused), where the boat is (her state, at anchor the anchor's position
-and depth, her distance from it, the radius she swings in and the watch's, the wind, the
-pressure, the air and water temperature, the humidity where the sample has it, the tide,
-the current, her speed through the water and her leeway, and on a sailing boat a Sails row:
-under sail, motor-sailing or motoring, the sails set and their area, and the polar speed and
-her share of it; see [sailing](../sailing/README.md#the-run-view-status-line-and-page)), the
-[autopilot](../autopilot/README.md#the-page-and-rest) with its controls (engage
-and standby, the mode, the target set or adjusted by 1° and 10°, tack and gybe on a
-sailing boat, a dodge either way and its end), which go through the server's Autopilot API
-as KIP's would, the systems'
-headline state, a History and Weather card (the record's span, rows and memory, the
+paused), where the boat is (her state, at anchor the anchor's position and depth, her
+distance from it, the radius she swings in and the watch's, the wind, the pressure, the air
+and water temperature, the humidity where the sample has it, the tide, the current, her
+speed through the water and her leeway, and on a sailing boat a Sails row: under sail,
+motor-sailing or motoring, the sails set and their area, and the polar speed and her share
+of it; see [sailing](../sailing/README.md#the-run-view-status-line-and-page)), the
+[autopilot](../autopilot/README.md#the-page-and-rest) with its controls (engage and standby,
+the mode, the target set or adjusted by 1° and 10°, tack and gybe on a sailing boat, a dodge
+either way and its end), which go through the server's Autopilot API as KIP's would, the
+systems' headline state, a History and Weather card (the record's span, rows and memory, the
 Weather API's latest observation at the boat, how far ahead it forecasts and its warnings;
-see [history](../history/README.md#the-page-and-the-run-view)), a Deck card (the navigation lights, the chain out and the windlass, the
-outboard's trim, the stabilisers, the radars and the bridge she holds for; see
+see [history](../history/README.md#the-page-and-the-run-view)), a Deck card (the navigation
+lights, the chain out and the windlass, the outboard's trim, the stabilisers, the radars and
+the bridge she holds for; see
 [deck](../deck/README.md#the-page-the-run-view-and-the-status-line)), the inverter in the
 Systems card, a person overboard in the Where the Boat Is card, a Switches card with a
 button to throw each switch, which PUTs to the server as a display would (see
-[switching](../switching/README.md#the-page-the-run-view-and-the-status-line)), the faults on board with their course, and the targets in range, refreshed
-every two seconds; the faults it offers to raise are read again with each refresh, so a
-dragging anchor is offered only while she lies at anchor. Targets in Range
-lists them as a plotter's danger list does: first the targets whose closest approach (CPA)
-is inside the collision alarm's limits, soonest first; then the other closing targets, by
-how close they come, nearest first; then those not closing, by range. Each closing target
-shows its CPA and the time to it (TCPA, minutes and seconds). Ranking every closing target
-by time alone would put a boat passing 3.9 km off in a minute above one passing 339 m off
-in two. Its
-buttons are the same controls as the REST surface: pause and resume, the multiplier, a jump
-to a number of minutes into the route, and raising and clearing faults. It is built on the
-Admin UI's own React and styles, so it needs nothing beyond the plugin's own build.
+[switching](../switching/README.md#the-page-the-run-view-and-the-status-line)), the faults
+on board with their course, and the targets in range, refreshed every two seconds; the
+faults it offers to raise are read again with each refresh, so a dragging anchor is offered
+only while she lies at anchor. Targets in Range lists them as a plotter's danger list does:
+first the targets whose closest approach (CPA) is inside the collision alarm's limits,
+soonest first; then the other closing targets, by how close they come, nearest first; then
+those not closing, by range. Each closing target shows its CPA and the time to it (TCPA,
+minutes and seconds). Ranking every closing target by time alone would put a boat passing
+3.9 km off in a minute above one passing 339 m off in two. Its buttons are the same controls
+as the REST surface: pause and resume, the multiplier, a jump to a number of minutes into
+the route, and raising and clearing faults. It is built on the Admin UI's own React and
+styles, so it needs nothing beyond the plugin's own build.
 
 ## What It Does
 
@@ -251,17 +251,16 @@ or the survey datum); tides are not applied yet.
 **Navigation.** With a profile, the boat sends what a navigation suite sends around the
 position: its navigational state (moored, anchored, sailing or motoring, always in step with
 the engines), heading true and magnetic with the magnetic variation for the sample's area
-and date, course over ground magnetic, speed through the water against the speed over
-ground with the sample's current (or a small seeded one), and its components along and
-across her heading with the leeway she makes under sail, the current itself, on a sailing
-boat her sails and the performance paths from her polar
-([sailing](../sailing/README.md)), rate of turn and rudder angle, roll and pitch from the boat's
-size and the sea, the total and trip logs counting through the water, and a GNSS fix with
-its satellites and dilution. Paths and reasoning are in
-[the vessels README](../vessels/README.md#navigation). Each send is the state at the
-systems model's latest two-second step, position and scenario time included, so the same
-scenario time carries the same values at any time multiplier; a faster clock only sends
-fewer of them.
+and date, course over ground magnetic, speed through the water against the speed over ground
+with the sample's current (or a small seeded one), and its components along and across her
+heading with the leeway she makes under sail, the current itself, on a sailing boat her
+sails and the performance paths from her polar ([sailing](../sailing/README.md)), rate of
+turn and rudder angle, roll and pitch from the boat's size and the sea, the total and trip
+logs counting through the water, and a GNSS fix with its satellites and dilution. Paths and
+reasoning are in [the vessels README](../vessels/README.md#navigation). Each send is the
+state at the systems model's latest two-second step, position and scenario time included, so
+the same scenario time carries the same values at any time multiplier; a faster clock only
+sends fewer of them.
 
 **Systems.** When the sample's route names a vessel profile, the boat also sends its
 engines, generators, batteries, chargers, solar and wind charging, tanks, wind and the
@@ -311,11 +310,12 @@ whatever its converters put on its `nmea0183out` event. Two plugins do it:
 - **The own boat**: the server's own `@signalk/signalk-to-nmea0183` (Convert Signal K to
   NMEA0183), with RMC, HDT and VTG enabled, once a second each. `bin/simulator` and the rig
   configure it so (`settings/simulator-nmea0183.json`).
-- **The AIS targets**: [`signalk-vessels-to-ais`](https://github.com/KEGustafsson/signalk-vessels-to-ais)
-  (MIT), which turns the targets in `vessels.*` into `!AIVDM` sentences (messages 3 and 5 for
-  Class A, 18 and 24 for Class B) and the own boat into `!AIVDO`, once a minute, out
-  to 100 km. The rig installs it (2.1.1) and enables it. For `bin/simulator`, install it into
-  the run directory once and restart:
+- **The AIS targets**:
+  [`signalk-vessels-to-ais`](https://github.com/KEGustafsson/signalk-vessels-to-ais) (MIT),
+  which turns the targets in `vessels.*` into `!AIVDM` sentences (messages 3 and 5 for Class
+  A, 18 and 24 for Class B) and the own boat into `!AIVDO`, once a minute, out to 100 km.
+  The rig installs it (2.1.1) and enables it. For `bin/simulator`, install it into the run
+  directory once and restart:
 
   ```shell
   npm install --prefix .simulator signalk-vessels-to-ais@2.1.1

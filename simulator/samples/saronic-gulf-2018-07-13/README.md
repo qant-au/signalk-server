@@ -9,9 +9,17 @@
 
 ## Route
 
-**This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC-SA, so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
+**This route is hand-written, not a recorded track.** The sample's AIS is licensed CC
+BY-NC-SA, so a route traced from it could not be shared here; it is a plausible passage
+along charted waters instead.
 
-`route.json`: Meltemi (MMSI 239555210), a 15 m sailing yacht, 98.8 nm from a berth in Zea Marina back to the same berth in 19 h 48 min as planned (99.2 nm, 19 h 54 min once adjusted for depth), at 3 kn in the marina and 6 kn under sail, with an evening at anchor in Skala bay on Angistri from 17:58 to 20:28 EEST (see [Anchorage](../../routes/README.md#anchorage)). Hand-written from charted features and checked against the EMODnet depth grid; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
+`route.json`: Meltemi (MMSI 239555210), a 15 m sailing yacht, 98.8 nm from a berth in Zea
+Marina back to the same berth in 19 h 48 min as planned (99.2 nm, 19 h 54 min once adjusted
+for depth), at 3 kn in the marina and 6 kn under sail, with an evening at anchor in Skala
+bay on Angistri from 17:58 to 20:28 EEST (see
+[Anchorage](../../routes/README.md#anchorage)). Hand-written from charted features and
+checked against the EMODnet depth grid; not derived from the AIS, whose licence does not
+allow it. See [the routes README](../../routes/README.md).
 
 ## Data
 
@@ -38,16 +46,16 @@ JSON format (one object per point).
   Climate Change Service information, used under the Copernicus licence, which allows
   redistribution with attribution.
 - **Not available:** Open-Meteo's marine archive has no wave data for the gulf in 2018.
-- **Used for:** the wind, the pressure, the air temperature and the humidity; the
-  dataset's own GFS fields join them when they have been downloaded. The sample has no
-  water temperature, waves or water level, so the depth is the grid's, at LAT, and no tide
-  is sent. See [the weather README](../../weather/README.md).
-- **No current:** neither source gives a current, and Open-Meteo's marine archive returns
-  no ocean current for the gulf in July 2018 (every hour empty, checked 4 November 2026), so
+- **Used for:** the wind, the pressure, the air temperature and the humidity; the dataset's
+  own GFS fields join them when they have been downloaded. The sample has no water
+  temperature, waves or water level, so the depth is the grid's, at LAT, and no tide is
+  sent. See [the weather README](../../weather/README.md).
+- **No current:** neither source gives a current, and Open-Meteo's marine archive returns no
+  ocean current for the gulf in July 2018 (every hour empty, checked 4 November 2026), so
   the boat sails on the model's own seeded current, a tenth to four tenths of a knot (see
   [sailing](../../sailing/README.md#the-current)).
 
-### AIS and Dataset Weather: `restricted/` (downloaded by the user)
+### AIS and Dataset Weather: `restricted/` (Downloaded by the User)
 
 | File                         | Contents                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,10 +65,10 @@ JSON format (one object per point).
 
 ### Magnetic Variation: `magnetic-variation.json`
 
-The magnetic variation over the route on the sample's date, 4.4 to 4.6°E, as a grid every half
-degree. The simulator reads between the grid points to send `navigation.headingMagnetic`,
-`courseOverGroundMagnetic` and `magneticVariation` (see
-[the vessels README](../../vessels/README.md#navigation)).
+The magnetic variation over the route on the sample's date, 4.4 to 4.6°E, as a grid every
+half degree. The simulator reads between the grid points to send
+`navigation.headingMagnetic`, `courseOverGroundMagnetic` and `magneticVariation` (see [the
+vessels README](../../vessels/README.md#navigation)).
 
 - **Source:** NOAA NCEI magnetic field calculator
   (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic
@@ -95,11 +103,10 @@ themselves.
 
 ## Attribution
 
-AIS and dataset weather: Tritsarolis, A., Kontoulis, Y. and Theodoridis, Y., "The Piraeus AIS
-dataset for large-scale maritime data analytics", Data in Brief 40 (2022) 107782,
+AIS and dataset weather: Tritsarolis, A., Kontoulis, Y. and Theodoridis, Y., "The Piraeus
+AIS dataset for large-scale maritime data analytics", Data in Brief 40 (2022) 107782,
 https://doi.org/10.1016/j.dib.2021.107782, data at https://zenodo.org/records/6323416.
-Depth: EMODnet Bathymetry Consortium, EMODnet Digital Bathymetry (DTM 2024). Weather: Weather
-data by Open-Meteo.com (https://open-meteo.com/), contains modified Copernicus Climate Change
-Service information 2018.
-Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
-Reference Field (IAGA).
+Depth: EMODnet Bathymetry Consortium, EMODnet Digital Bathymetry (DTM 2024). Weather:
+Weather data by Open-Meteo.com (https://open-meteo.com/), contains modified Copernicus
+Climate Change Service information 2018. Magnetic variation: NOAA NCEI magnetic field
+calculator, International Geomagnetic Reference Field (IAGA).

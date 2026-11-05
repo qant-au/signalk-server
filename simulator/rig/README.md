@@ -33,9 +33,9 @@ not be exposed beyond the machine running it.
 - **Node** is `node:24-bookworm`, pinned by digest in the `Dockerfile`.
 - **The simulator plugin** (`simulator/plugin`) is built and installed, and enabled by
   default: the rig starts sailing the Miami sample as soon as it is up. Its settings are in
-  the Admin UI under Apps & Plugins, Configuration, Signal K Simulator, and its page, with the
-  run's controls and faults, under Webapps, Signal K Simulator; see
-  [the plugin README](../plugin/README.md).
+  the Admin UI under Apps & Plugins, Configuration, Signal K Simulator, and its page, with
+  the run's controls and faults, under Webapps, Signal K Simulator; see [the plugin
+  README](../plugin/README.md).
 - **The samples** are mounted from `simulator/samples`, so the depth grids fetched and the
   licensed AIS prepared on this machine are available to the plugin without being in the
   image.
@@ -56,14 +56,15 @@ passage, and the own boat moves along it as the run goes.
 - **Show the route:** Freeboard lists published routes but does not draw them until they are
   ticked. Click the orange layers button on the left ("Routes, Waypoints, Notes, etc."),
   then Routes, and tick the sample's route.
-- **Follow the boat:** http://127.0.0.1:4770/@signalk/freeboard-sk/?zoom=10&movemap=1&northup=1
-  opens zoomed in and keeps the boat centred.
+- **Follow the boat:**
+  http://127.0.0.1:4770/@signalk/freeboard-sk/?zoom=10&movemap=1&northup=1 opens zoomed in
+  and keeps the boat centred.
 - **Clear the trail between samples:** right-click the map and choose "Clear vessel trail".
   Freeboard keeps the boat's trail in the browser, not on the server, so restarting the rig
   does not clear it, and switching samples leaves a line across the world from the old
   position to the new one.
-- **Restart the rig between samples** (`down`, then `up`) as well, so the server starts
-  with no data from the previous run.
+- **Restart the rig between samples** (`down`, then `up`) as well, so the server starts with
+  no data from the previous run.
 
 ## A Chart Plotter
 

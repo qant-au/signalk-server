@@ -9,9 +9,15 @@
 
 ## Route
 
-**This route follows a real passage**: a vessel that ran it on the same day, from the sample's own CC0 AIS.
+**This route follows a real passage**: a vessel that ran it on the same day, from the
+sample's own CC0 AIS.
 
-`route.json`: Coquina (MMSI 367555210), a 20 m motor yacht, 22.5 nm berth to berth in 3 h 48 min as planned (22.7 nm, 3 h 52 min once adjusted for depth), including four bridge-opening holds, at 3 kn in the marinas, 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md) for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
+`route.json`: Coquina (MMSI 367555210), a 20 m motor yacht, 22.5 nm berth to berth in 3 h 48
+min as planned (22.7 nm, 3 h 52 min once adjusted for depth), including four bridge-opening
+holds, at 3 kn in the marinas, 5.5 to 7.5 kn through the no-wake stretches and up to 15.5 kn
+across open Biscayne Bay. Derived from a real 10 to 30 m vessel's passage in this sample's
+AIS, with nothing that identifies it kept. See [the routes README](../../routes/README.md)
+for how, and `npx ts-node simulator/tools/route.ts show miami-icw-2024-03-16` for the legs.
 
 ### Bridges
 
@@ -44,8 +50,8 @@ clearances are the closed vertical clearance at the centre of the span:
 ### AIS: `open/ais.csv`
 
 75,593 position reports from 855 vessels (689 pleasure craft, 51 sailing, 26 passenger, 20
-cargo), 25.68N to 26.16N and 80.30W to 80.00W, at the full reporting rate with real MMSIs and
-names.
+cargo), 25.68N to 26.16N and 80.30W to 80.00W, at the full reporting rate with real MMSIs
+and names.
 
 | Column                            | Meaning                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -127,7 +133,7 @@ axis, flood positive and ebb negative, with the station's mean flood and ebb dir
   fetched on 4 November 2026.
 - **Licence:** US government work, public domain.
 
-### Depth: `cache/BlueTopo_*.tiff` (fetched)
+### Depth: `cache/BlueTopo_*.tiff` (Fetched)
 
 NOAA BlueTopo, the National Bathymetric Source compilation of hydrographic surveys: 27 tiles
 at 4 m resolution covering the route, each a GeoTIFF with elevation, uncertainty and source

@@ -39,9 +39,9 @@ one battery. It shows in that bank's `current` and in the books as `navigation l
 raises `notifications.navigation.lights` at `alarm`, `visual` and `sound`, "Navigation
 lights failure: showing no lights". It can be raised **only from dusk**, while the sun is
 down; by day the REST surface and the page refuse it ("navLightsFailure happens only from
-dusk, while the sun is down") and the seed does not throw it. It clears on its own after
-10 to 60 minutes, as the crew finds the fuse or the connection, or by hand; the lights
-come back as they were. See the [faults README](../faults/README.md#navigation-lights-failure).
+dusk, while the sun is down") and the seed does not throw it. It clears on its own after 10
+to 60 minutes, as the crew finds the fuse or the connection, or by hand; the lights come
+back as they were. See the [faults README](../faults/README.md#navigation-lights-failure).
 
 ## The Chain and the Windlass
 

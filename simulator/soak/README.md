@@ -26,8 +26,8 @@ time are the [busy run](#busy-run)'s.
 
 ### Running One
 
-Start the rig and **disable the simulator plugin** first (Admin UI, Apps & Plugins, Configuration),
-or the plugin and the soak run will both be sailing the own boat. Then:
+Start the rig and **disable the simulator plugin** first (Admin UI, Apps & Plugins,
+Configuration), or the plugin and the soak run will both be sailing the own boat. Then:
 
 ```shell
 npx ts-node simulator/tools/soak.ts <sample> [--minutes N] [--start-at N] [--url URL] [--container NAME]
@@ -62,10 +62,10 @@ npx ts-node simulator/tools/soak.ts miami-icw-2024-03-16 --minutes 30 --start-at
 ### What It Reports
 
 The console shows a summary; the full run, with every check, is written as JSON to
-`simulator/soak/reports/` (ignored by git). The run **fails** (exit code 1) if any send fails,
-the position read back is wrong or the server does not answer, or the route cannot be
-published. Memory is reported (first, last and peak) but not yet judged: how much growth over
-a long run counts as a leak is for the full-route soak tests to decide.
+`simulator/soak/reports/` (ignored by git). The run **fails** (exit code 1) if any send
+fails, the position read back is wrong or the server does not answer, or the route cannot be
+published. Memory is reported (first, last and peak) but not yet judged: how much growth
+over a long run counts as a leak is for the full-route soak tests to decide.
 
 ### Runs So Far
 
@@ -77,9 +77,9 @@ a long run counts as a leak is for the full-route soak tests to decide.
 ## Systems Soak
 
 The systems soak (`systems.soak.ts`) runs every [vessel profile](../vessels/README.md)
-through days of scenario time with the plugin's own `Simulation`, ticked on the
-controllable clock at 60 scenario seconds per tick, so 24 hours takes about 25 seconds,
-most of it schema validation, rather than a day. It uses seed 1, so a failure repeats exactly.
+through days of scenario time with the plugin's own `Simulation`, ticked on the controllable
+clock at 60 scenario seconds per tick, so 24 hours takes about 25 seconds, most of it schema
+validation, rather than a day. It uses seed 1, so a failure repeats exactly.
 
 ```shell
 npm run test:simulator-soak                          # every case, about ten minutes
@@ -97,65 +97,65 @@ SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name
 | The Queensland passage, 72 hours | `hybrid-catamaran-60ft`                                                                                     | the same passage, sailed by the hybrid catamaran on its passage rules: on its motors out of Manly and into Hamilton Island, on its diesels charging the bank between                                                                        |
 
 The sounders read a synthetic seabed that rises and falls, so the soak needs no depth
-download; each case sails on its sample's own [weather and water level](../weather/README.md),
-the day out from a sample's berth included, the seabed taking the sample's tide on it. No [faults](../faults/README.md) are thrown: the soak checks the systems as
-they should be, and a failing cell, for one, is meant to unbalance the energy books it
-checks. The faults have their own tests, which run every one through its course.
+download; each case sails on its sample's own [weather and water
+level](../weather/README.md), the day out from a sample's berth included, the seabed taking
+the sample's tide on it. No [faults](../faults/README.md) are thrown: the soak checks the
+systems as they should be, and a failing cell, for one, is meant to unbalance the energy
+books it checks. The faults have their own tests, which run every one through its course.
 
 ### What It Checks
 
-- **Every delta** the run produces (83,012 in all) validates
-  against `@signalk/signalk-schema` 1.8.2, envelope and full model.
-- **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0
-  to 100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
+- **Every delta** the run produces (83,012 in all) validates against
+  `@signalk/signalk-schema` 1.8.2, envelope and full model.
+- **Every value stays in a band for its kind**: state of charge 0 to 100%, tank levels 0 to
+  100% and volumes within capacity, coolant, oil and exhaust temperatures, oil pressure,
   revolutions within the engine's or generator's maximum, AC voltage and frequency, battery
   voltage for the bank's nominal, inside temperatures for living spaces, engine rooms,
   fridges and freezers, wind, depth, air and water, the current (to 2.5 kn), the speed
   through the water and its components, the leeway (none under power, at most 10°), the
   sails and their areas, and every performance path within what the polar can give. A path
-  with no band, a NaN, a missing
-  value or a string where a number belongs fails the run.
-- **Nothing goes missing**: every value present at the start is present at every tick,
-  apart from those that only exist some of the time (time remaining while discharging,
-  chargers while charging, shore power while alongside, charging modes).
+  with no band, a NaN, a missing value or a string where a number belongs fails the run.
+- **Nothing goes missing**: every value present at the start is present at every tick, apart
+  from those that only exist some of the time (time remaining while discharging, chargers
+  while charging, shore power while alongside, charging modes).
 - **Counters behave**: run hours never go back; solar yield resets only at local midnight.
-- **Nothing drifts away**: house and propulsion banks stay above 15%, start banks above
-  80%, and no fuel tank runs dry.
+- **Nothing drifts away**: house and propulsion banks stay above 15%, start banks above 80%,
+  and no fuel tank runs dry.
 - **Generators** start and stop on their own, run at least 15 minutes once started (unless
-  the boat comes alongside, where shore power takes over), and start no more than 12 times
-  a day.
+  the boat comes alongside, where shore power takes over), and start no more than 12 times a
+  day.
 - **Solar** is zero at night, producing whenever the sun is above 15°, never more than the
   sun gives at its elevation at the sample's latitude and date, and follows the sun while
-  the bank still takes charge. With a full bank and nothing drawing, a controller backs
-  off, as a real one does.
+  the bank still takes charge. With a full bank and nothing drawing, a controller backs off,
+  as a real one does.
 - **Air conditioning** load follows the outside temperature (rank correlation above 0.9)
   wherever there is AC power for it, and is zero where there is none.
 - **Fresh water** use follows the day (the morning rate at least three times the night's),
   the water maker refills the tanks faster than they are used while it runs, and a boat with
   a water maker never falls below half full.
 - **Grey and black water** tanks fill with use, are pumped out before they overflow, and
-  black water only goes out well offshore (at 5 kn or more) or at a berth's pump-out station.
+  black water only goes out well offshore (at 5 kn or more) or at a berth's pump-out
+  station.
 - **The wind turbine** charges in proportion to the apparent wind (rank correlation above
   0.9) and is still below 3 m/s.
-- **The weather stays in its bands**: the humidity 0 to 1, the tide height and the next
-  high and low water within -1.5 to 3 m, alongside the wind, air, water and pressure bands
-  above.
+- **The weather stays in its bands**: the humidity 0 to 1, the tide height and the next high
+  and low water within -1.5 to 3 m, alongside the wind, air, water and pressure bands above.
 - **The Miami depth follows the tide** through the day, in every case on Miami's weather:
   what the sounder reads over the seabed is the water level above the grid's datum to within
   0.25 m (the sounder's own bias, drift and offset across the boat), it moves by more than
   0.4 m, and the two rank together above 0.9.
-- **Every anchorage** is lain at: in each case whose route anchors (every day out, at
-  night and at lunch, and the Saronic route in Skala bay), the boat is `anchored` there,
-  sends `navigation.anchor.position`, `maxRadius` and `currentRadius` at every tick, stays
-  inside the radius, makes under a knot over the ground on her chain, and clears the anchor's
+- **Every anchorage** is lain at: in each case whose route anchors (every day out, at night
+  and at lunch, and the Saronic route in Skala bay), the boat is `anchored` there, sends
+  `navigation.anchor.position`, `maxRadius` and `currentRadius` at every tick, stays inside
+  the radius, makes under a knot over the ground on her chain, and clears the anchor's
   values once for each anchor weighed. The anchor alarm counts among what a day raises only
   when a dragging anchor is on board, which happens only when the seed throws
   `anchorDragging`; the soak throws no faults, so none is raised.
-- **The navigational state** is `moored`, `anchored`, `sailing` or `motoring` at every
-  tick and agrees with the engines: stopped and out of gear in the first three, something
-  in gear under `motoring`. Every case motors at some point, and the sailing yachts sail.
-- **The energy books balance** for every bank of every case, to 1 %: everything delivered
-  in at its terminals (solar, wind, alternators, drive regeneration, the shore and generator
+- **The navigational state** is `moored`, `anchored`, `sailing` or `motoring` at every tick
+  and agrees with the engines: stopped and out of gear in the first three, something in gear
+  under `motoring`. Every case motors at some point, and the sailing yachts sail.
+- **The energy books balance** for every bank of every case, to 1 %: everything delivered in
+  at its terminals (solar, wind, alternators, drive regeneration, the shore and generator
   chargers, the DC-DC converter) equals everything drawn out (house loads, fridges, the
   inverter, electric drives, the converter's draw on a propulsion bank, a start bank's
   standby) plus the change in stored energy plus the loss in the bank's resistance. The
@@ -168,36 +168,35 @@ checks. The faults have their own tests, which run every one through its course.
 - **Generators** turn no more than 38 % of their fuel's energy (diesel at 9.94 kWh a litre)
   into electricity, the best a marine diesel set manages.
 - **The thrusters run only berthing**: every boat with a bow thruster runs it coming
-  alongside at the end of its case; at every tick a thruster is running the boat is
-  motoring within three boat lengths of the berth it is leaving or coming to, and its run
-  time grows only between ticks near one; an electric thruster's hardest burst shows on its
-  bank's current at 50 to 110 % of its draw (the rest from the alternators), and a hydraulic
-  one draws no bank.
+  alongside at the end of its case; at every tick a thruster is running the boat is motoring
+  within three boat lengths of the berth it is leaving or coming to, and its run time grows
+  only between ticks near one; an electric thruster's hardest burst shows on its bank's
+  current at 50 to 110 % of its draw (the rest from the alternators), and a hydraulic one
+  draws no bank.
 - **The hybrid runs as a hybrid**: on its motors alone below its electric speed while the
   bank is above its ceiling, on both diesels above it, the bank charging from them on
   passage, its generator starting only below its charge floor, and solar carrying its hotel
   load whenever the sun is above 30°.
-- **The notifications** a case raises are the ones its day should, and nothing else: with
-  no fault on board, only a tank running low or a holding tank filling, a bank run down,
-  and shallow water may raise one, besides the lights failure the soak raises itself (see
-  below), which has no zone. Each notification matches its zone: a raised one
-  carries a zone's state and message for the value its path had just sent (within the
-  zone's margin, as a held alarm may be), with method `["visual"]` for a warning and
-  `["visual", "sound"]` for an alarm, and a `normal` one comes with the value out of
-  every zone or no longer sent. Across the cases at least one tank's alarm is raised. The
-  run ends with a table of every notification raised, case by case: the path, how many
-  times, its states, its message and when it first came. With Miami's tide on the depth,
-  the 45 m yacht's day out raises the shallow water alarm from 12:59 UTC rather than 15:26:
-  the tide is lower then, so the water stands below the grid's datum, and she draws 2.6 m.
+- **The notifications** a case raises are the ones its day should, and nothing else: with no
+  fault on board, only a tank running low or a holding tank filling, a bank run down, and
+  shallow water may raise one, besides the lights failure the soak raises itself (see
+  below), which has no zone. Each notification matches its zone: a raised one carries a
+  zone's state and message for the value its path had just sent (within the zone's margin,
+  as a held alarm may be), with method `["visual"]` for a warning and `["visual", "sound"]`
+  for an alarm, and a `normal` one comes with the value out of every zone or no longer sent.
+  Across the cases at least one tank's alarm is raised. The run ends with a table of every
+  notification raised, case by case: the path, how many times, its states, its message and
+  when it first came. With Miami's tide on the depth, the 45 m yacht's day out raises the
+  shallow water alarm from 12:59 UTC rather than 15:26: the tide is lower then, so the water
+  stands below the grid's datum, and she draws 2.6 m.
 - **The autopilot steers each passage** in route mode, engaged from the tick after she gets
-  under way and again after each anchorage, for at least 98 % of the time she is under
-  way, raising the waypoint arrivals and one route complete and no cross track, heading or
-  wind alarm; on every day out the helm has her, the pilot never engages and says
-  nothing.
-- **The heading** stays on the course over the ground, off it only by what a knot of
-  current across the track and a few degrees of yaw allow.
-- **The speed through the water agrees** with the speed over the ground less the current,
-  to a centimetre a second, at every tick she is under way.
+  under way and again after each anchorage, for at least 98 % of the time she is under way,
+  raising the waypoint arrivals and one route complete and no cross track, heading or wind
+  alarm; on every day out the helm has her, the pilot never engages and says nothing.
+- **The heading** stays on the course over the ground, off it only by what a knot of current
+  across the track and a few degrees of yaw allow.
+- **The speed through the water agrees** with the speed over the ground less the current, to
+  a centimetre a second, at every tick she is under way.
 - **The sails are set only on a sailing boat, and only under way**: no motor boat sends a
   `sails` or `performance` path, the area set is 0 alongside and at anchor, and every
   sailing case sets sail at some point.
@@ -207,65 +206,65 @@ checks. The faults have their own tests, which run every one through its course.
   morning, its legs dead to windward, the engine runs at least 90 % of the time. The run
   prints what it found.
 - **The navigation lights follow the sun and what she is doing**, in every case: never lit
-  by day or alongside, and always lit at night, `anchored` at anchor, `sailing` under
-  sail alone and `motoring` otherwise, to within a quarter of a degree of sunset. The
-  soak tries to fail them at every tick until the faults take it: each try by day is
-  refused, the one that takes comes after dusk, the lights show `fault` exactly while it
-  lasts, and its alarm is raised.
+  by day or alongside, and always lit at night, `anchored` at anchor, `sailing` under sail
+  alone and `motoring` otherwise, to within a quarter of a degree of sunset. The soak tries
+  to fail them at every tick until the faults take it: each try by day is refused, the one
+  that takes comes after dusk, the lights show `fault` exactly while it lasts, and its alarm
+  is raised.
 - **The chain** is sent only from a boat with a windlass, and is 0 whenever she is not at
-  anchor; lying to her anchor it is never more than five times the depth there and the
-  bow's height, and the windlass runs only at ticks where the chain has moved. Every case
-  with a windlass that anchors runs it, and its draw is in the house bank's books.
+  anchor; lying to her anchor it is never more than five times the depth there and the bow's
+  height, and the windlass runs only at ticks where the chain has moved. Every case with a
+  windlass that anchors runs it, and its draw is in the house bank's books.
 - **Only an outboard trims**: `drive` paths come only from an engine with an outboard,
   tilted up (1) alongside, and each outboard goes right down (0) and right up in the day.
-- **The stabilisers** are sent only by the 34 m and 45 m yachts, and cut the roll: each
-  case is run again without them, and the roll while they work is less than half of what
-  it is then. It prints what it found (both a third: the 34 m's on for 391 of its 1,440
-  ticks, the 45 m's, at anchor too, for 1,019).
+- **The stabilisers** are sent only by the 34 m and 45 m yachts, and cut the roll: each case
+  is run again without them, and the roll while they work is less than half of what it is
+  then. It prints what it found (both a third: the 34 m's on for 391 of its 1,440 ticks, the
+  45 m's, at anchor too, for 1,019).
 - **Each radar transmits only under way**, on standby alongside and at anchor.
 - **Every switch the profile has is sent**, at every tick, by its name and on its switch
   bank channel with the same value, with its name in the metadata on both and on their
   `state` paths (the bilge pump is sent only with water in the bilge, which a day without
-  faults never gives it). The PUT handlers are the plugin's, which the soak does not
-  start; the fast tests check them.
+  faults never gives it). The PUT handlers are the plugin's, which the soak does not start;
+  the fast tests check them.
 - **The bank numbering holds through a restart**: each case is carried on from its systems
   saved halfway, and every channel carries the same switch, with the same name.
 - **A PUT the boat must refuse stays refused**: at every tick under way the windlass is
   switched on, and at every tick alongside each radar is switched to transmitting; none is
   taken, and the values then sent are the ones checked above.
-- **The fridges and freezers warm while switched off and come back switched on**: each
-  boat with one is run again from halfway, switched off for three hours and on for four;
-  each warms more than 8 °C past its setpoint and ends within 3 °C of it.
-- **The inverter follows the generators and the shore**, on every boat with one, and on
-  no other: `standby` alongside and whenever a generator runs, `inverting` or `idle`
-  otherwise. What it put out over the day is what the books took from its bank, less its
-  10 % of losses, to within 5 %. It prints both.
+- **The fridges and freezers warm while switched off and come back switched on**: each boat
+  with one is run again from halfway, switched off for three hours and on for four; each
+  warms more than 8 °C past its setpoint and ends within 3 °C of it.
+- **The inverter follows the generators and the shore**, on every boat with one, and on no
+  other: `standby` alongside and whenever a generator runs, `inverting` or `idle` otherwise.
+  What it put out over the day is what the books took from its bank, less its 10 % of
+  losses, to within 5 %. It prints both.
 - **A person overboard raises MOB at emergency and nothing else**: each case is run for
-  twenty minutes twice from an hour in, once with a person overboard at the third minute
-  and recovered at the fifteenth, through the server's own notification manager; the
-  manager raises `notifications.mob.<id>` at `emergency` and resolves it to `normal`, and
-  the boat's own notifications are the same as in the run without one.
+  twenty minutes twice from an hour in, once with a person overboard at the third minute and
+  recovered at the fifteenth, through the server's own notification manager; the manager
+  raises `notifications.mob.<id>` at `emergency` and resolves it to `normal`, and the boat's
+  own notifications are the same as in the run without one.
 - **The books still balance** with the new loads in them (see above).
 - **The Weather API observes what the instruments showed**: every fifteenth tick of each
   case, the observation at the boat's position and that scenario time gives the outside
   temperature and the water temperature within 0.05 K of what the boat sent, the pressure
-  within 5 Pa, the humidity within half a percent and the tide within 5 mm. The
-  instruments put the seed's gusts and shifts on the sample's wind, so the wind is checked
-  over the day: the mean difference in speed under 1.5 kn and in direction under 15°. A
-  boat with no wind instrument (the 4 m) has none to compare.
+  within 5 Pa, the humidity within half a percent and the tide within 5 mm. The instruments
+  put the seed's gusts and shifts on the sample's wind, so the wind is checked over the day:
+  the mean difference in speed under 1.5 kn and in direction under 15°. A boat with no wind
+  instrument (the 4 m) has none to compare.
 - **Forecasts are in order and warnings earned**: at the start and halfway, the point
-  forecasts are an hour apart, the daily ones a day apart, and a warning comes only where
-  an independent look at the record every five minutes has the wind at 22 kn or more for an
+  forecasts are an hour apart, the daily ones a day apart, and a warning comes only where an
+  independent look at the record every five minutes has the wind at 22 kn or more for an
   hour; none of the samples does, so there are none.
-- **The record holds every path sent**, and the History API gives the sent values back: at
-  a minute's resolution, average, first and last each give each tick's own speed over
-  ground, position (as `[longitude, latitude]`) and pressure exactly; at five minutes, the
-  average is the mean of the ticks in the bucket. Each tick is matched to the record's row
-  by its ten seconds, since a day out departs at an odd second.
+- **The record holds every path sent**, and the History API gives the sent values back: at a
+  minute's resolution, average, first and last each give each tick's own speed over ground,
+  position (as `[longitude, latitude]`) and pressure exactly; at five minutes, the average
+  is the mean of the ticks in the bucket. Each tick is matched to the record's row by its
+  ten seconds, since a day out departs at an odd second.
 - **The record survives a resume and holds a day within its bound**: the record saved
-  halfway, read back as a resume reads it, holds the speed and position each tick sent;
-  the record spans less than a day, and its memory is within `recordBoundBytes` for its
-  paths. It prints the largest: the 45 m day out, 251 paths, 16.8 MiB.
+  halfway, read back as a resume reads it, holds the speed and position each tick sent; the
+  record spans less than a day, and its memory is within `recordBoundBytes` for its paths.
+  It prints the largest: the 45 m day out, 251 paths, 16.8 MiB.
 
 At the end it prints a table of what each case did: deltas validated, generator starts,
 water made, pump-outs, the lowest house state of charge, and the fuel left. Each case also
@@ -325,7 +324,8 @@ catamaran's day out, 151.69 for 168.58 on her passage).
 2 November 2026: 19 checks passing in 8 minutes, 73,466 deltas validated, every bank's books
 balancing to 0.000 %. A thruster runs in each manoeuvre for as long as the boat takes to
 cross its three boat lengths at the leg's speed: seconds on the day out's 6 kn harbour legs,
-half a minute at Miami's 3 kn. Generator starts count each time one more generator is running.
+half a minute at Miami's 3 kn. Generator starts count each time one more generator is
+running.
 
 | Case                                              | Hours | Deltas | Generator starts | Water made | Pump-outs | Lowest house charge | Thrusters run        | Fuel left      |
 | ------------------------------------------------- | ----- | ------ | ---------------- | ---------- | --------- | ------------------- | -------------------- | -------------- |
@@ -450,32 +450,32 @@ run, none of the 32,286 reader requests failed, and the own boat never went more
 second between deltas. The resident memory peaked at 458 to 477 MiB and the heap did not
 grow.
 
-**The server did not give out.** At its busiest, Miami's afternoon with 508 targets in range,
-it handled 122 deltas a second for 10 subscribers on 10 % of one core, with the event loop's
-99th percentile at 21 ms and the slowest answer 103 ms. So there is no limit to report from
-this machine: no sample at x24 comes near one, and the busy run would need more
+**The server did not give out.** At its busiest, Miami's afternoon with 508 targets in
+range, it handled 122 deltas a second for 10 subscribers on 10 % of one core, with the event
+loop's 99th percentile at 21 ms and the slowest answer 103 ms. So there is no limit to
+report from this machine: no sample at x24 comes near one, and the busy run would need more
 subscribers, more readers or a faster clock to find it. A Raspberry Pi, the server's usual
 hardware, has not been tried.
 
-**The one slow moment is the plugin's, at start.** Loading a sample's scenario (its route, the
-depth checks of every leg and the AIS tracks) blocks the server's event loop for 74 to 576
-ms, once, as the plugin starts; that is the event loop maximum and the slowest tree read in
-the table, all in the first minute. It is under the one-second limit and is not repeated.
+**The one slow moment is the plugin's, at start.** Loading a sample's scenario (its route,
+the depth checks of every leg and the AIS tracks) blocks the server's event loop for 74 to
+576 ms, once, as the plugin starts; that is the event loop maximum and the slowest tree read
+in the table, all in the first minute. It is under the one-second limit and is not repeated.
 
-**The clock column of these runs includes up to one tick of measurement phase.** They printed
-how far the clock was behind at the moment each minute row was printed, against a delta up
-to a second old, which reads as up to 24 s at x24 (the figures were at most 24 s, 24 s and
-16 s). Separately measured, the plugin's own scenario time stays within 2 s of wall time ×
-24, the systems model's 2-second step, and reaches clients within a millisecond. The run now
-counts lag between deltas only past the tick.
+**The clock column of these runs includes up to one tick of measurement phase.** They
+printed how far the clock was behind at the moment each minute row was printed, against a
+delta up to a second old, which reads as up to 24 s at x24 (the figures were at most 24 s,
+24 s and 16 s). Separately measured, the plugin's own scenario time stays within 2 s of wall
+time × 24, the systems model's 2-second step, and reaches clients within a millisecond. The
+run now counts lag between deltas only past the tick.
 
-**Losing a target is where the busy run found a fault.** Its first full run on Miami showed the
-plugin's count of targets in range parting from the tree after nine minutes, and the tree
-filling with bare vessels, each with nothing but an MMSI and an AIS status. The server's AIS
-status plugin was marking targets the simulator had already dropped, on its own wall-clock
-timers, and each mark brought the vessel back. The plugin now holds those marks back (see
-[the AIS README](../ais/README.md#5-losing-a-target)); the held-back column counts them, and
-the subscribers are held to the server's count less them.
+**Losing a target is where the busy run found a fault.** Its first full run on Miami showed
+the plugin's count of targets in range parting from the tree after nine minutes, and the
+tree filling with bare vessels, each with nothing but an MMSI and an AIS status. The
+server's AIS status plugin was marking targets the simulator had already dropped, on its own
+wall-clock timers, and each mark brought the vessel back. The plugin now holds those marks
+back (see [the AIS README](../ais/README.md#5-losing-a-target)); the held-back column counts
+them, and the subscribers are held to the server's count less them.
 
 ## Recording and Replaying a Run
 
@@ -507,9 +507,9 @@ context `vessels.self`, which a replay puts under the server's own vessel.
 
 The server's line reader drops a line longer than 2048 characters where it straddles a read,
 and the own boat's fuller deltas (its identity and the meta of every value at the start, a
-tick with most of its systems) run to nearly 12,000. Such a delta is shared across lines
-of up to 2048 characters, each with the delta's context, source and timestamp; the server
-reads them as the one delta's values in turn. The file is written beside its name and moved into
+tick with most of its systems) run to nearly 12,000. Such a delta is shared across lines of
+up to 2048 characters, each with the delta's context, source and timestamp; the server reads
+them as the one delta's values in turn. The file is written beside its name and moved into
 place once whole, so a failed run leaves nothing. It prints the lines written, the deltas,
 the scenario span and the file's size, and exits non-zero on a failure.
 
@@ -522,11 +522,11 @@ bin/simulator-replay <file> [--port N]
 It starts this server with no simulator plugin running, from its own configuration
 directory, `.simulator-replay/` (ignored by git), made fresh on every run from
 `settings/simulator-replay.json`: one piped provider, `providers/simple` of type
-`FileStream`, data type `Multiplexed`, reading the log once through. The plugin is
-installed on this checkout, so the Admin UI lists it, but that directory never enables it. The server's file
-playback sends each line at its time, from the first line's time at the moment it starts.
-It listens on port 4776 by default, its NMEA 0183 and TCP streams on the next two, so a
-running `bin/simulator` is left alone.
+`FileStream`, data type `Multiplexed`, reading the log once through. The plugin is installed
+on this checkout, so the Admin UI lists it, but that directory never enables it. The
+server's file playback sends each line at its time, from the first line's time at the moment
+it starts. It listens on port 4776 by default, its NMEA 0183 and TCP streams on the next
+two, so a running `bin/simulator` is left alone.
 
 A server keeps the own vessel's name, MMSI, dimensions and antenna offsets in its own vessel
 settings and drops those paths from any provider's deltas, so a replayed boat would be

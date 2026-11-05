@@ -28,8 +28,8 @@ hand on one, and how long the hand stays depends on the switch.
 | Each radar         | `radar`, `radarX`, `radarS` | transmitting under way, standby alongside and at anchor              | off: standby until switched on; on at anchor: transmits until she comes alongside; refused alongside ("the radar does not transmit alongside")        | each radar the profile counts    |
 | Bilge pump         | `bilgePump`                 | its float switch: on at 30 % of the sump, off at 5 %                 | off: stays off with water in the bilge, a decision the crew made, until switched on or the high water float closes; on: runs to the float's off point | every boat                       |
 
-The 4 m boat has only `navLights` and `bilgePump`. The bilge pump's state is sent while
-the bilge has water, as before (see the [faults README](../faults/README.md#bilge-flooding)).
+The 4 m boat has only `navLights` and `bilgePump`. The bilge pump's state is sent while the
+bilge has water, as before (see the [faults README](../faults/README.md#bilge-flooding)).
 
 **Their draw** stays where it was in the books, and the switch takes it away: the
 navigation and anchor lights each 10 W plus 1.5 W a metre (`navigation lights`), the

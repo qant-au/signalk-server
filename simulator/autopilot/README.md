@@ -1,12 +1,12 @@
 # Autopilot
 
-The boat's autopilot, driven through the server's own
-[Autopilot API](../../docs/develop/rest-api/autopilot_api.md): the plugin registers as an
-[autopilot provider](../../docs/develop/plugins/autopilot_provider_plugins.md) with one
-device, `simulator`, so it is the default pilot at
+The boat's autopilot, driven through the server's own [Autopilot
+API](../../docs/develop/rest-api/autopilot_api.md): the plugin registers as an [autopilot
+provider](../../docs/develop/plugins/autopilot_provider_plugins.md) with one device,
+`simulator`, so it is the default pilot at
 `/signalk/v2/api/vessels/self/autopilots/_default`, and any display that drives a pilot
-through the API (KIP's autopilot widget, Freeboard's autopilot controls) drives this one with
-no other plugin. `pilot.ts` is the pilot; the plugin's `index.ts` registers it.
+through the API (KIP's autopilot widget, Freeboard's autopilot controls) drives this one
+with no other plugin. `pilot.ts` is the pilot; the plugin's `index.ts` registers it.
 
 ## The Provider and the Profiles
 
@@ -38,25 +38,25 @@ default, and the `steering.autopilot` paths are set, before anyone engages it.
   holds. The pilot is that follower, not a second one; what it adds are the autopilot's
   alarms, and its target, the course the route has her steer.
 - **Auto, compass mode.** She holds the target heading she was given and leaves the route:
-  set to compass mode, the target is her heading then. The pilot turns her onto a new
-  target at the rate her length and speed allow, about five lengths of turning radius.
+  set to compass mode, the target is her heading then. The pilot turns her onto a new target
+  at the rate her length and speed allow, about five lengths of turning radius.
 - **Auto, wind mode.** She holds the target apparent wind angle (positive to starboard, as
-  the specification signs it), her heading following the wind's shifts: the pilot steers
-  for the heading that, with the true wind and her speed, puts the apparent wind nearest
-  the target. Where none does (in a light air her own speed brings the apparent wind ahead
-  of a wide target) she holds the heading that comes nearest rather than turning in search
-  of it, and the `wind` alarm says so. Her [polar](../sailing/README.md#wind-mode-and-the-polar)
+  the specification signs it), her heading following the wind's shifts: the pilot steers for
+  the heading that, with the true wind and her speed, puts the apparent wind nearest the
+  target. Where none does (in a light air her own speed brings the apparent wind ahead of a
+  wide target) she holds the heading that comes nearest rather than turning in search of it,
+  and the `wind` alarm says so. Her [polar](../sailing/README.md#wind-mode-and-the-polar)
   keeps her outside the beat: a target inside the polar's beat angle is held at the beat,
-  the `wind` alarm saying why. A tack or a gybe turns her through the wind onto the
-  polar's angle on her other side (the beat for a tack, the gybe angle for a gybe), the way
-  she is told, until the wind is on her other side: a tack to port needs the wind on the
-  port bow, a gybe to port the wind on the starboard quarter. Under 3 kn of true wind, wind
-  mode, a tack and a gybe are refused, and in wind mode she holds her heading until the
-  wind fills in.
+  the `wind` alarm saying why. A tack or a gybe turns her through the wind onto the polar's
+  angle on her other side (the beat for a tack, the gybe angle for a gybe), the way she is
+  told, until the wind is on her other side: a tack to port needs the wind on the port bow,
+  a gybe to port the wind on the starboard quarter. Under 3 kn of true wind, wind mode, a
+  tack and a gybe are refused, and in wind mode she holds her heading until the wind fills
+  in.
 - **Dodge.** The rudder is put over by the dodge's angle (positive to starboard, at most
-  20°) for as long as it is held, turning her as that rudder would at her speed; the mode
-  is `dodge`. Ending it returns her to the mode she was in: compass and wind to their
-  targets, route to the route.
+  20°) for as long as it is held, turning her as that rudder would at her speed; the mode is
+  `dodge`. Ending it returns her to the mode she was in: compass and wind to their targets,
+  route to the route.
 
 Off the route (compass, wind or dodge), she is sailed by dead reckoning: on the heading the
 pilot holds and the leeway she makes, at the speed she had on the route, set by the
@@ -144,12 +144,12 @@ or "off the route" when she is.
 
 `test/simulator-autopilot.ts` checks the provider's data for a motor and a sailing profile
 and the 4 m boat's none, each state change and the refusals, the arrival standing the pilot
-by, compass mode holding its target within a degree once settled, adjusting the target,
-wind mode following a 30° shift, a tack through the wind, the state announced as it stands, a dodge and its rudder, leaving and
-rejoining the route with the cross track alarm, a restart off the route, each waypoint's
-alarms raised once at the right moment on the Miami route with the route complete at its
-end, the heading and wind alarms, the fault, and the schema; `test/simulator-sailing.ts`
-checks wind mode against the polar's beat, its tack and gybe onto the polar's angles, and
-the calm refusal. The
-[systems soak](../soak/README.md#what-it-checks) sails every passage on the pilot in route
-mode and every day out by the helm.
+by, compass mode holding its target within a degree once settled, adjusting the target, wind
+mode following a 30° shift, a tack through the wind, the state announced as it stands, a
+dodge and its rudder, leaving and rejoining the route with the cross track alarm, a restart
+off the route, each waypoint's alarms raised once at the right moment on the Miami route
+with the route complete at its end, the heading and wind alarms, the fault, and the schema;
+`test/simulator-sailing.ts` checks wind mode against the polar's beat, its tack and gybe
+onto the polar's angles, and the calm refusal. The [systems
+soak](../soak/README.md#what-it-checks) sails every passage on the pilot in route mode and
+every day out by the helm.

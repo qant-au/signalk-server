@@ -9,9 +9,17 @@
 
 ## Route
 
-**This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC (AMSA), so a route traced from it could not be shared here; it is a plausible passage along charted waters instead.
+**This route is hand-written, not a recorded track.** The sample's AIS is licensed CC BY-NC
+(AMSA), so a route traced from it could not be shared here; it is a plausible passage along
+charted waters instead.
 
-`route.json`: Coral Passage (MMSI 503555210), a 15 m motor-sailer, 566.1 nm from a berth in Manly Boat Harbour to a berth in Hamilton Island marina in 68 h 04 min as planned (566.4 nm, 68 h 09 min once adjusted for depth), at 3 kn leaving Manly, 7 kn in the Manly channel, 8.5 kn on passage, 6 kn among the Whitsunday islands and 2 to 4 kn into Hamilton Island marina. Hand-written from charted features and checked against the Great Barrier Reef 30 m depth model; not derived from the AIS, whose licence does not allow it. See [the routes README](../../routes/README.md).
+`route.json`: Coral Passage (MMSI 503555210), a 15 m motor-sailer, 566.1 nm from a berth in
+Manly Boat Harbour to a berth in Hamilton Island marina in 68 h 04 min as planned (566.4 nm,
+68 h 09 min once adjusted for depth), at 3 kn leaving Manly, 7 kn in the Manly channel, 8.5
+kn on passage, 6 kn among the Whitsunday islands and 2 to 4 kn into Hamilton Island marina.
+Hand-written from charted features and checked against the Great Barrier Reef 30 m depth
+model; not derived from the AIS, whose licence does not allow it. See [the routes
+README](../../routes/README.md).
 
 ## Data
 
@@ -29,15 +37,15 @@ JSON format (one object per point, in route order from Moreton Bay to the Whitsu
 
 - **Source:** Open-Meteo historical forecast and marine APIs, for example
   https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=-27.35,-26.6,-25.5,-24.7,-24.0,-23.3,-22.4,-21.4,-20.4&longitude=153.25,153.25,153.35,153.35,152.3,151.4,150.6,149.6,148.95&start_date=2026-08-20&end_date=2026-08-24&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,temperature_2m,relative_humidity_2m,cloud_cover,precipitation&models=gfs_seamless&wind_speed_unit=kn&timezone=GMT
-  (`models=ecmwf_ifs025` for the second file;
-  https://marine-api.open-meteo.com/v1/marine with `models=ecmwf_wam025` for the third;
+  (`models=ecmwf_ifs025` for the second file; https://marine-api.open-meteo.com/v1/marine
+  with `models=ecmwf_wam025` for the third;
   https://marine-api.open-meteo.com/v1/marine?latitude=-27.35,-26.6,-25.5,-24.7,-24.0,-23.3,-22.4,-21.4,-20.4&longitude=153.25,153.25,153.35,153.35,152.3,151.4,150.6,149.6,148.95&start_date=2026-08-20&end_date=2026-08-24&hourly=sea_level_height_msl,sea_surface_temperature,ocean_current_velocity,ocean_current_direction&timezone=GMT
   for the fourth, fetched on 4 November 2026).
-- **Used for:** the wind, pressure, air temperature and humidity from the ECMWF IFS; the wave
-  height from the WAM; the sea level, onto the mean sea level depth grid, the sea
+- **Used for:** the wind, pressure, air temperature and humidity from the ECMWF IFS; the
+  wave height from the WAM; the sea level, onto the mean sea level depth grid, the sea
   temperature and the ocean current (see [sailing](../../sailing/README.md#the-current))
-  from the marine file; the GFS file is left unread. See
-  [the weather README](../../weather/README.md).
+  from the marine file; the GFS file is left unread. See [the weather
+  README](../../weather/README.md).
 - **Licence:** Open-Meteo's data is CC BY 4.0, and each model's own licence is listed above.
 
 ### Wave Buoys: `open/weather/buoys/*.csv`
@@ -45,29 +53,31 @@ JSON format (one object per point, in route order from Moreton Bay to the Whitsu
 Queensland Government Coastal Data System wave buoys, 30-minute records, 20 to 24 August
 2026: `Date/Time (AEST)`, `Hs` and `Hmax` (m), `Tz` and `Tp` (s), peak direction (degrees),
 sea surface temperature (°C). Stations: Brisbane, Mooloolaba, Emu Park and Mackay, at the
-positions in [the weather README](../../weather/README.md#the-stations); their wave height and
-sea temperature are used.
+positions in [the weather README](../../weather/README.md#the-stations); their wave height
+and sea temperature are used.
 
 - **Source:** Queensland Government open data, for example
   https://www.data.qld.gov.au/dataset/coastal-data-system-waves-mackay (the 2026 "Wave data"
   resource, cut to the window).
 - **Licence:** CC BY 4.0.
 
-### Depth: `cache/Great_Barrier_Reef_*_2020_30m_MSL_cog.tif` (fetched)
+### Depth: `cache/Great_Barrier_Reef_*_2020_30m_MSL_cog.tif` (Fetched)
 
 Geoscience Australia's high-resolution depth model for the Great Barrier Reef, 30 m, 2020,
 as Cloud Optimised GeoTIFFs in metres relative to mean sea level. The route needs two of its
 four grids: **D** (23S to 29S, 150E to 156E: Brisbane to Gladstone) and **C** (18S to 24S,
 148E to 154E: Gladstone to the Whitsundays).
 
-- **Fetch:** `npx ts-node simulator/tools/sample-data.ts fetch manly-hamilton-island-2026-08-21`
-  downloads the 3.8 GB archive once (checked against its SHA-256) and extracts grids C and D.
-- **Source:** Beaman, R.J. and Geoscience Australia, http://pid.geoscience.gov.au/dataset/ga/115066,
-  archive at
+- **Fetch:**
+  `npx ts-node simulator/tools/sample-data.ts fetch manly-hamilton-island-2026-08-21`
+  downloads the 3.8 GB archive once (checked against its SHA-256) and extracts grids C and
+  D.
+- **Source:** Beaman, R.J. and Geoscience Australia,
+  http://pid.geoscience.gov.au/dataset/ga/115066, archive at
   https://files.ausseabed.gov.au/survey/Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip
 - **Licence:** CC BY 4.0. Not to be used for navigation.
 
-### AIS: `restricted/ais.csv` (downloaded by the user)
+### AIS: `restricted/ais.csv` (Downloaded by the User)
 
 93,610 positions from 2,255 vessels between 19.8S and 28.0S, 148.4E and 154.0E.
 
@@ -81,30 +91,31 @@ four grids: **D** (23S to 29S, 150E to 156E: Brisbane to Gladstone) and **C** (1
 | `length_m`, `beam_m`, `draught_m` | dimensions (0 when not reported)                                        |
 
 **One position per vessel per hour.** AMSA thins the data to a minimum of 60 minutes between
-reports from the same vessel, so the simulator interpolates between them. Ships move smoothly
-but do not show real manoeuvres.
+reports from the same vessel, so the simulator interpolates between them. Ships move
+smoothly but do not show real manoeuvres.
 
 ### Magnetic Variation: `magnetic-variation.json`
 
-The magnetic variation over the route on the sample's date, 7.9 to 11.5°E, as a grid every half
-degree. The simulator reads between the grid points to send `navigation.headingMagnetic`,
-`courseOverGroundMagnetic` and `magneticVariation` (see
-[the vessels README](../../vessels/README.md#navigation)).
+The magnetic variation over the route on the sample's date, 7.9 to 11.5°E, as a grid every
+half degree. The simulator reads between the grid points to send
+`navigation.headingMagnetic`, `courseOverGroundMagnetic` and `magneticVariation` (see [the
+vessels README](../../vessels/README.md#navigation)).
 
 - **Source:** NOAA NCEI magnetic field calculator
   (https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml), International Geomagnetic
   Reference Field (IGRF2025) on 20 August 2026.
-  `npx ts-node simulator/tools/magnetic-variation.ts manly-hamilton-island-2026-08-21` rewrites it.
+  `npx ts-node simulator/tools/magnetic-variation.ts manly-hamilton-island-2026-08-21`
+  rewrites it.
 - **Licence:** the IGRF is published by IAGA for free use; the calculator's output is US
   Government work.
 
 ## Getting the AIS
 
-**Why it is not included.** The data is published by the Australian Maritime Safety Authority
-(AMSA) under **Creative Commons Attribution-NonCommercial 3.0 Australia**, which allows
-non-commercial use with credit to AMSA but cannot be redistributed inside an Apache 2.0
-project. AMSA's terms of use also ask that its website is not linked to without its written
-consent, so this page names the page to visit rather than linking to it.
+**Why it is not included.** The data is published by the Australian Maritime Safety
+Authority (AMSA) under **Creative Commons Attribution-NonCommercial 3.0 Australia**, which
+allows non-commercial use with credit to AMSA but cannot be redistributed inside an Apache
+2.0 project. AMSA's terms of use also ask that its website is not linked to without its
+written consent, so this page names the page to visit rather than linking to it.
 
 1. Search for **Spatial@AMSA**, AMSA's spatial data site, and open **Digital Data**, then
    **Vessel Traffic Data**.

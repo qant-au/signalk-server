@@ -47,16 +47,15 @@ speed of each leg. The simulator sails it as adjusted for depth each time a run 
 
 `routes/route.ts` turns a route into timed legs (`routeLegs`) and gives the boat's position,
 speed and course at any moment (`positionAt`), holding at waypoints and stopping at the end.
-That is the helm: in standby it steers the route, and the [autopilot](../autopilot/README.md)
-in route mode is the same follower. Compass and wind modes and a dodge take her off the route;
-she rejoins it at the nearest point ahead, and its timing carries on from there, later by
-her time off it.
-Positions are interpolated along each leg, and at a waypoint the boat passes without
-stopping it swings onto the next leg on an arc tangent to both, at a rate of turn that
-suits its length and speed; the arc joins each leg where the boat on the straight legs
-would be, so the legs' timings stand ([details](../vessels/README.md#navigation)). Leg
-speeds are speeds over the ground; the boat's speed through the water differs from them by
-the current.
+That is the helm: in standby it steers the route, and the
+[autopilot](../autopilot/README.md) in route mode is the same follower. Compass and wind
+modes and a dodge take her off the route; she rejoins it at the nearest point ahead, and its
+timing carries on from there, later by her time off it. Positions are interpolated along
+each leg, and at a waypoint the boat passes without stopping it swings onto the next leg on
+an arc tangent to both, at a rate of turn that suits its length and speed; the arc joins
+each leg where the boat on the straight legs would be, so the legs' timings stand
+([details](../vessels/README.md#navigation)). Leg speeds are speeds over the ground; the
+boat's speed through the water differs from them by the current.
 
 ```shell
 npx ts-node simulator/tools/route.ts show <sample>     # legs, distances, speeds, arrival times
@@ -73,10 +72,10 @@ npx ts-node simulator/tools/route.ts turns <sample>    # the arcs at waypoints a
 
 ## How They Were Made
 
-**Every route runs berth to berth.** Each starts and ends at a berth inside a marina, at 2 to
-3 kn. Berth positions come from OpenStreetMap marina outlines; the way from each berth to open
-water is found against the depth grid when a run starts (see
-[Depth and Route Adjustment](#depth-and-route-adjustment)).
+**Every route runs berth to berth.** Each starts and ends at a berth inside a marina, at 2
+to 3 kn. Berth positions come from OpenStreetMap marina outlines; the way from each berth to
+open water is found against the depth grid when a run starts (see [Depth and Route
+Adjustment](#depth-and-route-adjustment)).
 
 > [!NOTE]
 > **Only the Miami route follows a real vessel's track.** The Saronic Gulf and Queensland
@@ -90,8 +89,8 @@ water is found against the depth grid when a run starts (see
 vessel that actually ran it: the only 10 to 30 m vessel in that day's data that went between
 Biscayne Bay and Port Everglades by the inside route rather than the ocean. It ran it
 southbound in the afternoon; the route runs it northbound. Its track is simplified to 75 m,
-each leg's speed is the median speed it made on that leg, and every stop of 2 minutes or more
-(waiting for a bridge to open) becomes a hold. The selection is set out in the `route`
+each leg's speed is the median speed it made on that leg, and every stop of 2 minutes or
+more (waiting for a bridge to open) becomes a hold. The selection is set out in the `route`
 section of the sample's `sample.json`, together with the berths at each end (`fromBerth` and
 `toBerth`), and the route is regenerated with:
 
@@ -99,8 +98,8 @@ section of the sample's `sample.json`, together with the berths at each end (`fr
 npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16
 ```
 
-Nothing that identifies the source vessel is kept: the route holds positions, speeds and holds
-only, and a test checks every route file for identifiers.
+Nothing that identifies the source vessel is kept: the route holds positions, speeds and
+holds only, and a test checks every route file for identifiers.
 
 **Saronic Gulf and Queensland: hand-written.** Their AIS licences (CC BY-NC-SA and CC BY-NC)
 do not allow derived works to be shared, so their routes are not traced from those tracks.
@@ -117,13 +116,13 @@ then weighs and carries on. The Saronic route has one.
 **Skala bay, Angistri.** The bay off Skala, the harbour village on the north-east coast of
 Angistri, across the channel from Aegina: a sandy bay that cruising yachts anchor in, open
 to the north, 1.2 nm off the passage west of Aegina. The anchor goes down at 37.7200 N,
-23.3560 E, in 6.8 m on the EMODnet grid, and the water all round, out past where she
-swings, is 5 to 7 m. The boat leaves the passage at West of Aegina, slows to 3 kn into the
-bay and anchors at **14:58 UTC (17:58 EEST)**. She lies there two and a half hours, through
-the evening meal, and weighs at **17:28 UTC (20:28 EEST)**, before sunset, motoring out at 3
-kn round the north of Angistri onto the passage. The rest of the route was retimed to fit
-the stay inside the sample's AIS, which runs from 11:00 to 07:00 UTC and was left as it is:
-the legs under sail go at 6 kn rather than 4.5 to 6, and she is alongside again at 06:54 UTC.
+23.3560 E, in 6.8 m on the EMODnet grid, and the water all round, out past where she swings,
+is 5 to 7 m. The boat leaves the passage at West of Aegina, slows to 3 kn into the bay and
+anchors at **14:58 UTC (17:58 EEST)**. She lies there two and a half hours, through the
+evening meal, and weighs at **17:28 UTC (20:28 EEST)**, before sunset, motoring out at 3 kn
+round the north of Angistri onto the passage. The rest of the route was retimed to fit the
+stay inside the sample's AIS, which runs from 11:00 to 07:00 UTC and was left as it is: the
+legs under sail go at 6 kn rather than 4.5 to 6, and she is alongside again at 06:54 UTC.
 
 **Anchoring.** She lets go at the waypoint and falls back as the chain pays out, at three
 tenths of a metre a second, to a scope of five times the depth plus the height of her bow
@@ -189,9 +188,10 @@ index.
 
 **Miami's four holds** wait for the 79th Street Causeway (JFK Causeway) bridge, the Broad
 Causeway bridge, the Hollywood Boulevard bridge and the Dania Beach Boulevard bridge, all
-bascules over the Intracoastal Waterway; see the [sample README](../samples/miami-icw-2024-03-16/README.md#bridges)
-for their clearances and source. Coquina, at 5.9 m air height, would clear three of them
-closed; the vessel the route was taken from waited at all four.
+bascules over the Intracoastal Waterway; see the [sample
+README](../samples/miami-icw-2024-03-16/README.md#bridges) for their clearances and source.
+Coquina, at 5.9 m air height, would clear three of them closed; the vessel the route was
+taken from waited at all four.
 
 ## Depth and Route Adjustment
 
@@ -213,8 +213,8 @@ each time a run starts (`routes/adjust.ts`):
    that stretch alone, checking each step between cells as well as the cells. The path is
    then straightened into as few legs as stay in safe water, and the new waypoints keep the
    leg's speed. The check is repeated until every leg is clear.
-4. The adjusted route is published to the server's Resources API, so the chart shows what the
-   boat actually sails.
+4. The adjusted route is published to the server's Resources API, so the chart shows what
+   the boat actually sails.
 
 **The marina legs are found the same way.** Each route names only its berths; the way from a
 berth to open water is the router's, against the grid. This replaced hand-placed marina
@@ -222,8 +222,8 @@ waypoints, which sat on charted land in places (the first Miami route crossed th
 Rickenbacker Causeway on its way out of the marina).
 
 **Harbours.** A berth is in water shallower than a passage needs, and the coarser grids
-cannot see a marina basin or a dredged channel at all. Within `harbourRadiusM` of each berth,
-any surveyed water counts as safe, and, where the grid cannot resolve the harbour
+cannot see a marina basin or a dredged channel at all. Within `harbourRadiusM` of each
+berth, any surveyed water counts as safe, and, where the grid cannot resolve the harbour
 (`harbourNoDataIsWater`), so does anywhere it has no data. Charted dry land never does.
 
 | Sample                   | Grid                          | Cell  | Harbour radius | No data in harbour                         | Adjusted Route                      |

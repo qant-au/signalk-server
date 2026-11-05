@@ -7,8 +7,8 @@ high both antennas are and how much power the target transmits. Without this mod
 simulator would put every target in the source on the server at once, from a hundred miles
 away.
 
-`reception.ts` holds the model. `targets.ts` reads each sample's AIS file into one shape, using
-the `ais` mapping in its `sample.json`. Both are pure functions with tests
+`reception.ts` holds the model. `targets.ts` reads each sample's AIS file into one shape,
+using the `ais` mapping in its `sample.json`. Both are pure functions with tests
 (`test/simulator-ais.ts`); nothing runs them on a route yet.
 
 ## How a Report Is Judged
@@ -16,8 +16,8 @@ the `ais` mapping in its `sample.json`. Both are pure functions with tests
 1. **Estimate the target's station** from what the source gives: AIS class, transmit power
    and antenna height.
 2. **Work out the range** between that station and our receiver.
-3. **Decide whether each report gets through**, with a probability that falls away around the
-   range.
+3. **Decide whether each report gets through**, with a probability that falls away around
+   the range.
 4. **Time the reports** at the rate the target would really transmit.
 5. **Lose the target** when it has not been heard for long enough.
 
@@ -47,10 +47,10 @@ The range is the shorter of two limits.
 - **The radio horizon** over a smooth sea, with the standard 4/3 Earth-radius refraction:
   `d (nm) = 2.23 x (sqrt(h_target) + sqrt(h_receiver))`, heights in metres.
 - **The power limit**, from the two-ray ground-reflection model that applies over open water
-  at these distances: received power `= P x (h_target x h_receiver)^2 / d^4`. Solving for the
-  distance at which it falls to the receiver's sensitivity (-107 dBm by default, the figure
-  AIS receiver standards require) gives the range. A 6 dB allowance for antenna, cable and
-  connector losses comes off the transmitted power.
+  at these distances: received power `= P x (h_target x h_receiver)^2 / d^4`. Solving for
+  the distance at which it falls to the receiver's sensitivity (-107 dBm by default, the
+  figure AIS receiver standards require) gives the range. A 6 dB allowance for antenna,
+  cable and connector losses comes off the transmitted power.
 
 Height dominates for ships: their range is set by the horizon. Power dominates for small
 craft: a 2 W Class B on a low antenna fades out before it reaches the horizon. With these
@@ -67,16 +67,16 @@ defaults:
 | Motor cruiser, 12 m | B     | 4.9 m   | 10.4 nm                  | 5.4 nm                    |
 | Runabout, 6 m       | B     | 3.7 m   | 9.0 nm                   | 4.7 nm                    |
 
-That matches the ranges usually quoted (Class A about 20 to 30 nm between ships, Class B about
-5 to 10 nm), allowing for those figures assuming ships' antennas at both ends.
+That matches the ranges usually quoted (Class A about 20 to 30 nm between ships, Class B
+about 5 to 10 nm), allowing for those figures assuming ships' antennas at both ends.
 
 ### 3. Each Report
 
 The chance that one report arrives is a logistic curve centred on the range, with a width of
 8% of it, scaled by a 2% loss for slot collisions and interference that happens even close
-in. Half the reports arrive at the range itself, about 90% at 80% of it and about 7% at 120%,
-so a target at the edge flickers in and out the way real ones do rather than vanishing at a
-line.
+in. Half the reports arrive at the range itself, about 90% at 80% of it and about 7% at
+120%, so a target at the edge flickers in and out the way real ones do rather than vanishing
+at a line.
 
 The draw for each report is a hash of the target and the report time, not a random number,
 so a scenario run twice hears exactly the same reports.
@@ -107,17 +107,17 @@ for Class A, 24 for Class B) goes every six minutes.
 ### 5. Losing a Target
 
 A receiver treats a target as lost once it has missed three expected reports, and never in
-less than 3 minutes, so one missed report from a fast ship does not drop it. That is 3 minutes
-for anything under way and 9 minutes for a moored Class A ship.
+less than 3 minutes, so one missed report from a fast ship does not drop it. That is 3
+minutes for anything under way and 9 minutes for a moored Class A ship.
 
-**This is deliberately not left to the server.** Signal K Server removes a vessel only when it
-has had no update for `pruneContextsMinutes` (default 60), checked once a minute
-(`src/index.ts`, `pruneContexts` in `src/deltacache.ts`). That is housekeeping, not radio: no
-boat's receiver keeps a target for an hour after its last report. The simulator therefore
+**This is deliberately not left to the server.** Signal K Server removes a vessel only when
+it has had no update for `pruneContextsMinutes` (default 60), checked once a minute
+(`src/index.ts`, `pruneContexts` in `src/deltacache.ts`). That is housekeeping, not radio:
+no boat's receiver keeps a target for an hour after its last report. The simulator therefore
 stops sending a target as soon as it is lost, and drops it from the server's model and delta
 cache there and then, so `vessels.*` holds exactly the targets in range and the plugin's
-count agrees with it. A target heard again comes back as a new one, its static data with
-its first report, as when it was first heard. Stopping the plugin drops every target it was
+count agrees with it. A target heard again comes back as a new one, its static data with its
+first report, as when it was first heard. Stopping the plugin drops every target it was
 sending.
 
 The server's own AIS status plugin (`sk-ais-status-plugin`, on by default) keeps its own
@@ -184,10 +184,10 @@ right angles, one overtaking, one on a reciprocal course and one stopped.
 
 **What is sent.** On the target, where the specification puts it, under the simulator's
 source: `navigation.closestApproach` with `distance` (metres) and `timeTo` (seconds), only
-while the target is closing. It goes with each of the target's reports, and every second
-in between while the target is inside twice the collision alarm's limits, so a display
-sees a close one count down. Once a target is no longer closing, `navigation.closestApproach`
-is sent once as `null`, so a display drops it.
+while the target is closing. It goes with each of the target's reports, and every second in
+between while the target is inside twice the collision alarm's limits, so a display sees a
+close one count down. Once a target is no longer closing, `navigation.closestApproach` is
+sent once as `null`, so a display drops it.
 
 **The alarm.** A target whose closest approach comes inside the plugin's **Collision alarm:
 closest approach** (15 m by default) within its **time to closest approach** (1 minute)
@@ -225,8 +225,8 @@ channel's ordinary 20 to 40 metres. The times shift by seconds with another star
 
 ## Checked Against the Samples
 
-`simulator/tools/ais-coverage.ts` counts the targets in a sample around one place and moment,
-and how many the model says a boat there would hear:
+`simulator/tools/ais-coverage.ts` counts the targets in a sample around one place and
+moment, and how many the model says a boat there would hear:
 
 ```shell
 npx ts-node simulator/tools/ais-coverage.ts <sample> <lat> <lon> <ISO time> [antenna m]
@@ -238,16 +238,16 @@ npx ts-node simulator/tools/ais-coverage.ts <sample> <lat> <lon> <ISO time> [ant
 | Saronic Gulf, mid-gulf, 13 July 2018 20:00 UTC            | 15 m     | 186 (A 59, B 127)    | 19 (A 17, B 2)    |
 | Queensland, 30 nm off Bundaberg, 21 August 2026 12:00 UTC | 15 m     | 1,077 (A 197, B 880) | 1 (B 1)           |
 
-The Queensland case shows why this matters most there: AMSA's coastal network sees more than a
-thousand craft along the coast at once, and a boat 30 nm offshore at night hears almost none
-of them.
+The Queensland case shows why this matters most there: AMSA's coastal network sees more than
+a thousand craft along the coast at once, and a boat 30 nm offshore at night hears almost
+none of them.
 
 ## Not Modelled Yet
 
-- **Land.** Islands and headlands block VHF; the model treats every path as open sea. The depth
-  data can supply a coastline once routes exist.
-- **Ducting.** Warm, still conditions sometimes carry AIS far past the horizon. The model never
-  does.
+- **Land.** Islands and headlands block VHF; the model treats every path as open sea. The
+  depth data can supply a coastline once routes exist.
+- **Ducting.** Warm, still conditions sometimes carry AIS far past the horizon. The model
+  never does.
 - **Congestion.** Busy waters lose more reports to slot collisions than the flat 2% here.
 - **Antenna heights** are estimates from type and length; sources do not record them.
 

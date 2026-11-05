@@ -59,12 +59,12 @@ sample's `route.json`; the dimensions from the profile.
 
 **The server's own settings win.** Before sending, the plugin reads what the owner has
 already said about the boat: the server's base deltas, which is where the Admin UI's vessel
-page (Server, Settings, Vessel Base Data) keeps the name, MMSI and dimensions, and a name or MMSI in
-a `vessel` block of settings.json. Anything given there is left alone, and the status line
-says what the plugin set or sent and what it left. Someone running the simulator beside
-their own boat's configuration never finds their boat renamed or resized. This server has
-not read settings.json's `vessel` block itself since November 2020 (it reads only the base
-deltas), so a name there shows nowhere; the plugin still treats it as the owner's word.
+page (Server, Settings, Vessel Base Data) keeps the name, MMSI and dimensions, and a name or
+MMSI in a `vessel` block of settings.json. Anything given there is left alone, and the
+status line says what the plugin set or sent and what it left. Someone running the simulator
+beside their own boat's configuration never finds their boat renamed or resized. This server
+has not read settings.json's `vessel` block itself since November 2020 (it reads only the
+base deltas), so a name there shows nowhere; the plugin still treats it as the owner's word.
 
 **How the values get there.** The server keeps six of these fields for its own vessel
 settings: the name, MMSI, `design.length`, `design.beam`, `design.draft` and
@@ -134,8 +134,8 @@ can be left out, and gets the default shown:
 
 A hybrid's hotel load runs on its propulsion bank through the inverter, as an all-electric
 boat's does, so its generator starts only for the bank: never for meals or the water maker,
-which run from the bank too. The catamaran sets `hotelKw` to 2 kW; the length formula, fitted
-to motor yachts with air conditioning, would give it 7.4 kW.
+which run from the bank too. The catamaran sets `hotelKw` to 2 kW; the length formula,
+fitted to motor yachts with air conditioning, would give it 7.4 kW.
 
 Main engines and generators are told apart by id. A generator's id is `generator1`,
 `generator2` and so on; a main engine may not use that form, and a profile that mixes them
@@ -213,11 +213,11 @@ later**; schema 1.0.x allows only `mainCabin`, `engineRoom`, `refrigerator`, `fr
 
 ## Alarms
 
-Every value the boat sends that an alarm panel would watch carries the specification's
-zones in its metadata: a list of bands, each with a `lower` and `upper` bound (either may be
-open), a `state` and a `message`. A display colours its gauge by them, and the plugin's alarm
-panel (`simulator/alarms`) raises `notifications.<path>` from the same zones, so the gauge,
-the notification and the profile always agree.
+Every value the boat sends that an alarm panel would watch carries the specification's zones
+in its metadata: a list of bands, each with a `lower` and `upper` bound (either may be
+open), a `state` and a `message`. A display colours its gauge by them, and the plugin's
+alarm panel (`simulator/alarms`) raises `notifications.<path>` from the same zones, so the
+gauge, the notification and the profile always agree.
 
 **What carries zones.** The bands below are the defaults, by the kind of thing and its
 size, in the units shown; on the wire they are in SI units, as the values are.
@@ -342,33 +342,33 @@ tests check the counts of each separately.
 The navigation values are worked out with the systems, in the same steps, so they agree
 with what the engines are doing and with each other.
 
-- **State** follows where the boat is and what drives it: `moored` alongside a berth,
-  before departure and after arrival; `anchored` at a waypoint marked `anchor`; `sailing`
-  when a sailing yacht is under sail alone; `motoring` otherwise, motor-sailing (a vessel
-  under sail and power is a power-driven vessel under the collision regulations) and holds
-  at a bridge included. The
-  engines are stopped and out of gear in the first three and running in gear in the last
-  (a hybrid in its electric mode is in gear with its diesel stopped), so a reader never
-  sees a moored boat in gear or a sailing boat under power.
+- **State** follows where the boat is and what drives it: `moored` alongside a berth, before
+  departure and after arrival; `anchored` at a waypoint marked `anchor`; `sailing` when a
+  sailing yacht is under sail alone; `motoring` otherwise, motor-sailing (a vessel under
+  sail and power is a power-driven vessel under the collision regulations) and holds at a
+  bridge included. The engines are stopped and out of gear in the first three and running in
+  gear in the last (a hybrid in its electric mode is in gear with its diesel stopped), so a
+  reader never sees a moored boat in gear or a sailing boat under power.
 - **Current and heading.** The route is the track over the ground, and its leg speeds are
   speeds over the ground. The current runs under the boat: the sample's tidal or ocean
   current where it has one (Miami's CO-OPS predictions, Queensland's Open-Meteo ocean
   current), and otherwise a small seeded one, a tenth to four tenths of a knot, setting in a
-  direction and wandering slowly about both (see [sailing](../sailing/README.md#the-current)).
-  The helm holds the track against it, so `headingTrue` is the course over the ground
-  turned by the angle that cancels the current, `speedThroughWater` is the boat's speed
-  through the moving water, and the two speeds differ by the current. Under sail she makes
-  leeway as well, and the helm holds her up to windward of her track through the water by
-  as much (see [sailing](../sailing/README.md#leeway)). A sea puts a slow wander of a
-  degree or two on the heading, more on a small boat. Alongside, the lines hold the boat on
-  the berth's heading and nothing moves past the log. At anchor she lies to her chain, bow
-  to the anchor, swinging to the wind; through the water and over the ground she moves
-  only as her swing moves her, a few tenths of a knot (see
-  [Anchorage](../routes/README.md#anchorage)). Holding under way at a bridge, she lies head
-  to the current, which runs past the log. In the last five minutes before she leaves, the
-  crew swings her onto the course she leaves on. A heading never changes faster than the
-  boat can swing: its turning rate under way, or when stopped a pivot of three quarters
-  of a degree a second on the largest boats up to three on the smallest.
+  direction and wandering slowly about both (see
+  [sailing](../sailing/README.md#the-current)). The helm holds the track against it, so
+  `headingTrue` is the course over the ground turned by the angle that cancels the current,
+  `speedThroughWater` is the boat's speed through the moving water, and the two speeds
+  differ by the current. Under sail she makes leeway as well, and the helm holds her up to
+  windward of her track through the water by as much (see
+  [sailing](../sailing/README.md#heel-and-leeway)). A sea puts a slow wander of a degree or two on
+  the heading, more on a small boat. Alongside, the lines hold the boat on the berth's
+  heading and nothing moves past the log. At anchor she lies to her chain, bow to the
+  anchor, swinging to the wind; through the water and over the ground she moves only as her
+  swing moves her, a few tenths of a knot (see [Anchorage](../routes/README.md#anchorage)).
+  Holding under way at a bridge, she lies head to the current, which runs past the log. In
+  the last five minutes before she leaves, the crew swings her onto the course she leaves
+  on. A heading never changes faster than the boat can swing: its turning rate under way, or
+  when stopped a pivot of three quarters of a degree a second on the largest boats up to
+  three on the smallest.
 - **Magnetic variation** comes from the International Geomagnetic Reference Field on the
   sample's date, as a grid over its area in the sample's `magnetic-variation.json`
   (`npx ts-node simulator/tools/magnetic-variation.ts <sample>` writes it, from NOAA's
@@ -380,29 +380,28 @@ with what the engines are doing and with each other.
   turning radius and never faster than five degrees a second, or faster where a short leg
   leaves no room. The arc joins each leg where the boat on the straight legs would be at
   that moment, so the legs keep their timings, and the boat slows a little round it. An arc
-  that would cut a corner over shallow water or land is tightened until it stays clear
-  (see [the plugin README](../plugin/README.md#what-it-does)). Between the arcs the boat
-  sails the great circle between the waypoints, the line the Course API measures from. The
+  that would cut a corner over shallow water or land is tightened until it stays clear (see
+  [the plugin README](../plugin/README.md#what-it-does)). Between the arcs the boat sails
+  the great circle between the waypoints, the line the Course API measures from. The
   position, `courseOverGroundTrue`, `speedOverGround` and `rateOfTurn` all come from the
   same arc. The rudder does the work: `steering.rudderAngle` is in proportion to the rate of
   turn times the boat's length over its speed through the water, up to 35 degrees, so a
   steady turn holds a steady angle, and the helm's small corrections show in it as the
   heading wanders. It is central alongside and when there is no way on.
 - **Course.** The server's Course API holds the route the boat sails as its active route
-  (see [the plugin README](../plugin/README.md#what-it-does)), and the course provider
-  works its values out from the position the boat sends, so they follow from the model
-  rather than being sent by it. The helm holds the track to within a few metres: about 1.5
-  m of steering error, plus 4 m for each knot of current and 2 m for each metre of sea,
-  wandering slowly to either side and settling away when the boat stops. The position is
-  that far off the route's line, so `navigation.course.calcValues.crossTrackError` stays
-  small on a leg, and is positive with the boat to starboard of the track, as the
-  specification signs it. Through a turn the arc cuts inside the corner, by up to the
-  turning radius times (1 - cos(half the turn)) abeam of the waypoint: 12 to 25 m for a
-  20 m boat turning 60 to 90 degrees, on the side the boat turns to. `bearingTrackTrue` is
-  the course the track runs; `courseOverGroundTrue` is the boat's own course along it; the
-  heading differs from both by the angle the helm holds against the current. The bearing
-  and distance to the next point, time to go and arrival time all follow from the position
-  and the speed over the ground.
+  (see [the plugin README](../plugin/README.md#what-it-does)), and the course provider works
+  its values out from the position the boat sends, so they follow from the model rather than
+  being sent by it. The helm holds the track to within a few metres: about 1.5 m of steering
+  error, plus 4 m for each knot of current and 2 m for each metre of sea, wandering slowly
+  to either side and settling away when the boat stops. The position is that far off the
+  route's line, so `navigation.course.calcValues.crossTrackError` stays small on a leg, and
+  is positive with the boat to starboard of the track, as the specification signs it.
+  Through a turn the arc cuts inside the corner, by up to the turning radius times (1 -
+  cos(half the turn)) abeam of the waypoint: 12 to 25 m for a 20 m boat turning 60 to 90
+  degrees, on the side the boat turns to. `bearingTrackTrue` is the course the track runs;
+  `courseOverGroundTrue` is the boat's own course along it; the heading differs from both by
+  the angle the helm holds against the current. The bearing and distance to the next point,
+  time to go and arrival time all follow from the position and the speed over the ground.
 - **Attitude.** The sea is the sample's measured significant wave height where it has one
   (Miami's Hollywood Beach buoy; Queensland's buoys and wave model), and otherwise is worked
   out from the wind, fetch-limited as a coastal sea is; either way it is sheltered alongside
@@ -412,13 +411,13 @@ with what the engines are doing and with each other.
   20 degrees, with the apparent wind's pressure and the area of sail she has set (see
   [sailing](../sailing/README.md#heel-and-leeway)), and a motor boat trims bow up a little
   with speed.
-- **Logs.** `navigation.log` counts the distance through the water from a seeded total
-  of a few thousand miles. `navigation.trip.log` counts it from `trip.lastReset`, which is
-  the run's start or the last time the boat left a berth.
+- **Logs.** `navigation.log` counts the distance through the water from a seeded total of a
+  few thousand miles. `navigation.trip.log` counts it from `trip.lastReset`, which is the
+  run's start or the last time the boat left a berth.
 - **GNSS.** The fix is a combined GPS and GLONASS fix. The satellites in use wander slowly
-  between 5 and 16, one at a time, and the horizontal dilution follows them: lower with
-  more satellites, with a little jitter of its own. The position dilution is about 1.7
-  times the horizontal.
+  between 5 and 16, one at a time, and the horizontal dilution follows them: lower with more
+  satellites, with a little jitter of its own. The position dilution is about 1.7 times the
+  horizontal.
 
 ## How the Systems Relate
 
@@ -431,16 +430,16 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
   maximum with the share of top speed, power with its cube (the propeller law), fuel at
   about 0.25 l per kWh for diesel (0.35 for petrol) plus an idle allowance; a generator
   burns 0.3 l per kWh of electricity at full load, a third of the fuel's energy, and a
-  quarter of that at no load. Coolant, oil and
-  exhaust warm towards running temperatures and cool when the engine stops. The engines are
-  stopped alongside a berth, at anchor, and on a sailing yacht under sail (when her polar
-  gives the leg's speed or near it; see [sailing](../sailing/README.md#sail-or-motor)), and
-  idle at bridge holds. Motor-sailing, the engine makes up the speed the sails do not give:
-  its power goes with the leg's speed cubed less the polar's speed cubed. A route marks a waypoint `anchor` where
-  the boat lies at anchor rather than holding under way.
+  quarter of that at no load. Coolant, oil and exhaust warm towards running temperatures and
+  cool when the engine stops. The engines are stopped alongside a berth, at anchor, and on a
+  sailing yacht under sail (when her polar gives the leg's speed or near it; see
+  [sailing](../sailing/README.md#sail-or-motor)), and idle at bridge holds. Motor-sailing,
+  the engine makes up the speed the sails do not give: its power goes with the leg's speed
+  cubed less the polar's speed cubed. A route marks a waypoint `anchor` where the boat lies
+  at anchor rather than holding under way.
 - **Hybrid drives** follow the profile's [hybrid rules](#hybrid-rules): on the electric
-  motors alone up to `electricBelowKn`, the diesel stopped and its revolutions reading 0;
-  on the diesels above it, the alternator charging the low-voltage bank like any diesel's and
+  motors alone up to `electricBelowKn`, the diesel stopped and its revolutions reading 0; on
+  the diesels above it, the alternator charging the low-voltage bank like any diesel's and
   the inline drives charging the propulsion bank as far as it will take. Below
   `dieselBelowSoc` the diesels take over at any speed until the bank is past
   `electricAboveSoc`. On the Queensland passage the catamaran leaves Manly on its motors,
@@ -450,20 +449,20 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
 - **Thrusters** run only in the berthing manoeuvres: within three boat lengths of the berth
   the boat is leaving, on its first leg, and of the berth it is coming to, on its last. They
   run in bursts of 2 to 8 seconds at half to full power, with pauses of 4 to 20 seconds,
-  from their own seeded stream, and never at anchor, at a hold or under way beyond the berth.
-  An electric thruster draws its bank through an 85 % efficient motor: a 14 kW bow thruster
-  pulls up to about 16 kW, some 600 A from a 24 V bank in a full burst, which the energy books
-  carry as `thrusters`. A hydraulic thruster draws no bank: its pump is driven off a main
-  engine, through 70 % hydraulics, so it runs only while that engine runs, which carries its
-  load and burns its fuel. Each running engine has one alternator, shared through a charge
-  splitter between the house and start banks, giving at most 150 A at their voltage, half
-  of it at idle and all of it flat out, as a real one does; so a burst at manoeuvring
-  revolutions shows on the bank rather than vanishing into the alternators.
+  from their own seeded stream, and never at anchor, at a hold or under way beyond the
+  berth. An electric thruster draws its bank through an 85 % efficient motor: a 14 kW bow
+  thruster pulls up to about 16 kW, some 600 A from a 24 V bank in a full burst, which the
+  energy books carry as `thrusters`. A hydraulic thruster draws no bank: its pump is driven
+  off a main engine, through 70 % hydraulics, so it runs only while that engine runs, which
+  carries its load and burns its fuel. Each running engine has one alternator, shared
+  through a charge splitter between the house and start banks, giving at most 150 A at their
+  voltage, half of it at idle and all of it flat out, as a real one does; so a burst at
+  manoeuvring revolutions shows on the bank rather than vanishing into the alternators.
 - **Generators** on boats from 24 m carry the hotel load whenever the boat is away from the
   berth, starting a second one when the first would be over 80% and stopping it when the
-  rest would be under 60%. On smaller boats a generator runs when its bank runs low (until it
-  is charged), at anchor at meal times for cooking and hot water, and while the water maker
-  needs it; the air conditioning runs while it does. A hybrid's generator runs only to
+  rest would be under 60%. On smaller boats a generator runs when its bank runs low (until
+  it is charged), at anchor at meal times for cooking and hot water, and while the water
+  maker needs it; the air conditioning runs while it does. A hybrid's generator runs only to
   charge its propulsion bank, below `dieselBelowSoc` until past `electricAboveSoc`, and at
   anchor only if `generatorChargesAtAnchor`. Once started a generator runs at least 15
   minutes. Alongside, shore power carries the load.
@@ -491,11 +490,11 @@ carries the same values at any multiplier; a faster clock only skips steps betwe
 - **Tanks**: engines and generators draw from the tanks the profile names, changing to the
   fullest tank when theirs is below 15%; a transfer pump tops the day tanks up from the
   fullest storage tank. Boats start with their storage tanks 85 to 98% full. Fresh water
-  goes with the people aboard and the time of day (twice the average in the morning, a
-  fifth of it at night), grey water takes most of it, and black water fills with use.
-  Holding tanks are emptied at a berth's pump-out station above 50%; away from a berth grey
-  water goes overboard above 85%, and black water only well offshore, which a boat making
-  5 kn or more stands for here. Levels slosh a little while the boat moves.
+  goes with the people aboard and the time of day (twice the average in the morning, a fifth
+  of it at night), grey water takes most of it, and black water fills with use. Holding
+  tanks are emptied at a berth's pump-out station above 50%; away from a berth grey water
+  goes overboard above 85%, and black water only well offshore, which a boat making 5 kn or
+  more stands for here. Levels slosh a little while the boat moves.
 - **Inside**: living spaces go to their setpoint while the air conditioning runs and towards
   the outside temperature (plus the sun) when it does not; the engine room heats with the
   engines; fridges and freezers cycle their compressors in a band around the setpoint.
@@ -512,20 +511,19 @@ different but equally plausible run.
 
 ## What Persists
 
-The plugin saves the systems with the scenario time, and restores them when it resumes
-(see [the plugin README](../plugin/README.md#settings)). Everything the model carries
-from one step to the next is saved: each tank's volume; each bank's state of charge,
-health, voltage, current and temperature; each engine's and generator's run hours,
-whether it is running, its temperatures and, for a generator, how long it has been
-running and whether it was started to charge its bank; each solar array's yield today;
-the inside spaces and their compressors; the weather; the fuel transfer pump and the
-water maker; the crew's hands on the switches, the fresh water pump's pressure vessel and
-the inverter's mode; the holding tanks being pumped out; the heading, logs, trip, attitude and
-GNSS; each thruster's burst, pause and run hours and where its stream has reached; and
-every drift with the state of its seeded stream. A resumed run is the same run: two hours,
-a restart and two more hours give exactly the values an unbroken four-hour run gives at
-the same seed, for every profile.
-The saved systems name their profile and seed, and are used only when both still match.
+The plugin saves the systems with the scenario time, and restores them when it resumes (see
+[the plugin README](../plugin/README.md#settings)). Everything the model carries from one
+step to the next is saved: each tank's volume; each bank's state of charge, health, voltage,
+current and temperature; each engine's and generator's run hours, whether it is running, its
+temperatures and, for a generator, how long it has been running and whether it was started
+to charge its bank; each solar array's yield today; the inside spaces and their compressors;
+the weather; the fuel transfer pump and the water maker; the crew's hands on the switches,
+the fresh water pump's pressure vessel and the inverter's mode; the holding tanks being
+pumped out; the heading, logs, trip, attitude and GNSS; each thruster's burst, pause and run
+hours and where its stream has reached; and every drift with the state of its seeded stream.
+A resumed run is the same run: two hours, a restart and two more hours give exactly the
+values an unbroken four-hour run gives at the same seed, for every profile. The saved
+systems name their profile and seed, and are used only when both still match.
 
 ## What Has No Standard Path
 

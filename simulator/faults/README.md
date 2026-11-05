@@ -206,15 +206,15 @@ plausible one. The targets are `environment.outside.temperature`,
 ### Anchor Dragging
 
 The anchor loses its hold. It can happen only while the boat lies at anchor: the seed throws
-it only then, a hand raise under way is refused (`anchorDragging happens only while the
-boat lies at anchor`), and the page and `GET /faults` offer it only then. The anchor moves
-downwind at half a knot, a dragging boat's pace, with the boat on the end of her chain
-pulled out to its full reach; the anchor position she reports
-(`navigation.anchor.position`) stays where it went down, so `navigation.anchor.currentRadius`
-grows. Past the anchor watch's radius (her scope's radius plus 10 m unless the plugin sets
-another, a minute or two in on the Saronic anchorage) the watch raises
-`notifications.navigation.anchor`, emergency, `["visual", "sound"]`, `Anchor Alarm -
-Emergency`, as the anchor alarm plugin does.
+it only then, a hand raise under way is refused
+(`anchorDragging happens only while the boat lies at anchor`), and the page and
+`GET /faults` offer it only then. The anchor moves downwind at half a knot, a dragging
+boat's pace, with the boat on the end of her chain pulled out to its full reach; the anchor
+position she reports (`navigation.anchor.position`) stays where it went down, so
+`navigation.anchor.currentRadius` grows. Past the anchor watch's radius (her scope's radius
+plus 10 m unless the plugin sets another, a minute or two in on the Saronic anchorage) the
+watch raises `notifications.navigation.anchor`, emergency, `["visual", "sound"]`,
+`Anchor Alarm - Emergency`, as the anchor alarm plugin does.
 
 When it clears, by hand or at the end of its course, the crew has re-anchored: the anchor is
 set again where it now lies, with `navigation.anchor.position` there and
@@ -245,12 +245,12 @@ autopilot has a fault; clear it first"), which the page and the run view show.
 
 ### Navigation Lights Failure
 
-The navigation lights go out: a blown fuse or a corroded connection. It can happen only
-from dusk, while the sun is down (sunset to sunrise, as the [lights](../deck/README.md#the-navigation-lights)
-follow it): the seed throws it only then, a hand raise by day is refused
+The navigation lights go out: a blown fuse or a corroded connection. It can happen only from
+dusk, while the sun is down (sunset to sunrise, as the
+[lights](../deck/README.md#the-navigation-lights) follow it): the seed throws it only then,
+a hand raise by day is refused
 (`navLightsFailure happens only from dusk, while the sun is down`), and the page and
-`GET /faults` offer it only then. Once raised it runs its course, into the day if it
-must.
+`GET /faults` offer it only then. Once raised it runs its course, into the day if it must.
 
 - **Paths:** `navigation.lights` goes to `fault`, and their draw on the house bank stops.
 - **Notification:** `notifications.navigation.lights`, alarm, `["visual", "sound"]`,

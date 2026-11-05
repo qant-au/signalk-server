@@ -1,7 +1,8 @@
 # Simulator Samples and Data Tools
 
-This folder holds the sample scenarios for the Signal K simulator and the tools that fetch and
-prepare their data. The simulator itself is described in [SIMULATOR.md](../SIMULATOR.md).
+This folder holds the sample scenarios for the Signal K simulator and the tools that fetch
+and prepare their data. The simulator itself is described in
+[SIMULATOR.md](../SIMULATOR.md).
 
 ## Layout
 
@@ -42,8 +43,8 @@ simulator/
 
 **Included** means the files are in `open/` and need nothing further. **Fetched** means the
 source is openly licensed but too large to commit; one command downloads it. **Downloaded by
-the user** means the source does not allow redistribution, so each user downloads it from the
-publisher and runs one command to prepare it.
+the user** means the source does not allow redistribution, so each user downloads it from
+the publisher and runs one command to prepare it.
 
 ## Getting the Data
 

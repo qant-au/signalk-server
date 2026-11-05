@@ -2,28 +2,29 @@
 
 This repository is a **deliberately maintained parallel fork** of
 [SignalK/signalk-server](https://github.com/SignalK/signalk-server). It is not an abandoned
-copy. It is kept in step with the main codebase through regular updates from upstream, and it
-adds one thing on top: a **fully functional simulator for Signal K**.
+copy. It is kept in step with the main codebase through regular updates from upstream, and
+it adds one thing on top: a **fully functional simulator for Signal K**.
 
 The aim is to test systems, events, alarms and plugins against realistic conditions without
 being on a vessel, and without depending on recorded logs from someone else's boat. Recorded
-logs are not available to everyone, and they cannot be steered: you cannot ask a log to put a
-ship on a collision course, drop a device off the NMEA 2000 bus or run the house bank flat.
+logs are not available to everyone, and they cannot be steered: you cannot ask a log to put
+a ship on a collision course, drop a device off the NMEA 2000 bus or run the house bank
+flat.
 
-The work is intended to be offered upstream as a pull request once it is ready. Until then it
-is run as a separate project, so it can move at its own pace without asking the main project
-to carry unfinished work.
+The work is intended to be offered upstream as a pull request once it is ready. Until then
+it is run as a separate project, so it can move at its own pace without asking the main
+project to carry unfinished work.
 
 ## How the Fork Is Kept in Step
 
 - `upstream` is the official Signal K Server repository, used for fetching only. Nothing is
   pushed or proposed from this fork until the simulator is ready to offer.
 - Upstream changes are brought in regularly. The simulator is kept to its own files at the
-  edges of the codebase, so those updates stay cheap and the server itself behaves exactly as
-  upstream does.
+  edges of the codebase, so those updates stay cheap and the server itself behaves exactly
+  as upstream does.
 - Everything outside the simulator is upstream's code, documentation and licence, unchanged.
-  For the server itself, read the [main README](README.md) and the
-  [official documentation](https://demo.signalk.org/documentation/).
+  For the server itself, read the [main README](README.md) and the [official
+  documentation](https://demo.signalk.org/documentation/).
 
 ## The Simulator Already in Signal K Server
 
@@ -61,14 +62,15 @@ Checked against every issue and pull request in Signal K Server, and the wider S
 organisation, on 2 November 2026:
 
 - **[#3243](https://github.com/SignalK/signalk-server/issues/3243) and
-  [#3252](https://github.com/SignalK/signalk-server/pull/3252), the new demo showcase (open).**
-  This is a live demonstration for latest.signalk.org: a simulated sailing boat on a route in
-  the Dutch Wadden Sea, live AIS from Open Waters, an emulated autopilot and radar, built from
-  existing plugins. It shows visitors what a Signal K boat looks like. This fork is aimed at
-  testing instead: fixed, repeatable scenarios in several regions, with time control and
-  injected events, so that a plugin can be run against the same conditions again and again.
-  The two complement each other: the plugins the showcase runs (collision alerts, tides,
-  underkeel and others) are exactly the kind of plugin these scenarios exist to test.
+  [#3252](https://github.com/SignalK/signalk-server/pull/3252), the new demo showcase
+  (open).** This is a live demonstration for latest.signalk.org: a simulated sailing boat on
+  a route in the Dutch Wadden Sea, live AIS from Open Waters, an emulated autopilot and
+  radar, built from existing plugins. It shows visitors what a Signal K boat looks like.
+  This fork is aimed at testing instead: fixed, repeatable scenarios in several regions,
+  with time control and injected events, so that a plugin can be run against the same
+  conditions again and again. The two complement each other: the plugins the showcase runs
+  (collision alerts, tides, underkeel and others) are exactly the kind of plugin these
+  scenarios exist to test.
 - **[`signalk-sailboat-simulator`](https://www.npmjs.com/package/signalk-sailboat-simulator)**
   (third party) is a motion simulator: it works out how the boat moves from autopilot
   output, weather and an active route, which have to be fed to it. This fork is a data
@@ -168,8 +170,8 @@ and each sample's README.
 
 Each sample combines:
 
-- **AIS traffic**, so collision avoidance, CPA/TCPA alarms and target lists have real ships to
-  work with;
+- **AIS traffic**, so collision avoidance, CPA/TCPA alarms and target lists have real ships
+  to work with;
 - **depth**, from the most detailed open survey data available for the area rather than a
   coarse global grid, so depth alarms and shallow-water warnings are meaningful;
 - **weather and sea state**, wind, pressure, temperature, waves and (where available) tides,
@@ -202,15 +204,15 @@ fixed in this fork.
 The simulator is also the test bed for two open-source projects, each getting a Signal K
 plugin.
 
-- **[Axonometra](https://github.com/qant-au/axonometra):** a 3D planning engine for vessel and
-  building plans. For boats it draws the vessel itself (hull, decks and equipment) and shows
-  live state on the plan: tank levels, battery charge, propulsion and rudder, and the boat's
-  attitude. Its Signal K plugin will read those values straight from the server.
-- **[Reticulyne](https://github.com/qant-au/reticulyne):** an editor for diagrams of connected
-  systems. Its catalogue covers NMEA 2000 (backbone, drops, terminators, power insertion,
-  chartplotters, sensors and gateways) as well as IT networks. Its Signal K plugin will draw a
-  boat's NMEA 2000 network from live data and show devices dropping off, coming back and
-  faulting.
+- **[Axonometra](https://github.com/qant-au/axonometra):** a 3D planning engine for vessel
+  and building plans. For boats it draws the vessel itself (hull, decks and equipment) and
+  shows live state on the plan: tank levels, battery charge, propulsion and rudder, and the
+  boat's attitude. Its Signal K plugin will read those values straight from the server.
+- **[Reticulyne](https://github.com/qant-au/reticulyne):** an editor for diagrams of
+  connected systems. Its catalogue covers NMEA 2000 (backbone, drops, terminators, power
+  insertion, chartplotters, sensors and gateways) as well as IT networks. Its Signal K
+  plugin will draw a boat's NMEA 2000 network from live data and show devices dropping off,
+  coming back and faulting.
 
 Both plugins will live in their own repositories. This fork only provides the simulated boat
 they are tested against.
@@ -220,9 +222,9 @@ they are tested against.
 The Signal K Server code in this repository remains under the
 [Apache License, Version 2.0](LICENSE), as upstream.
 
-**The simulator work added by this fork is Copyright © 2026 Adam Burgess**, licensed under the
-same Apache License, Version 2.0. If the simulator is accepted into Signal K Server as a pull
-request, it is contributed under the project's licence on the same terms as any other
+**The simulator work added by this fork is Copyright © 2026 Adam Burgess**, licensed under
+the same Apache License, Version 2.0. If the simulator is accepted into Signal K Server as a
+pull request, it is contributed under the project's licence on the same terms as any other
 contribution (Apache License 2.0, section 5), and its copyright line will follow the main
 project's conventions.
 
