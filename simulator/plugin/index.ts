@@ -317,8 +317,11 @@ export = function simulatorPlugin(app: App) {
     )
   }
 
-  /** lost targets, and the deltas from others held back for them (see DroppedTargets) */
-  let dropped = new DroppedTargets()
+  /**
+   * lost targets, and the deltas from others held back for them (see DroppedTargets). It
+   * outlives a restart: another plugin goes on marking the last run's targets after it.
+   */
+  const dropped = new DroppedTargets()
 
   function holdBackDropped(
     delta: InputDelta,
@@ -1137,7 +1140,7 @@ export = function simulatorPlugin(app: App) {
 
     start(settings: Partial<Options>) {
       stopped = false
-      dropped = new DroppedTargets()
+      dropped.heldBack = 0
       app.registerDeltaInputHandler(holdBackDropped)
       listenForMob()
       const options = { ...DEFAULTS, ...settings }
