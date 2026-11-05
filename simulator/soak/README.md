@@ -584,22 +584,33 @@ as a plotter expects, and it stays in the tree with those marks. The simulator p
 holds those marks back for targets it has dropped (see
 [the AIS README](../ais/README.md#5-losing-a-target)); a replay has no plugin to do that.
 
-### Miami, Recorded and Replayed
+### The Three Routes, Recorded and Replayed
 
-Recorded on an Apple M3 Ultra, Node v26.12.1, traffic on, the whole route:
+Recorded on an Apple M3 Ultra, Node v26.12.1, traffic on, the whole route of each:
 
-| Measure                      | Miami ICW, 16 March 2024                                                                                       |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| scenario span                | 3 h 52 min, 14:00:00 to 17:52:25 UTC                                                                           |
-| deltas                       | 137,419: 41,919 for the own boat and 95,500 for targets, 9.9 a scenario second                                 |
-| lines                        | 170,914, 12.3 a scenario second: 33,495 more than the deltas, where a long own delta was shared across lines   |
-| file                         | 148.3 MiB                                                                                                      |
-| recording                    | 2 s                                                                                                            |
-| replay, deltas to the server | 11.1 a second over its first 25 minutes, from 8.6 to 20.0 (the first minute, with every target's first report) |
+| Measure       | Miami ICW, 16 March 2024                                                                                     | Saronic Gulf, 13 July 2018                                                       | Manly to Hamilton Island, 21 August 2026                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| scenario span | 3 h 52 min, 14:00:00 to 17:52:25 UTC                                                                         | 19 h 54 min, 11:00:00 to 06:54:25 UTC                                            | 68 h 9 min, 20:00:00 UTC on the 20th to 16:08:59 on the 23rd                    |
+| deltas        | 137,419: 41,919 for the own boat and 95,500 for targets, 9.9 a scenario second                               | 337,065: 213,923 for the own boat and 123,142 for targets, 4.7 a scenario second | 808,831: 736,045 for the own boat and 72,786 for targets, 3.3 a scenario second |
+| lines         | 170,914, 12.3 a scenario second: 33,495 more than the deltas, where a long own delta was shared across lines | 509,734, 7.1 a scenario second: 172,669 more than the deltas                     | 1,397,654, 5.7 a scenario second: 588,823 more than the deltas                  |
+| file          | 148.3 MiB                                                                                                    | 561.0 MiB                                                                        | 1,537.6 MiB                                                                     |
+| recording     | 2 s                                                                                                          | 6 s                                                                              | 23 s                                                                            |
 
-The replay was watched for its first 27 minutes, minute by minute, against the log: the own
-boat's position was the logged position at its timestamp every minute, 0.00 m apart, the
-scenario clock moved a minute a minute, the boat was Coquina with her MMSI, and every target
-the log had sent by then was in the vessels tree (308 at the first minute, 365 by the 25th).
-Of the targets silent for twelve minutes or more, the AIS status plugin had marked all 20
-`remove`.
+The own boat sends more than the targets on the two long routes: her systems every two
+seconds for twenty and sixty-eight hours, against the targets a receiver hears on the
+Saronic and off the Queensland coast, which are fewer and further between than Miami's.
+
+**Miami, replayed.** The server took 11.1 deltas a second over its first 25 minutes, from
+8.6 to 20.0 (the first minute, with every target's first report). The replay was watched
+for its first 27 minutes, minute by minute, against the log: the own boat's position was
+the logged position at its timestamp every minute, 0.00 m apart, the scenario clock moved a
+minute a minute, the boat was Coquina with her MMSI, and every target the log had sent by
+then was in the vessels tree (308 at the first minute, 365 by the 25th). Of the targets
+silent for twelve minutes or more, the AIS status plugin had marked all 20 `remove`.
+
+**The Saronic Gulf, replayed.** Watched for its first 20 minutes against the log, the same
+way: the own boat's position was the logged position at its timestamp every minute, 0.00 m
+apart, the scenario clock moved a minute a minute, the boat was Meltemi with her MMSI,
+motoring out of Zea Marina and under sail from the seventh minute, and every target the log
+had sent by then was in the vessels tree (32 at the start, 213 by the sixteenth minute); by
+the twentieth the AIS status plugin had marked 11 silent targets `remove`.
