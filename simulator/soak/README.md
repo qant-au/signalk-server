@@ -22,7 +22,7 @@ shape, and the systems soak runs the same model for days and checks everything i
 A rig soak sails a sample's route on the [test rig](../rig/README.md) and checks that the
 server keeps up for the length of the run. It runs in **real time only** (one scenario
 second per real second) and drives **the own boat only**. AIS traffic and faster than real
-time are the [busy run](#busy-run)'s; full-route runs come next.
+time are the [busy run](#busy-run)'s.
 
 ### Running One
 

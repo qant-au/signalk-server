@@ -1,8 +1,8 @@
 # Own-Boat Routes
 
-Each sample has a `route.json`: the passage the simulated boat makes. These are baseline
-routes, a starting point for the simulator. Depth, speed and timing will be tuned once the
-simulator runs them.
+Each sample has a `route.json`: the passage the simulated boat makes, its waypoints and the
+speed of each leg. The simulator sails it as adjusted for depth each time a run starts
+([Depth and Route Adjustment](#depth-and-route-adjustment)).
 
 ## Format
 
@@ -271,8 +271,9 @@ is set and the first position goes out, and logs one line with the counts
 has no resources provider, it says so once and the boat sails without a course. Nothing is
 deleted on stop: the resources belong to the sample, and a plotter keeps them.
 
-## Next
+## Limits
 
-- Tides on the plan: the route is adjusted against the grid's depth alone; the water level the
-  sounders follow is not applied to the planning.
-- Speeds tuned against wind, sea state and the vessel's polar, rather than fixed per leg.
+- The route is adjusted against the grid's depth alone: the water level the sounders follow
+  is not applied to the planning.
+- Each leg's speed over the ground is fixed in the route; wind, sea state and the polar set
+  how she makes it (under sail, motor-sailing or motoring), not how fast.
