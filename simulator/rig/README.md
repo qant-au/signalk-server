@@ -1,9 +1,9 @@
 # Test Rig
 
 A Signal K Server built from this checkout, in a container, with
-[Freeboard](https://github.com/SignalK/freeboard-sk) for watching a route on a chart. Every
-simulator test runs against it, so anyone can stand up the same environment from the
-repository alone.
+[Freeboard](https://github.com/SignalK/freeboard-sk) for watching a route on a chart. The
+rig soak runs against it, and anyone can stand up the same environment from the repository
+alone.
 
 ## Start and Stop
 
@@ -49,9 +49,10 @@ not be exposed beyond the machine running it.
 
 ## Watching a Route
 
-Start a soak run (see [the soak README](../soak/README.md)) and open Freeboard. The run
-publishes the sample's route as a Resources API route, so Freeboard can show the planned
-passage, and the own boat moves along it as the run goes.
+Open Freeboard. The simulator plugin publishes the sample's route as a Resources API route,
+with the waypoints, notes and dead slow regions along it, so Freeboard can show the planned
+passage, and the own boat moves along it as the run goes. A
+[rig soak](../soak/README.md#rig-soak) does the same with the plugin disabled.
 
 - **Show the route:** Freeboard lists published routes but does not draw them until they are
   ticked. Click the orange layers button on the left ("Routes, Waypoints, Notes, etc."),

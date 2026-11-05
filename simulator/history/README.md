@@ -79,10 +79,10 @@ The plugin registers the record with `app.registerHistoryApiProvider`
 
 The server makes the first history provider registered its default and saves it in
 `settings.json` (`historyApi.defaultProvider`), but a settings file that already names
-another provider keeps it. The rig's names `kip`, whose own history provider registers
-there too. Where the named one is not registered, the server answers from another and
-raises a warn notification, `notifications.server.history.defaultProvider`, the first
-time it does.
+another provider keeps it. KIP, which comes with the server, registers a history provider of
+its own too, so either can be the default before the plugin starts. Where the named one is
+not registered, the server answers from another and raises a warn notification,
+`notifications.server.history.defaultProvider`, the first time it does.
 
 So as the run starts, after registering, the plugin makes itself the default through the
 server's own History API,

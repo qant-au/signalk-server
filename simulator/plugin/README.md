@@ -9,22 +9,22 @@ its REST surface ([Controlling the Run](#controlling-the-run)).
 
 ## Settings
 
-| Setting                                                  | Default   | What It Does                                                                                                                                                   |
-| -------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sample                                                   | Miami ICW | which sample to sail (any folder under `simulator/samples` with a `route.json`)                                                                                |
-| Time multiplier                                          | 1         | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                                                                                      |
-| Minimum depth under keel                                 | 1 m       | the route is moved out of water shallower than the boat's draft plus this                                                                                      |
-| Shallow water alarm                                      | 1.5 m     | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper                                                                |
-| Collision alarm: closest approach                        | 15 m      | a moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half the time                           |
-| Collision alarm: time to closest approach                | 1 min     | the time limit for the collision alarm                                                                                                                         |
-| Anchor watch radius                                      | 0         | at anchor, the anchor alarm is raised once the boat is further than this from her anchor and cleared 5 m inside it; 0 for the radius her scope gives plus 10 m |
-| Show traffic                                             | on        | send the AIS targets the boat would hear                                                                                                                       |
-| Seed                                                     | 1         | seed for the boat's systems: the same seed and start repeat a run exactly                                                                                      |
-| Faults a day                                             | 0         | faults the seed throws on its own, on average, per day of scenario time                                                                                        |
-| Own AIS antenna height                                   | 10 m      | the height of the boat's AIS antenna, which sets how far it hears                                                                                              |
-| Start this many minutes into the route                   | 0         | where a new run starts                                                                                                                                         |
-| Resume where the last run reached                        | on        | carry on from the saved scenario time and the boat's systems                                                                                                   |
-| Make the simulator the server's default history provider | on        | as the run starts, through the server's History API, so plotters asking for history get the run ([history](../history/README.md#the-default-provider))         |
+| Setting                                                  | Default                | What It Does                                                                                                                                                   |
+| -------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sample                                                   | `miami-icw-2024-03-16` | which sample to sail (any folder under `simulator/samples` with a `route.json`)                                                                                |
+| Time multiplier                                          | 1                      | scenario seconds per real second: 1, 2, 5, 10, 20, 24, 30, 60, 120 or 300                                                                                      |
+| Minimum depth under keel                                 | 1 m                    | the route is moved out of water shallower than the boat's draft plus this                                                                                      |
+| Shallow water alarm                                      | 1.5 m                  | the depth sounder's shallow alarm: raised below this depth under the keel, cleared 0.3 m deeper                                                                |
+| Collision alarm: closest approach                        | 15 m                   | a moving target whose closest approach comes inside this, within the time below, raises a warning, and an alarm within half the time                           |
+| Collision alarm: time to closest approach                | 1 min                  | the time limit for the collision alarm                                                                                                                         |
+| Anchor watch radius                                      | 0                      | at anchor, the anchor alarm is raised once the boat is further than this from her anchor and cleared 5 m inside it; 0 for the radius her scope gives plus 10 m |
+| Show traffic                                             | on                     | send the AIS targets the boat would hear                                                                                                                       |
+| Seed                                                     | 1                      | seed for the boat's systems: the same seed and start repeat a run exactly                                                                                      |
+| Faults a day                                             | 0                      | faults the seed throws on its own, on average, per day of scenario time                                                                                        |
+| Own AIS antenna height                                   | 10 m                   | the height of the boat's AIS antenna, which sets how far it hears                                                                                              |
+| Start this many minutes into the route                   | 0                      | where a new run starts                                                                                                                                         |
+| Resume where the last run reached                        | on                     | carry on from the saved scenario time and the boat's systems                                                                                                   |
+| Make the simulator the server's default history provider | on                     | as the run starts, through the server's History API, so plotters asking for history get the run ([history](../history/README.md#the-default-provider))         |
 
 Saving the settings restarts the plugin, as with any plugin, and so does restarting the
 server. With **resume** on, the run carries on where it had reached: the scenario time,
@@ -245,8 +245,9 @@ it passes on an arc at a rate of turn that suits its length and speed, so positi
 and speed agree through the turn. A route without a vessel profile also sends a heading
 equal to the course, and the depth under the boat from the grid:
 `environment.depth.belowSurface` and `environment.depth.belowKeel` (below surface less the
-draft). Depths are relative to the grid's datum (mean sea level, lowest astronomical tide
-or the survey datum); tides are not applied yet.
+draft). The depth is the grid's depth below its datum (mean sea level, lowest astronomical
+tide or the survey datum) plus the sample's water level above that datum, where the sample
+has one (see [weather](../weather/README.md#the-tide-on-the-depth)).
 
 **Navigation.** With a profile, the boat sends what a navigation suite sends around the
 position: its navigational state (moored, anchored, sailing or motoring, always in step with
@@ -273,19 +274,19 @@ transmits under way ([deck](../deck/README.md)). Every switch takes a PUT, and t
 with an inverter send it ([switching](../switching/README.md)). Details, and
 the systems that have no standard path, are in [the vessels README](../vessels/README.md).
 
-**Weather and history.** The plugin registers three providers with the server, once, for
-as long as it runs. The sample's weather answers the server's Weather API
+**Weather and history.** The plugin registers three providers with the server, once, for as
+long as it runs. The sample's weather answers the server's Weather API
 (`app.registerWeatherProvider`, as "Signal K Simulator"): observations, point and daily
 forecasts and strong wind warnings, from the sample's records at the position asked for
-([weather](../weather/README.md#the-weather-api)). What the boat sends is recorded, a day
-at most, and answers the History API (`app.registerHistoryApiProvider`) and the older
-playback and snapshot API (`app.registerHistoryProvider`); the record is saved beside the
-run's state and kept across a resume ([history](../history/README.md)). The server makes
-the first weather provider it hears its default. As the run starts the plugin makes
-itself the default history provider through the server's History API, so a server whose
-settings name another (the rig's names KIP) answers from the run, unless the setting
-below is off ([history](../history/README.md#the-default-provider)). The server drops
-all three providers when the plugin stops.
+([weather](../weather/README.md#the-weather-api)). What the boat sends is recorded, a day at
+most, and answers the History API (`app.registerHistoryApiProvider`) and the older playback
+and snapshot API (`app.registerHistoryProvider`); the record is saved beside the run's state
+and kept across a resume ([history](../history/README.md)). The server makes the first
+weather provider it hears its default. As the run starts the plugin makes itself the default
+history provider through the server's History API, so a server whose settings name another
+(KIP's, which comes with the server) answers from the run, unless the setting below is off
+([history](../history/README.md#the-default-provider)). The server drops all three providers
+when the plugin stops.
 
 **Traffic.** Each AIS target in the sample is interpolated along its source track and
 transmits at the real rate for its class, speed, status and turning. Each transmission
