@@ -44,7 +44,8 @@ The memory is fixed by what is recorded, not by how long the run is:
 - Miami's 20 m boat with the traffic on, a day: 153 own paths and 769 targets heard,
   112,729 rows, **14.2 MiB** in memory, 13.4 MiB saved; saving it takes 16 ms and reading
   it back 42 ms.
-- The systems soak, without traffic: the largest is the 45 m motor yacht's day out, 251 own paths and **16.8 MiB** for the day.
+- The systems soak, without traffic: the largest is the 45 m motor yacht's day out, 251 own
+  paths and **16.8 MiB** for the day.
 
 ## The History API
 
@@ -84,10 +85,11 @@ raises a warn notification, `notifications.server.history.defaultProvider`, the 
 time it does.
 
 So as the run starts, after registering, the plugin makes itself the default through the
-server's own History API, `POST /signalk/v2/api/history/_providers/_default/signalk-simulator`,
-over the loopback to the server's HTTP port. That saves it in the settings, the Admin UI's
-Default History Provider (Apps & Plugins, Configuration) shows it, and no request ever finds the
-default missing, so the warning never comes. It asks first and does nothing when the
+server's own History API,
+`POST /signalk/v2/api/history/_providers/_default/signalk-simulator`, over the loopback to
+the server's HTTP port. That saves it in the settings, the Admin UI's Default History
+Provider (Apps & Plugins, Configuration) shows it, and no request ever finds the default
+missing, so the warning never comes. It asks first and does nothing when the
 simulator is the default already. The plugin setting **Make the simulator the server's
 default history provider** (`historyDefault`, on by default) turns it off. Where the
 server will not have it (security on answers 403; a server serving only TLS refuses plain
