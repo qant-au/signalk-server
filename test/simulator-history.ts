@@ -7,6 +7,7 @@ import path from 'path'
 import { Temporal } from '@js-temporal/polyfill'
 import { parseTimeRangeParams, splitPathExpression } from '../src/api/history'
 import { RecordKeeper } from '../simulator/history/keeper'
+import { makeDefaultHistoryProvider } from '../simulator/history/default'
 import { PLAYBACK_TICK_MS, RecordPlayback } from '../simulator/history/playback'
 import {
   RecordHistory,
@@ -180,6 +181,15 @@ describe('Simulator history', () => {
       // a column of a day of doubles for the one path, and the target ring grown to its bound
       expect(r.bytes - before).to.equal(RECORD_ROWS * 8 + (1000 - 1000) * 32)
       expect(r.bytes).to.equal(RECORD_ROWS * (4 + 8 + 8 + 8) + 1000 * 32)
+    })
+
+    it('holds a day of the own vessel however far apart its rows are, as at a high time multiplier', () => {
+      const r = new RunRecord()
+      for (let m = 0; m <= 2 * 24 * 60; m++)
+        r.add(own([{ path: 'a', value: m }]), T0 + m * 60_000)
+      const rows = r.ownRows(-Infinity, Infinity)
+      expect(rows).to.have.length(24 * 60)
+      expect(r.endMs! - r.startMs!).to.equal(24 * 3600_000 - 60_000)
     })
 
     it('drops a target row more than a day older than the newest', () => {
@@ -567,6 +577,74 @@ describe('Simulator history', () => {
     })
   })
 
+  describe('the default history provider', () => {
+    /** a server's History API default, as its routes answer */
+    function server(configured: string | undefined, postStatus = 200) {
+      const calls: string[] = []
+      const fake = (async (url: string, init?: { method?: string }) => {
+        calls.push(`${init?.method ?? 'GET'} ${url}`)
+        if (init?.method === 'POST') {
+          if (postStatus === 200) configured = url.split('/').pop()
+          return new Response(
+            JSON.stringify({
+              statusCode: postStatus,
+              message:
+                postStatus === 200 ? 'Default provider set' : 'Unauthorised'
+            }),
+            { status: postStatus }
+          )
+        }
+        return new Response(JSON.stringify({ id: configured, configured }))
+      }) as unknown as typeof fetch
+      return { fake, calls, configured: () => configured }
+    }
+    const base = 'http://127.0.0.1:3000'
+
+    it('makes the plugin the default through the API, from another provider its settings name', async () => {
+      const s = server('kip')
+      const r = await makeDefaultHistoryProvider(
+        base,
+        'signalk-simulator',
+        s.fake
+      )
+      expect(r).to.deep.equal({ was: 'kip', changed: true })
+      expect(s.configured()).to.equal('signalk-simulator')
+      expect(s.calls[1]).to.equal(
+        'POST http://127.0.0.1:3000/signalk/v2/api/history/_providers/_default/signalk-simulator'
+      )
+    })
+
+    it('leaves it alone when it is the default already, and says why when the server will not have it', async () => {
+      const already = server('signalk-simulator')
+      expect(
+        await makeDefaultHistoryProvider(
+          base,
+          'signalk-simulator',
+          already.fake
+        )
+      ).to.deep.equal({
+        was: 'signalk-simulator',
+        changed: false
+      })
+      expect(already.calls).to.have.length(1)
+      const secured = server('kip', 403)
+      const r = await makeDefaultHistoryProvider(
+        base,
+        'signalk-simulator',
+        secured.fake
+      )
+      expect(r.changed).to.equal(false)
+      expect(r.problem).to.equal('the server answered 403: Unauthorised')
+      const down = (async () => {
+        throw new Error('connect ECONNREFUSED')
+      }) as unknown as typeof fetch
+      expect(
+        (await makeDefaultHistoryProvider(base, 'signalk-simulator', down))
+          .problem
+      ).to.equal('connect ECONNREFUSED')
+    })
+  })
+
   describe('the plugin', () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), 'simulator-history-plugin-'))
 
@@ -638,7 +716,8 @@ describe('Simulator history', () => {
           sample: 'miami-icw-2024-03-16',
           resume: false,
           timeMultiplier: 60,
-          showTraffic: true
+          showTraffic: true,
+          historyDefault: false
         })
         while (!status.startsWith('Under way') && !errors.length) await tick(1)
         await tick(30)

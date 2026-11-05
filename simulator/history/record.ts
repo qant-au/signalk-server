@@ -19,6 +19,16 @@ export const RECORD_STEP_MS = 10_000
 export const RECORD_ROWS = 8640
 export const TARGET_ROWS_MAX = 1_000_000
 const TARGET_ROWS_START = 4096
+/** a target row: its slot and target as 32-bit integers, its position in doubles, its speed and course in floats */
+export const TARGET_ROW_BYTES = 4 + 4 + 8 + 8 + 4 + 4
+
+/** the most a record takes: a day of each own path, its slots and position, and every target row */
+export function recordBoundBytes(ownPaths: number): number {
+  return (
+    RECORD_ROWS * (4 + 8 + 8 + 8 * ownPaths) +
+    TARGET_ROWS_MAX * TARGET_ROW_BYTES
+  )
+}
 export const OWN_CONTEXT = 'vessels.self'
 export const POSITION = 'navigation.position'
 export const TARGET_PATHS = [
@@ -147,6 +157,11 @@ export class RunRecord {
   private ownRow(slot: number): number {
     if (this.ownCount && slot <= this.slotAt(this.ownCount - 1)) {
       return this.ownIndex(this.ownCount - 1)
+    }
+    // a day at most, however far apart the rows are
+    while (this.ownCount && this.slotAt(0) <= slot - RECORD_ROWS) {
+      this.ownStart = (this.ownStart + 1) % RECORD_ROWS
+      this.ownCount--
     }
     let index: number
     if (this.ownCount < RECORD_ROWS) {

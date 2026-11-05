@@ -44,6 +44,7 @@ import {
 import { RecordKeeper, RecordStart } from '../history/keeper'
 import { RecordHistory } from '../history/provider'
 import { RecordPlayback } from '../history/playback'
+import { makeDefaultHistoryProvider } from '../history/default'
 import {
   Position as WeatherPosition,
   SampleWeather,
@@ -74,6 +75,7 @@ interface Options {
   receiverAntennaHeightM: number
   seed: number
   faultsPerDay: number
+  historyDefault: boolean
 }
 
 /** the systems belong to the sample here, and to the profile and seed they carry */
@@ -130,7 +132,7 @@ interface App {
       setSelfValue(path: string, value: unknown): void
       removeSelfValue(path: string): void
     }
-    settings?: { vessel?: Record<string, unknown> }
+    settings?: { vessel?: Record<string, unknown>; port?: number }
   }
   /**
    * The server's full model and its delta cache. The server drops a vessel only after an
@@ -223,7 +225,8 @@ const DEFAULTS: Options = {
   showTraffic: true,
   receiverAntennaHeightM: DEFAULT_RECEIVER_ANTENNA_HEIGHT_M,
   seed: 1,
-  faultsPerDay: 0
+  faultsPerDay: 0,
+  historyDefault: true
 }
 
 function samplesDir(): string {
@@ -503,7 +506,7 @@ export = function simulatorPlugin(app: App) {
       scenarioNow,
       options.sample
     )
-    registerProviders()
+    registerProviders(options)
 
     const start = (systemsState: SystemsState | undefined) =>
       new Simulation(
@@ -716,7 +719,7 @@ export = function simulatorPlugin(app: App) {
    * registered once and stay with the server until the plugin stops.
    */
   let providersRegistered = false
-  function registerProviders() {
+  function registerProviders(options: Options) {
     if (providersRegistered) return
     providersRegistered = true
     const sample = () => {
@@ -758,6 +761,22 @@ export = function simulatorPlugin(app: App) {
       app.error(`history provider: ${(error as Error).message}`)
     }
     app.registerHistoryProvider?.(new RecordPlayback(record, selfContext))
+    if (options.historyDefault && app.registerHistoryApiProvider) {
+      const port =
+        Number(process.env.PORT) || app.config?.settings?.port || 3000
+      makeDefaultHistoryProvider(`http://127.0.0.1:${port}`, PLUGIN_ID).then(
+        (r) => {
+          if (r.changed)
+            app.debug(
+              `the default history provider is now this one, was ${r.was}`
+            )
+          else if (r.problem)
+            app.error(
+              `could not make this the default history provider (${r.problem}); set it in the Admin UI, Server, Settings`
+            )
+        }
+      )
+    }
   }
 
   /**
@@ -1060,6 +1079,13 @@ export = function simulatorPlugin(app: App) {
             description: 'Used when not resuming, or after changing the sample',
             minimum: 0,
             default: DEFAULTS.startAtMinutes
+          },
+          historyDefault: {
+            type: 'boolean',
+            title: "Make the simulator the server's default history provider",
+            description:
+              'Through the History API as the run starts, so plotters asking for history get the run',
+            default: DEFAULTS.historyDefault
           },
           resume: {
             type: 'boolean',
