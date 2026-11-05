@@ -91,7 +91,7 @@ SOAK_CASES=motor-sailer npm run test:simulator-soak  # only the cases whose name
 | Case                             | Profiles                                                                                                    | Where and when                                                                                                                                                                                                                              |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A day out, 24 hours              | all but the motor-sailer, each at a sample's berth: Miami, the Saronic Gulf or Manly, on that sample's date | by local solar time: the night at anchor, out at 07:30, cruising at 60% of top speed, a lunch stop at anchor from 11:30 to 14:30, cruising back, alongside from 18:00. It covers anchor, harbour speed, cruising and shore power in one day |
-| The Miami route, 24 hours        | `motor-yacht-20m`                                                                                           | the sample's real passage, from local midnight: alongside, the passage through the bridges, alongside again                                                                                                                                 |
+| The Miami route, 24 hours        | `motor-yacht-20m`                                                                                           | the sample's real passage, from four hours before it leaves: alongside, the passage through the bridges, alongside again                                                                                                                    |
 | The Saronic route, 24 hours      | `sailing-yacht-15m`                                                                                         | the sample's overnight passage under sail, with its evening at anchor in Skala bay on Angistri, from two hours before it leaves                                                                                                             |
 | The Queensland passage, 72 hours | `motor-sailer-15m`                                                                                          | Manly to Hamilton Island, from two hours before it leaves: three days under way                                                                                                                                                             |
 | The Queensland passage, 72 hours | `hybrid-catamaran-60ft`                                                                                     | the same passage, sailed by the hybrid catamaran on its passage rules: on its motors out of Manly and into Hamilton Island, on its diesels charging the bank between                                                                        |
@@ -176,7 +176,8 @@ books it checks. The faults have their own tests, which run every one through it
 - **The hybrid runs as a hybrid**: on its motors alone below its electric speed while the
   bank is above its ceiling, on both diesels above it, the bank charging from them on
   passage, its generator starting only below its charge floor, and solar carrying its hotel
-  load whenever the sun is above 30°.
+  load for at least 80 % of the time the sun is above 30° while she is slow and away from a
+  berth.
 - **The notifications** a case raises are the ones its day should, and nothing else: with no
   fault on board, only a tank running low or a holding tank filling, a bank run down, and
   shallow water may raise one, besides the lights failure the soak raises itself (see
@@ -374,8 +375,9 @@ bin/simulator-busy <sample> [--hours N] [--multiplier N] [--subscribers N] [--re
 | `--port`        | 4773    | the server's HTTP port; the next two take its NMEA 0183 and TCP stream out |
 
 It builds the plugin first. The server runs from `.simulator-busy/` in the checkout
-(ignored by git), made fresh on every run, and listens on localhost only; its log and the
-run's report go to `simulator/soak/reports/`.
+(ignored by git), made fresh on every run. The run's own clients reach it on 127.0.0.1; the
+server listens on every interface, as Signal K Server does. Its log and the run's report go
+to `simulator/soak/reports/`.
 
 The samples' AIS data covers only part of a day, so a day-long run has traffic for that
 part only: Miami from its 14:00 departure to 19:00 UTC, five hours; the Saronic Gulf from
@@ -398,6 +400,7 @@ Each row shows:
 
 | Column         | Meaning                                                                               |
 | -------------- | ------------------------------------------------------------------------------------- |
+| wall min       | minutes of wall time since the plugin was enabled                                     |
 | scenario time  | the own boat's `navigation.datetime` at the end of the minute                         |
 | behind s       | how far the scenario clock fell behind wall time × the multiplier, at worst           |
 | own gap s      | the longest wait between two of the own boat's deltas, in wall seconds                |
@@ -420,7 +423,9 @@ The run **fails** (exit code 1) if:
   by the server's backpressure, or is disconnected;
 - memory grows without levelling off: the heap's mean over the last quarter of the run is
   more than 10 MiB and 10 % above its mean over the third;
-- any answer takes longer than a second, or any request fails.
+- any answer takes longer than a second, or any request fails;
+- the server exits during the run, or does not go quiet within 12 minutes of the plugin
+  stopping.
 
 ### Counting Deltas
 
@@ -522,8 +527,8 @@ bin/simulator-replay <file> [--port N]
 It starts this server with no simulator plugin running, from its own configuration
 directory, `.simulator-replay/` (ignored by git), made fresh on every run from
 `settings/simulator-replay.json`: one piped provider, `providers/simple` of type
-`FileStream`, data type `Multiplexed`, reading the log once through. The plugin is installed
-on this checkout, so the Admin UI lists it, but that directory never enables it. The
+`FileStream`, data type `Multiplexed`, reading the log once through. Nothing installs the
+plugin in that directory, so the server has no simulator plugin to load. The
 server's file playback sends each line at its time, from the first line's time at the moment
 it starts. It listens on port 4776 by default, its NMEA 0183 and TCP streams on the next
 two, so a running `bin/simulator` is left alone.

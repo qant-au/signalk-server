@@ -15,14 +15,19 @@ simulator/
   engine/                   the simulation: scenario loading, traffic, own boat, depth
   systems/                  the boat's systems model (engines, generators, electrics, tanks, inside), its navigation suite, and the boat at anchor
   faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
-  weather/                  each sample's weather and water level, read from its files and interpolated (see weather/README.md)
+  weather/                  each sample's weather and water level, read from its files and interpolated, and the Weather API provider (see weather/README.md)
+  sailing/                  sails, polars, heel and leeway, and the current under the boat (see sailing/README.md)
+  autopilot/                the autopilot and its provider for the server's Autopilot API (see autopilot/README.md)
+  deck/                     navigation lights, the windlass and chain, outboards, stabilisers, sonar and radar (see deck/README.md)
+  switching/                digital switching, the inverters and a person overboard (see switching/README.md)
+  history/                  the run's record and the History API provider (see history/README.md)
   alarms/                   the alarm zones every watched value carries, and the panel that raises notifications from them (see vessels/README.md#alarms)
   vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
   plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
   rig/                      the test rig container
-  soak/                     the soaks: the rig soak (real time, against a server) and the systems soak (days on the clock)
-  routes/                   own-boat routes: format, timing and position along the way
-  downloads/                (git-ignored) files the user downloads from licensed sources
+  soak/                     the rig soak (real time, against a server), the systems soak (days on the clock), the busy run (the server under load) and recording a run for replay
+  routes/                   own-boat routes: format, timing, position along the way, and the resources along them
+  downloads/                files the user downloads from licensed sources (ignored by git but for its README)
   samples/<sample>/
     README.md               the sample: when, where, every dataset, its source and licence
     sample.json             what the tools fetch and prepare, how its AIS columns map, and its weather sources
@@ -68,7 +73,8 @@ GIS software: they read the publishers' ZIP archives and Shapefile tables direct
 The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0 like the
 rest of this repository. **Each dataset keeps its own licence**, stated in its sample's
 README with the attribution it requires. Only data whose licence allows redistribution is
-committed. Data under a non-commercial or share-alike licence is never committed, and the
-ignore rules keep `downloads/`, `cache/` and `restricted/` out of git.
+committed. Data under a non-commercial licence is never committed; the only share-alike material
+committed is a few berth and bridge positions from OpenStreetMap (ODbL), credited in each
+sample's README. The ignore rules keep `downloads/`, `cache/` and `restricted/` out of git.
 
 None of this data is for navigation.
