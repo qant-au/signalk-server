@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "configuration": {
+    "conversions": [
+      { "sentence": "RMC", "throttle": 1000 },
+      { "sentence": "HDT", "throttle": 1000 },
+      { "sentence": "VTG", "throttle": 1000 }
+    ]
+  }
+}

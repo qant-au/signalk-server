@@ -1,0 +1,159 @@
+{
+  "name": "Rickenbacker Marina to Pier 66 Marina by the Intracoastal Waterway",
+  "departure": "2024-03-16T14:00:00Z",
+  "vessel": {
+    "description": "20 m motor yacht",
+    "name": "Coquina",
+    "mmsi": "367555210",
+    "profile": "motor-yacht-20m"
+  },
+  "source": "Berth to berth: the berths at each end are from OpenStreetMap, and the way between each berth and the passage is found against the depth grid; the passage between them is derived from the passage of a 10-30 m vessel through Biscayne Bay and the Intracoastal Waterway in this sample's own AIS (NOAA, CC0), run in the opposite direction on the same day. Simplified to 75 m, leg speeds are the median the vessel made on each leg, and stops of 2 minutes or more (bridge openings) are kept as holds. Regenerate with: npx ts-node simulator/tools/route.ts derive miami-icw-2024-03-16",
+  "waypoints": [
+    {
+      "name": "Rickenbacker Marina berth",
+      "lat": 25.7463,
+      "lon": -80.1747,
+      "speedKn": 3,
+      "note": "berth; the way out of the marina is found against the depth grid"
+    },
+    {
+      "lat": 25.76365,
+      "lon": -80.18387,
+      "speedKn": 8,
+      "name": "Biscayne Bay, north of the Rickenbacker Causeway"
+    },
+    {
+      "lat": 25.77016,
+      "lon": -80.18204,
+      "speedKn": 7
+    },
+    {
+      "lat": 25.77609,
+      "lon": -80.18334,
+      "speedKn": 7
+    },
+    {
+      "lat": 25.78281,
+      "lon": -80.18089,
+      "speedKn": 5.5
+    },
+    {
+      "lat": 25.79276,
+      "lon": -80.18121,
+      "speedKn": 9.5
+    },
+    {
+      "lat": 25.82661,
+      "lon": -80.1729,
+      "speedKn": 8.5
+    },
+    {
+      "lat": 25.84393,
+      "lon": -80.17137,
+      "holdS": 141,
+      "speedKn": 6
+    },
+    {
+      "lat": 25.85036,
+      "lon": -80.17093,
+      "speedKn": 15.5
+    },
+    {
+      "lat": 25.88751,
+      "lon": -80.14229,
+      "holdS": 270,
+      "speedKn": 7.5
+    },
+    {
+      "lat": 25.90996,
+      "lon": -80.12596,
+      "speedKn": 9.5
+    },
+    {
+      "lat": 25.91823,
+      "lon": -80.12639,
+      "speedKn": 7.5
+    },
+    {
+      "lat": 25.92344,
+      "lon": -80.1297,
+      "speedKn": 6.5
+    },
+    {
+      "lat": 25.93854,
+      "lon": -80.13119,
+      "speedKn": 6.5
+    },
+    {
+      "lat": 25.9438,
+      "lon": -80.12842,
+      "speedKn": 7
+    },
+    {
+      "lat": 25.96185,
+      "lon": -80.12399,
+      "speedKn": 6.5
+    },
+    {
+      "lat": 25.97808,
+      "lon": -80.12291,
+      "speedKn": 7.5
+    },
+    {
+      "lat": 25.99426,
+      "lon": -80.11973,
+      "speedKn": 10.5
+    },
+    {
+      "lat": 26.01283,
+      "lon": -80.11818,
+      "holdS": 590,
+      "speedKn": 7.5
+    },
+    {
+      "lat": 26.03332,
+      "lon": -80.11738,
+      "speedKn": 8
+    },
+    {
+      "lat": 26.05365,
+      "lon": -80.11499,
+      "holdS": 1037,
+      "speedKn": 7.5
+    },
+    {
+      "lat": 26.08387,
+      "lon": -80.11381,
+      "name": "Port Everglades",
+      "speedKn": 3
+    },
+    {
+      "name": "Pier 66 Marina berth",
+      "lat": 26.102,
+      "lon": -80.119,
+      "note": "arrival; the way in is found against the depth grid"
+    }
+  ],
+  "bridges": [
+    {
+      "waypoint": 7,
+      "name": "79th Street Causeway bridge",
+      "closedClearanceM": 7.6
+    },
+    {
+      "waypoint": 9,
+      "name": "Broad Causeway bridge",
+      "closedClearanceM": 4.9
+    },
+    {
+      "waypoint": 18,
+      "name": "Hollywood Boulevard bridge",
+      "closedClearanceM": 7.6
+    },
+    {
+      "waypoint": 20,
+      "name": "Dania Beach Boulevard bridge",
+      "closedClearanceM": 6.7
+    }
+  ]
+}

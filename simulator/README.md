@@ -1,0 +1,81 @@
+# Simulator Samples and Data Tools
+
+This folder holds the sample scenarios for the Signal K simulator and the tools that fetch
+and prepare their data. The simulator itself is described in
+[SIMULATOR.md](../SIMULATOR.md).
+
+## Layout
+
+```
+simulator/
+  README.md                 this file
+  tools/                    TypeScript tools: fetch and prepare data, routes, AIS coverage, the busy run, recording a run for replay (see soak/README.md)
+  ais/                      the AIS reception model (what a boat would actually hear) and collision avoidance
+  depth/                    readers for the depth grids (GeoTIFF, BigTIFF, NetCDF)
+  engine/                   the simulation: scenario loading, traffic, own boat, depth
+  systems/                  the boat's systems model (engines, generators, electrics, tanks, inside), its navigation suite, and the boat at anchor
+  faults/                   the faults those systems can have, and how each develops and clears (see faults/README.md)
+  weather/                  each sample's weather and water level, read from its files and interpolated, and the Weather API provider (see weather/README.md)
+  sailing/                  sails, polars, heel and leeway, and the current under the boat (see sailing/README.md)
+  autopilot/                the autopilot and its provider for the server's Autopilot API (see autopilot/README.md)
+  deck/                     navigation lights, the windlass and chain, outboards, stabilisers, sonar and radar (see deck/README.md)
+  switching/                digital switching, the inverters and a person overboard (see switching/README.md)
+  history/                  the run's record and the History API provider (see history/README.md)
+  alarms/                   the alarm zones every watched value carries, and the panel that raises notifications from them (see vessels/README.md#alarms)
+  vessels/                  the vessel profile library, one JSON file per boat (see vessels/README.md)
+  plugin/                   the simulator as a Signal K Server plugin (see plugin/README.md)
+  rig/                      the test rig container
+  soak/                     the rig soak (real time, against a server), the systems soak (days on the clock), the busy run (the server under load) and recording a run for replay
+  routes/                   own-boat routes: format, timing, position along the way, and the resources along them
+  downloads/                files the user downloads from licensed sources (ignored by git but for its README)
+  samples/<sample>/
+    README.md               the sample: when, where, every dataset, its source and licence
+    sample.json             what the tools fetch and prepare, how its AIS columns map, and its weather sources
+    route.json              the own boat's passage (see routes/README.md)
+    magnetic-variation.json the magnetic variation over the route on its date (see vessels/README.md)
+    open/                   openly licensed data, committed to the repository
+    cache/                  (git-ignored) large open files, fetched by the tools
+    restricted/             (git-ignored) data prepared from a licensed download
+```
+
+## The Three Samples
+
+| Sample                                                                         | Window                                                | Data Availability                                                                                                                                         |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Miami ICW](samples/miami-icw-2024-03-16/README.md)                            | Sat 16 March 2024, 10:00 to 14:00 EDT                 | AIS, weather and tides **included**. Depth **fetched** (4 m NOAA BlueTopo, 214 MB).                                                                       |
+| [Saronic Gulf](samples/saronic-gulf-2018-07-13/README.md)                      | Fri 13 July 2018 14:00 to Sat 10:00 EEST              | Depth and weather **included**. AIS and the dataset's own weather **downloaded by the user** (licence below).                                             |
+| [Manly to Hamilton Island](samples/manly-hamilton-island-2026-08-21/README.md) | Departs Fri 21 August 2026 06:00 AEST, about 68 hours | Weather, waves and wave buoys **included**. Depth **fetched** (Great Barrier Reef 30 m, 3.8 GB). AIS **downloaded by the user** (non-commercial licence). |
+
+**Included** means the files are in `open/` and need nothing further. **Fetched** means the
+source is openly licensed but too large to commit; one command downloads it. **Downloaded by
+the user** means the source does not allow redistribution, so each user downloads it from
+the publisher and runs one command to prepare it.
+
+## Getting the Data
+
+Requires Node 22 or later and a checkout of this repository with `npm install` done.
+
+```shell
+# open data too large for the repository (checksummed where the publisher gives one)
+npx ts-node simulator/tools/sample-data.ts fetch miami-icw-2024-03-16
+npx ts-node simulator/tools/sample-data.ts fetch manly-hamilton-island-2026-08-21
+
+# licensed data: download it first, as the sample's README describes, into simulator/downloads/
+npx ts-node simulator/tools/sample-data.ts prepare saronic-gulf-2018-07-13
+npx ts-node simulator/tools/sample-data.ts prepare manly-hamilton-island-2026-08-21
+```
+
+Both commands are safe to run again. `fetch` skips files it already has. The tools need no
+GIS software: they read the publishers' ZIP archives and Shapefile tables directly.
+
+## Licensing
+
+The simulator work is Copyright © 2026 Adam Burgess, under the Apache License 2.0 like the
+rest of this repository. **Each dataset keeps its own licence**, stated in its sample's
+README with the attribution it requires. Only data whose licence allows redistribution is
+committed. Data under a non-commercial licence is never committed; the only share-alike
+material committed is a few berth and bridge positions from OpenStreetMap (ODbL), credited
+in each sample's README. The ignore rules keep `downloads/`, `cache/` and `restricted/` out
+of git.
+
+None of this data is for navigation.

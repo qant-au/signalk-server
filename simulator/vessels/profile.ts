@@ -1,0 +1,642 @@
+import { readFileSync, readdirSync } from 'fs'
+import path from 'path'
+import { DEFAULT_SHALLOW_M, alarmBands } from '../alarms/zones'
+import { Polar, PolarTable } from '../sailing/polar'
+import { SailProfile } from '../sailing/sailing'
+
+/**
+ * A vessel profile: what is on board, from which the systems model produces data. Counts
+ * that a profile leaves out are filled in from the boat's length (see `resolveProfile` and
+ * README.md); counts it gives are used as they are, up to the most a profile may have.
+ */
+export type EngineType = 'diesel' | 'petrol' | 'hybrid' | 'electric'
+export type TankType = 'fuel' | 'freshWater' | 'wasteWater' | 'blackWater'
+export type Chemistry = 'LiFePO4' | 'AGM' | 'FLA'
+
+export interface EngineProfile {
+  id: string
+  displayName: string
+  type: EngineType
+  /** rated power of the combustion engine, or of the motor for an electric drive */
+  powerKw: number
+  maxRpm: number
+  idleRpm: number
+  /** hybrid only: rated power of the inline electric drive */
+  electricKw?: number
+  /** bank an electric or hybrid drive runs from; alternator target for diesels */
+  bank?: string
+  /** fuel tank the engine draws from */
+  fuelTank?: string
+  /** an outboard, whose trim and tilt the boat reports; any other drive is not sent */
+  drive?: 'outboard'
+}
+
+/** fin stabilisers: `fins` work under way, `zeroSpeed` fins at anchor too */
+export type Stabilisers = 'fins' | 'zeroSpeed'
+const STABILISERS = new Set<string>(['fins', 'zeroSpeed'])
+
+export interface GeneratorProfile {
+  id: string
+  displayName: string
+  powerKw: number
+  /** 1500 rpm for 50 Hz, 1800 rpm for 60 Hz */
+  rpm: number
+  fuelTank?: string
+  /** bank its charger feeds */
+  chargesBank?: string
+}
+
+export interface BankProfile {
+  id: string
+  displayName: string
+  nominalVoltage: number
+  capacityAh: number
+  chemistry: Chemistry
+  role: 'house' | 'start' | 'propulsion'
+}
+
+export interface SolarProfile {
+  id: string
+  displayName: string
+  peakW: number
+  bank: string
+}
+
+export type ThrusterId = 'bowThruster' | 'sternThruster'
+
+/**
+ * A tunnel thruster for berthing. An electric one draws its bank; a hydraulic one, on the
+ * big yachts, is driven off a main engine's pump and draws no bank at all.
+ */
+export interface ThrusterProfile {
+  id: ThrusterId
+  displayName: string
+  type: 'electric' | 'hydraulic'
+  /** rated power, kW */
+  powerKw: number
+  /** the bank an electric thruster draws */
+  bank?: string
+  /** the main engine whose pump drives a hydraulic thruster */
+  engine?: string
+}
+
+export interface WindTurbineProfile {
+  id: string
+  displayName: string
+  ratedW: number
+  bank: string
+}
+
+export interface TankProfile {
+  id: string
+  displayName: string
+  capacityL: number
+  /** fuel only: a day tank, topped up from the storage tanks by a transfer pump */
+  dayTank?: boolean
+}
+
+export interface SounderProfile {
+  id: string
+  displayName: string
+  /** transducer depth below the waterline, metres */
+  depthM: number
+  /** athwartships offset from the centreline, metres, positive to starboard */
+  offsetM: number
+}
+
+export interface ZoneProfile {
+  id: string
+  displayName: string
+  kind: 'living' | 'engineRoom' | 'fridge' | 'freezer'
+  /** target temperature, degrees Celsius */
+  setpointC: number
+}
+
+/**
+ * How a boat with hybrid drives runs its passage. Every figure has a default, so a
+ * profile names only the ones it wants different (see README.md).
+ */
+export interface HybridRules {
+  /** at or below this speed over the ground the drives run on their motors alone, knots */
+  electricBelowKn: number
+  /** below this state of charge of the propulsion bank the diesels take over and charge */
+  dieselBelowSoc: number
+  /** and above this the drives go back to electric */
+  electricAboveSoc: number
+  /** the drives charge the propulsion bank from the diesels while they run */
+  chargeWhileDiesel: boolean
+  /** the generator may charge the propulsion bank while the boat lies at anchor */
+  generatorChargesAtAnchor: boolean
+}
+
+/** the states a zone may have, from the Signal K specification */
+export const ZONE_STATES = [
+  'nominal',
+  'normal',
+  'alert',
+  'warn',
+  'alarm',
+  'emergency'
+] as const
+export type ZoneState = (typeof ZONE_STATES)[number]
+
+/**
+ * A band of a value and the state it puts the value in, as the specification's metadata
+ * gives it: a bound left out is open, and the value is in SI units, as sent.
+ */
+export interface AlarmZone {
+  lower?: number
+  upper?: number
+  state: ZoneState
+  message: string
+}
+
+/** a boat this long carries an autopilot; a smaller one is hand steered */
+const AUTOPILOT_FROM_M = 7
+
+export interface VesselProfile {
+  id: string
+  name: string
+  lengthM: number
+  beamM: number
+  /** draft as the boat floats on passage */
+  draftM: number
+  /** the deepest draft, for a boat whose keel or boards go deeper than her passage draft */
+  maxDraftM?: number
+  /** waterline to the highest point: the masthead, or the top of a motor boat's arch or mast */
+  airHeightM: number
+  /** where the AIS antenna is: metres aft of the bow and to starboard of the centreline */
+  aisAntenna: { fromBowM: number; fromCenterM: number }
+  /** the class of the boat's own AIS transponder */
+  aisClass: 'A' | 'B'
+  displacementT: number
+  typeCode: number
+  rig: 'motor' | 'sail'
+  /** speed at full power, knots */
+  maxSpeedKn: number
+  acVoltage: number
+  acFrequency: number
+  acPhases: 1 | 3
+  /** people aboard, for water use */
+  persons: number
+  /** water maker output, litres an hour; 0 for none */
+  watermakerLph: number
+  /** AC hotel load through the waking day, kW: lighting, galley, pumps, electronics */
+  hotelKw: number
+  /** passage rules, on a boat with hybrid drives */
+  hybrid?: HybridRules
+  engines: EngineProfile[]
+  generators: GeneratorProfile[]
+  banks: BankProfile[]
+  solar: SolarProfile[]
+  windTurbines: WindTurbineProfile[]
+  thrusters: ThrusterProfile[]
+  tanks: Record<TankType, TankProfile[]>
+  sounders: SounderProfile[]
+  radars: { id: string; displayName: string }[]
+  /** an anchor windlass with a chain counter; without one the crew hauls by hand */
+  windlass: boolean
+  stabilisers?: Stabilisers
+  wind: boolean
+  /** an autopilot, which the server's Autopilot API drives (simulator/autopilot) */
+  autopilot: boolean
+  /** a sailing boat's sails, a reef as an entry of its own (simulator/sailing) */
+  sails?: SailProfile[]
+  /** a sailing boat's polar: her speed at each true wind speed and angle (simulator/sailing) */
+  polar?: PolarTable
+  zones: ZoneProfile[]
+  /**
+   * The boat's own alarm bands, by path, where they differ from the defaults for her kind
+   * and size (see simulator/alarms/zones.ts and README.md)
+   */
+  alarmZones: Record<string, AlarmZone[]>
+}
+
+/** What a profile file may say; anything left out comes from the length. */
+export type ProfileFile = Partial<Omit<VesselProfile, 'tanks' | 'hybrid'>> & {
+  id: string
+  name: string
+  lengthM: number
+  tanks?: Partial<Record<TankType, TankProfile[]>>
+  hybrid?: Partial<HybridRules>
+}
+
+/** the most of each tank type a profile may have */
+export const MAX_TANKS: Record<TankType, number> = {
+  fuel: 8,
+  freshWater: 4,
+  wasteWater: 2,
+  blackWater: 2
+}
+const TWIN_ENGINE_FROM_M = 10
+const WATERMAKER_FROM_M = 12
+/** water maker output per metre of length, litres an hour */
+const WATERMAKER_LPH_PER_M = 5
+/** the smallest holding tank fitted, litres */
+const MIN_HOLDING_L = { wasteWater: 40, blackWater: 45 }
+const GENERATOR_FROM_M = 10
+/** hotel load, kW, as a factor of length to a power: fitted to 7 kW at 18 m and 50 kW at 45 m */
+const HOTEL_KW_FACTOR = 0.012
+const HOTEL_KW_EXPONENT = 2.2
+/** a hybrid with no figure of its own runs electric up to the speed its motors give at this share of their rating */
+const HYBRID_ELECTRIC_SHARE = 0.2
+/** air height from length: a sailing yacht's masthead, a motor boat's arch or radar mast */
+const AIR_HEIGHT_SAIL = { perM: 1.45, plusM: 1 }
+const AIR_HEIGHT_MOTOR = { perM: 0.22, plusM: 1.5 }
+/** the AIS antenna sits on the arch or mast, a little aft of amidships */
+const AIS_ANTENNA_FROM_BOW_SHARE = 0.55
+/** a yacht this long carries a Class A transponder, as larger yachts do; smaller ones Class B */
+const AIS_CLASS_A_FROM_M = 24
+/** a bow thruster from this length, a stern thruster too from the next, hydraulic from the last */
+const BOW_THRUSTER_FROM_M = 12
+const STERN_THRUSTER_FROM_M = 18
+const HYDRAULIC_THRUSTER_FROM_M = 30
+/** thruster power from length: about 5 kW at 12 m, 14 kW at 20 m, 70 kW at 45 m */
+const THRUSTER_KW_PER_M2 = 0.035
+const HYBRID_DIESEL_BELOW_SOC = 0.4
+const HYBRID_ELECTRIC_ABOVE_SOC = 0.6
+const SOUNDER_DEPTH_M = 0.5
+const SIDES = ['Port', 'Starboard']
+/** a boat this long has an anchor windlass; a smaller one's crew hauls the anchor by hand */
+const WINDLASS_FROM_M = 8
+/** generators sit under propulsion beside the main engines, told apart by their id */
+const GENERATOR_ID = /^generator\d+$/
+
+const round = (x: number, step: number) => Math.round(x / step) * step
+
+/** total tankage by length: fitted to typical boats from 4 m to 45 m */
+function defaultCapacityL(type: TankType, lengthM: number): number {
+  const fresh = Math.max(0, 0.28 * lengthM ** 2.86)
+  switch (type) {
+    case 'fuel':
+      return round(Math.max(20, 0.019 * lengthM ** 3.93), 10)
+    case 'freshWater':
+      return round(fresh, 10)
+    case 'wasteWater':
+      return round(Math.max(MIN_HOLDING_L.wasteWater, fresh * 0.25), 5)
+    case 'blackWater':
+      return round(Math.max(MIN_HOLDING_L.blackWater, fresh * 0.15), 5)
+  }
+}
+
+function defaultTankCount(type: TankType, lengthM: number): number {
+  switch (type) {
+    case 'fuel':
+      return lengthM < TWIN_ENGINE_FROM_M ? 1 : lengthM < 20 ? 2 : 4
+    case 'freshWater':
+      return lengthM < 6 ? 0 : lengthM < 15 ? 1 : 2
+    case 'wasteWater':
+      return lengthM < 10 ? 0 : lengthM < 25 ? 1 : 2
+    case 'blackWater':
+      return lengthM < 8 ? 0 : lengthM < 25 ? 1 : 2
+  }
+}
+
+const TANK_LABEL: Record<TankType, string> = {
+  fuel: 'fuel',
+  freshWater: 'fresh water',
+  wasteWater: 'grey water',
+  blackWater: 'black water'
+}
+
+function defaultTanks(type: TankType, lengthM: number): TankProfile[] {
+  const count = defaultTankCount(type, lengthM)
+  const each = count ? round(defaultCapacityL(type, lengthM) / count, 5) : 0
+  const label = TANK_LABEL[type]
+  const capitalised = label[0].toUpperCase() + label.slice(1)
+  return Array.from({ length: count }, (_, i) => ({
+    id: count === 1 ? type : count === 2 ? type + SIDES[i] : type + (i + 1),
+    displayName:
+      count === 1
+        ? capitalised
+        : count === 2
+          ? SIDES[i] + ' ' + label
+          : capitalised + ' ' + (i + 1),
+    capacityL: each
+  }))
+}
+
+function defaultEngines(p: ProfileFile): EngineProfile[] {
+  const twin = p.lengthM >= TWIN_ENGINE_FROM_M
+  const powerKw = round(Math.max(4, 0.9 * p.lengthM ** 2), 5) / (twin ? 2 : 1)
+  const base = {
+    type: 'diesel' as EngineType,
+    powerKw,
+    maxRpm: powerKw > 500 ? 2100 : 3000,
+    idleRpm: 700
+  }
+  return twin
+    ? [
+        { ...base, id: 'port', displayName: 'Port engine' },
+        { ...base, id: 'starboard', displayName: 'Starboard engine' }
+      ]
+    : [{ ...base, id: 'main', displayName: 'Engine' }]
+}
+
+function defaultBanks(p: ProfileFile): BankProfile[] {
+  const voltage = p.lengthM < 12 ? 12 : 24
+  return [
+    {
+      id: 'house',
+      displayName: 'House bank',
+      nominalVoltage: voltage,
+      capacityAh: round(10 * p.lengthM ** 1.5, 10),
+      chemistry: 'LiFePO4',
+      role: 'house'
+    },
+    {
+      id: 'start',
+      displayName: 'Start bank',
+      nominalVoltage: voltage,
+      capacityAh: p.lengthM < 12 ? 70 : 200,
+      chemistry: 'AGM',
+      role: 'start'
+    }
+  ]
+}
+
+function defaultZones(lengthM: number): ZoneProfile[] {
+  if (lengthM < 6) return []
+  const zones: ZoneProfile[] = [
+    { id: 'saloon', displayName: 'Saloon', kind: 'living', setpointC: 22 },
+    { id: 'fridge', displayName: 'Fridge', kind: 'fridge', setpointC: 4 }
+  ]
+  if (lengthM >= 9) {
+    zones.push({
+      id: 'cabin',
+      displayName: 'Cabin',
+      kind: 'living',
+      setpointC: 21
+    })
+  }
+  if (lengthM >= 12) {
+    zones.push({
+      id: 'engineRoom',
+      displayName: 'Engine room',
+      kind: 'engineRoom',
+      setpointC: 30
+    })
+    zones.push({
+      id: 'freezer',
+      displayName: 'Freezer',
+      kind: 'freezer',
+      setpointC: -18
+    })
+  }
+  return zones
+}
+
+/** Fills in what a profile file leaves out and checks it against the limits. */
+/**
+ * What a boat gets with no thrusters of its own: none under 12 m, a bow thruster from 12 m,
+ * a stern thruster too from 18 m, both hydraulic off the first main engine from 30 m and
+ * electric on the house bank below that.
+ */
+function defaultThrusters(p: VesselProfile): ThrusterProfile[] {
+  const L = p.lengthM
+  if (L < BOW_THRUSTER_FROM_M) return []
+  const hydraulic = L >= HYDRAULIC_THRUSTER_FROM_M
+  const house = p.banks.find((b) => b.role === 'house') ?? p.banks[0]
+  const powerKw = round(THRUSTER_KW_PER_M2 * L * L, 0.5)
+  const thruster = (id: ThrusterId, displayName: string): ThrusterProfile =>
+    hydraulic
+      ? {
+          id,
+          displayName,
+          type: 'hydraulic',
+          powerKw,
+          engine: p.engines[0]?.id
+        }
+      : { id, displayName, type: 'electric', powerKw, bank: house?.id }
+  return L < STERN_THRUSTER_FROM_M
+    ? [thruster('bowThruster', 'Bow thruster')]
+    : [
+        thruster('bowThruster', 'Bow thruster'),
+        thruster('sternThruster', 'Stern thruster')
+      ]
+}
+
+/**
+ * What a hybrid without rules of its own gets: electric up to the speed at which the
+ * propeller takes a fifth of the motors' rating, the diesels in below 40 % and electric
+ * again above 60 %, charging from the diesels, and the generator free to charge at anchor.
+ */
+function defaultHybrid(p: VesselProfile): HybridRules {
+  const ratedKw = p.engines.reduce((sum, e) => sum + e.powerKw, 0)
+  const electricKw = p.engines.reduce((sum, e) => sum + (e.electricKw ?? 0), 0)
+  return {
+    // propeller law: power goes with the cube of speed
+    electricBelowKn: round(
+      p.maxSpeedKn * Math.cbrt((HYBRID_ELECTRIC_SHARE * electricKw) / ratedKw),
+      0.5
+    ),
+    dieselBelowSoc: HYBRID_DIESEL_BELOW_SOC,
+    electricAboveSoc: HYBRID_ELECTRIC_ABOVE_SOC,
+    chargeWhileDiesel: true,
+    generatorChargesAtAnchor: true
+  }
+}
+
+export function resolveProfile(p: ProfileFile): VesselProfile {
+  const L = p.lengthM
+  const draftM = p.draftM ?? round(Math.max(0.3, L * 0.11), 0.1)
+  const tanks = {} as Record<TankType, TankProfile[]>
+  for (const type of Object.keys(MAX_TANKS) as TankType[]) {
+    tanks[type] = p.tanks?.[type] ?? defaultTanks(type, L)
+    if (tanks[type].length > MAX_TANKS[type]) {
+      throw new Error(
+        `${p.id}: ${tanks[type].length} ${type} tanks, at most ${MAX_TANKS[type]}`
+      )
+    }
+  }
+  const engines = p.engines ?? defaultEngines(p)
+  const banks = p.banks ?? defaultBanks(p)
+  const house = banks.find((b) => b.role === 'house')?.id ?? banks[0]?.id
+  const generators =
+    p.generators ??
+    (L >= GENERATOR_FROM_M
+      ? [
+          {
+            id: 'generator1',
+            displayName: 'Generator',
+            powerKw: round(Math.max(4, 0.12 * L ** 1.9), 0.5),
+            rpm: 1500,
+            chargesBank: house
+          }
+        ]
+      : [])
+  const profile: VesselProfile = {
+    beamM: round(L * 0.3, 0.1),
+    draftM,
+    displacementT: round(Math.max(0.3, 0.004 * L ** 3), 0.1),
+    typeCode: 37,
+    rig: 'motor',
+    maxSpeedKn: round(2.43 * Math.sqrt(L * 3.281) * 0.85, 0.5),
+    acVoltage: 230,
+    acFrequency: 50,
+    acPhases: L >= 24 ? 3 : 1,
+    persons: Math.max(1, Math.round(L / 3.5)),
+    watermakerLph:
+      L >= WATERMAKER_FROM_M ? round(WATERMAKER_LPH_PER_M * L, 5) : 0,
+    hotelKw: round(HOTEL_KW_FACTOR * L ** HOTEL_KW_EXPONENT, 0.1),
+    solar: [],
+    windTurbines: [],
+    sounders: [
+      {
+        id: 'sounder',
+        displayName: 'Depth sounder',
+        // through the hull, and never below the keel
+        depthM: Math.min(SOUNDER_DEPTH_M, round(0.8 * draftM, 0.05)),
+        offsetM: 0
+      }
+    ],
+    radars:
+      L < 9
+        ? []
+        : L < 25
+          ? [{ id: 'radar', displayName: 'Radar' }]
+          : [
+              { id: 'radarX', displayName: 'X-band radar' },
+              { id: 'radarS', displayName: 'S-band radar' }
+            ],
+    windlass: L >= WINDLASS_FROM_M,
+    wind: L >= 7,
+    autopilot: L >= AUTOPILOT_FROM_M,
+    zones: defaultZones(L),
+    alarmZones: {},
+    ...p,
+    engines,
+    generators,
+    banks,
+    tanks,
+    hybrid: undefined
+  } as VesselProfile
+  if (engines.some((e) => e.type === 'hybrid')) {
+    profile.hybrid = { ...defaultHybrid(profile), ...p.hybrid }
+  }
+  const air = profile.rig === 'sail' ? AIR_HEIGHT_SAIL : AIR_HEIGHT_MOTOR
+  profile.airHeightM = p.airHeightM ?? round(air.perM * L + air.plusM, 0.1)
+  profile.thrusters = p.thrusters ?? defaultThrusters(profile)
+  profile.aisClass = p.aisClass ?? (L >= AIS_CLASS_A_FROM_M ? 'A' : 'B')
+  profile.aisAntenna = p.aisAntenna ?? {
+    fromBowM: round(AIS_ANTENNA_FROM_BOW_SHARE * L, 0.1),
+    fromCenterM: 0
+  }
+
+  // tie engines and generators to tanks and banks when the file does not say
+  const fuel = profile.tanks.fuel
+  const dayTanks = fuel.filter((t) => t.dayTank)
+  const feed = dayTanks.length ? dayTanks : fuel
+  profile.engines = profile.engines.map((e, i) => ({
+    ...e,
+    fuelTank:
+      e.fuelTank ??
+      (e.type === 'electric'
+        ? undefined
+        : feed[Math.min(i, feed.length - 1)]?.id),
+    bank:
+      e.bank ??
+      (e.type === 'diesel' || e.type === 'petrol'
+        ? (banks.find((b) => b.role === 'start')?.id ?? house)
+        : (banks.find((b) => b.role === 'propulsion')?.id ?? house))
+  }))
+  profile.generators = profile.generators.map((g, i) => ({
+    ...g,
+    fuelTank: g.fuelTank ?? feed[i % Math.max(1, feed.length)]?.id,
+    chargesBank: g.chargesBank ?? house
+  }))
+  validateProfile(profile)
+  // throws on a band for a path the boat has no alarm on, or a malformed one
+  alarmBands(profile, DEFAULT_SHALLOW_M)
+  return profile
+}
+
+function validateProfile(p: VesselProfile): void {
+  const ids = new Set<string>()
+  const unique = (kind: string, id: string) => {
+    const key = `${kind}:${id}`
+    if (ids.has(key)) throw new Error(`${p.id}: duplicate ${kind} id ${id}`)
+    ids.add(key)
+  }
+  for (const e of [...p.engines, ...p.generators]) unique('propulsion', e.id)
+  for (const e of p.engines) {
+    if (GENERATOR_ID.test(e.id)) {
+      throw new Error(`${p.id}: main engine ${e.id} is named like a generator`)
+    }
+  }
+  for (const g of p.generators) {
+    if (!GENERATOR_ID.test(g.id)) {
+      throw new Error(`${p.id}: generator ${g.id} must be named generator<n>`)
+    }
+  }
+  for (const b of p.banks) unique('bank', b.id)
+  const bankIds = new Set(p.banks.map((b) => b.id))
+  const fuelIds = new Set(p.tanks.fuel.map((t) => t.id))
+  for (const e of p.engines) {
+    if (e.bank && !bankIds.has(e.bank))
+      throw new Error(`${p.id}: ${e.id} names unknown bank ${e.bank}`)
+    if (e.type !== 'electric' && (!e.fuelTank || !fuelIds.has(e.fuelTank))) {
+      throw new Error(`${p.id}: ${e.id} needs a fuel tank`)
+    }
+  }
+  const engineIds = new Set(p.engines.map((e) => e.id))
+  for (const t of p.thrusters) {
+    if (t.type === 'electric' && (!t.bank || !bankIds.has(t.bank)))
+      throw new Error(`${p.id}: ${t.id} needs a bank`)
+    if (t.type === 'hydraulic' && (!t.engine || !engineIds.has(t.engine)))
+      throw new Error(`${p.id}: ${t.id} needs a main engine to drive its pump`)
+  }
+  for (const s of [...p.solar, ...p.windTurbines]) {
+    if (!bankIds.has(s.bank))
+      throw new Error(`${p.id}: ${s.id} names unknown bank ${s.bank}`)
+  }
+  for (const type of Object.keys(p.tanks) as TankType[]) {
+    for (const t of p.tanks[type]) unique(`tank ${type}`, t.id)
+  }
+  if (p.stabilisers !== undefined && !STABILISERS.has(p.stabilisers))
+    throw new Error(`${p.id}: stabilisers are fins or zeroSpeed`)
+  for (const e of p.engines) {
+    if (e.drive !== undefined && e.drive !== 'outboard')
+      throw new Error(`${p.id}: ${e.id}'s drive can only be outboard`)
+  }
+  validateSails(p)
+}
+
+/** a sailing boat has sails and a polar, and a motor boat neither */
+function validateSails(p: VesselProfile): void {
+  if (p.rig === 'motor') {
+    if (p.sails || p.polar)
+      throw new Error(`${p.id}: a motor boat has no sails or polar`)
+    return
+  }
+  if (!p.sails?.length || !p.polar)
+    throw new Error(`${p.id}: a sailing boat needs her sails and a polar`)
+  for (const sail of p.sails) {
+    unique(sail.id)
+    if (!/^[a-zA-Z0-9]+$/.test(sail.id))
+      throw new Error(`${p.id}: sail id ${sail.id} must be letters and digits`)
+    if (!(sail.areaM2 > 0) || !(sail.maxWindKn > sail.minWindKn))
+      throw new Error(`${p.id}: sail ${sail.id} needs an area and a wind range`)
+  }
+  new Polar(p.polar)
+  function unique(id: string): void {
+    if (p.sails!.filter((s) => s.id === id).length > 1)
+      throw new Error(`${p.id}: duplicate sail id ${id}`)
+  }
+}
+
+/** `dir` is simulator/vessels, where the profile files are */
+export function loadProfile(id: string, dir: string): VesselProfile {
+  const file: ProfileFile = JSON.parse(
+    readFileSync(path.join(dir, `${id}.json`), 'utf8')
+  )
+  if (file.id !== id) throw new Error(`${id}.json declares id ${file.id}`)
+  return resolveProfile(file)
+}
+
+export function listProfiles(dir: string): string[] {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.replace(/\.json$/, ''))
+    .sort()
+}

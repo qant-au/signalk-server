@@ -1,0 +1,13 @@
+# Build context rules for simulator/rig/Dockerfile only. The repository's own
+# .dockerignore is for the release image, which installs packed tarballs and so
+# leaves packages/ out; the rig builds from source and needs it.
+.git
+**/node_modules
+**/dist
+docs/dist
+**/*.tsbuildinfo
+.eslintcache
+.signalk-rig
+simulator/downloads
+simulator/samples/*/cache
+simulator/samples/*/restricted

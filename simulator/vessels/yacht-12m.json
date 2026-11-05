@@ -1,0 +1,8 @@
+{
+  "id": "yacht-12m",
+  "name": "12 m motor yacht",
+  "lengthM": 12,
+  "typeCode": 37,
+  "rig": "motor",
+  "maxSpeedKn": 24
+}

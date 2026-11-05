@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# Records a sample as the server's own data log (simulator/soak/README.md#recording-and-replaying-a-run):
+# the sample runs headless, a tick a scenario second, and every delta the boat and the
+# targets send is written as a line of the multiplexed log, in scenario time, for
+# bin/simulator-replay to play on a plain server.
+#
+#   bin/simulator-record <sample> [--start-at N] [--hours N] [--no-traffic] [--seed N] [--out FILE]
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+exec npx --prefix "${ROOT}" ts-node "${ROOT}/simulator/tools/record.ts" "$@"

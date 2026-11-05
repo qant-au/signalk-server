@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "configuration": {
+    "sample": "miami-icw-2024-03-16",
+    "timeMultiplier": 1,
+    "minDepthUnderKeelM": 1,
+    "showTraffic": true,
+    "receiverAntennaHeightM": 10,
+    "startAtMinutes": 0,
+    "resume": true,
+    "seed": 1
+  }
+}

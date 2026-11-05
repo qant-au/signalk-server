@@ -1,0 +1,117 @@
+{
+  "id": "manly-hamilton-island-2026-08-21",
+  "downloads": [
+    {
+      "url": "https://files.ausseabed.gov.au/survey/Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip",
+      "file": "gbr30-2020.zip",
+      "sha256": "6d50bf758f251953b80b6c0dc8ef2a44f3018c8ac2f0792dd7219e538bf6fd55",
+      "extract": [
+        "Great_Barrier_Reef_C_2020_30m_MSL_cog.tif",
+        "Great_Barrier_Reef_D_2020_30m_MSL_cog.tif",
+        "metadata.txt"
+      ]
+    }
+  ],
+  "restricted": {
+    "source": "amsa-cts",
+    "archive": "Vessel Traffic Data August 2026.zip",
+    "start": "2026-08-20T18:00:00Z",
+    "end": "2026-08-24T00:00:00Z",
+    "bbox": [148.4, -28, 154, -19.8]
+  },
+  "ais": {
+    "file": "restricted/ais.csv",
+    "idColumn": "craft_id",
+    "timeColumn": "utc",
+    "timeFormat": "iso-utc",
+    "latColumn": "lat",
+    "lonColumn": "lon",
+    "sogColumn": "sog_kn",
+    "cogColumn": "cog_deg",
+    "typeTextColumn": "type",
+    "lengthColumn": "length_m",
+    "thinnedToSeconds": 3600,
+    "beamColumn": "beam_m",
+    "draughtColumn": "draught_m"
+  },
+  "depth": {
+    "sources": [
+      {
+        "file": "cache/Great_Barrier_Reef_*_2020_30m_MSL_cog.tif",
+        "format": "geotiff"
+      }
+    ],
+    "harbourRadiusM": 3500,
+    "harbourNoDataIsWater": true
+  },
+  "weather": {
+    "sources": [
+      {
+        "format": "open-meteo",
+        "file": "open/weather/open-meteo-ecmwf-ifs.json",
+        "use": ["wind", "pressure", "air", "humidity"]
+      },
+      {
+        "format": "open-meteo",
+        "file": "open/weather/open-meteo-ecmwf-wam.json",
+        "use": ["waves"]
+      },
+      {
+        "format": "open-meteo",
+        "file": "open/weather/open-meteo-marine.json",
+        "use": ["water", "waterLevel", "current"]
+      },
+      {
+        "format": "qld-buoy",
+        "file": "open/weather/buoys/brisbane-2026-08-20_24.csv",
+        "use": ["waves", "water"],
+        "station": {
+          "id": "Brisbane",
+          "name": "Brisbane",
+          "lat": -27.4895,
+          "lon": 153.6332
+        },
+        "utcOffsetHours": 10
+      },
+      {
+        "format": "qld-buoy",
+        "file": "open/weather/buoys/mooloolaba-2026-08-20_24.csv",
+        "use": ["waves", "water"],
+        "station": {
+          "id": "Mooloolaba",
+          "name": "Mooloolaba",
+          "lat": -26.5671,
+          "lon": 153.1813
+        },
+        "utcOffsetHours": 10
+      },
+      {
+        "format": "qld-buoy",
+        "file": "open/weather/buoys/emu-park-2026-08-20_24.csv",
+        "use": ["waves", "water"],
+        "station": {
+          "id": "Emu Park",
+          "name": "Emu Park",
+          "lat": -23.3028,
+          "lon": 151.0721
+        },
+        "utcOffsetHours": 10
+      },
+      {
+        "format": "qld-buoy",
+        "file": "open/weather/buoys/mackay-2026-08-20_24.csv",
+        "use": ["waves", "water"],
+        "station": {
+          "id": "Mackay",
+          "name": "Mackay",
+          "lat": -21.0358,
+          "lon": 149.5479
+        },
+        "utcOffsetHours": 10
+      }
+    ],
+    "tide": {
+      "gridDatum": "MSL"
+    }
+  }
+}

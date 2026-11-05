@@ -1,30 +1,34 @@
 #!/bin/bash
+#
+# Starts this server with the simulator plugin (simulator/plugin) sailing the Miami sample.
+#
+# The server runs from its own configuration directory, .simulator/ (ignored by git): the
+# server writes its defaults back into the settings file it runs with, so it is given a
+# copy of settings/simulator.json, made fresh on every start, and the tracked file is
+# never touched. Plugin settings and the saved run (scenario time and systems) persist there
+# between runs; delete .simulator/ to start over. Pass further server options after it.
 
-mkdir -p plugin-config-data
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+RUN="${ROOT}/.simulator"
 
-if [ ! -f node_modules/signalk-simulator ]; then
-  npm install signalk/simulatorplugin
+npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin"
+npx --prefix "${ROOT}" tsc -p "${ROOT}/simulator/plugin/webapp"
+mkdir -p "${RUN}/node_modules" "${RUN}/plugin-config-data"
+cp "${ROOT}/settings/simulator.json" "${RUN}/settings.json"
+ln -sfn "${ROOT}/simulator/plugin" "${RUN}/node_modules/signalk-simulator"
+
+CONFIG="${RUN}/plugin-config-data/signalk-simulator.json"
+if [ ! -f "${CONFIG}" ]; then
+  cp "${ROOT}/settings/simulator-plugin.json" "${CONFIG}"
 fi
 
-if [ ! -f plugin-config-data/simulator.json ]; then
-  cat >plugin-config-data/simulator.json <<End-of-message
-{
-  "enabled": true,
-  "configuration": {
-    "items": [
-      {
-        "path": "navigation.speedOverGround",
-        "minValue": 0,
-        "maxValue": 10,
-        "dataPeriod": 60,
-        "outputPeriod": 2
-      }
-    ]
-  }
-}
-End-of-message
+# The server's own NMEA 0183 converter, sending the own boat as RMC, HDT and VTG on its
+# NMEA 0183 TCP port (10110). AIS targets as VDM need signalk-vessels-to-ais as well; see
+# simulator/plugin/README.md.
+NMEA0183="${RUN}/plugin-config-data/sk-to-nmea0183.json"
+if [ ! -f "${NMEA0183}" ]; then
+  cp "${ROOT}/settings/simulator-nmea0183.json" "${NMEA0183}"
 fi
 
-
-DIR=`dirname $0`
-${DIR}/signalk-server -s ${DIR}/../settings/simulator.json $*
+exec "${ROOT}/bin/signalk-server" -c "${RUN}" "$@"

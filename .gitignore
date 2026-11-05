@@ -75,3 +75,24 @@ nul
 test/server-test-config/debug
 # Per-developer local Makefile (deploy shortcuts, scratch targets)
 Makefile.local
+
+# Simulator: gated source data and large downloads stay on the machine that fetched them
+simulator/downloads/*
+!simulator/downloads/README.md
+simulator/samples/*/restricted/
+simulator/samples/*/cache/
+
+# Soak test reports are per run and per machine
+simulator/soak/reports/
+
+# the simulator plugin's page, built from simulator/plugin/webapp
+simulator/plugin/public/
+
+# bin/simulator's configuration directory
+/.simulator/
+
+# bin/simulator-busy configuration directory
+/.simulator-busy/
+
+# bin/simulator-replay configuration directory
+/.simulator-replay/

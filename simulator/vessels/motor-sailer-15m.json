@@ -1,0 +1,61 @@
+{
+  "id": "motor-sailer-15m",
+  "name": "15 m motor-sailer",
+  "lengthM": 15,
+  "beamM": 4.6,
+  "draftM": 1.8,
+  "displacementT": 22,
+  "typeCode": 36,
+  "rig": "motor",
+  "maxSpeedKn": 10,
+  "persons": 4,
+  "engines": [
+    {
+      "id": "main",
+      "displayName": "Engine",
+      "type": "diesel",
+      "powerKw": 110,
+      "maxRpm": 2800,
+      "idleRpm": 700
+    }
+  ],
+  "generators": [
+    {
+      "id": "generator1",
+      "displayName": "Generator",
+      "powerKw": 8,
+      "rpm": 1500,
+      "chargesBank": "house"
+    }
+  ],
+  "solar": [
+    {
+      "id": "array",
+      "displayName": "Solar array",
+      "peakW": 800,
+      "bank": "house"
+    }
+  ],
+  "sounders": [
+    {
+      "id": "sounder",
+      "displayName": "Depth sounder",
+      "depthM": 0.7,
+      "offsetM": 0
+    }
+  ],
+  "tanks": {
+    "fuel": [
+      {
+        "id": "fuelPort",
+        "displayName": "Port fuel",
+        "capacityL": 900
+      },
+      {
+        "id": "fuelStarboard",
+        "displayName": "Starboard fuel",
+        "capacityL": 900
+      }
+    ]
+  }
+}
