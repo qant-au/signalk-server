@@ -41,6 +41,15 @@ import {
   switchPath,
   switchValue
 } from '../switching/switches'
+import { RecordKeeper, RecordStart } from '../history/keeper'
+import { RecordHistory } from '../history/provider'
+import { RecordPlayback } from '../history/playback'
+import {
+  Position as WeatherPosition,
+  SampleWeather,
+  WeatherReqParams as WeatherOptions
+} from '../weather/provider'
+import { recordWords } from '../history/record'
 
 /**
  * The Signal K Simulator as a server plugin. Its settings are on the plugin's page in the
@@ -147,6 +156,19 @@ interface App {
     mob(message?: string): string
     clear(id: string): void
   }
+  /** the server's Weather API, which asks the provider for observations and forecasts */
+  registerWeatherProvider?(provider: {
+    name: string
+    methods: Record<string, unknown>
+  }): void
+  weatherApi?: { unRegister(pluginId: string): void }
+  /** the server's History API, which asks the provider for values over a time range */
+  registerHistoryApiProvider?(provider: object): void
+  /** the server's older playback and snapshot API */
+  registerHistoryProvider?(provider: object): void
+  /** the context the server knows the own vessel by */
+  selfContext?: string
+  getMetadata?(path: string): { units?: string } | undefined
   subscriptionmanager?: {
     subscribe(
       command: {
@@ -185,6 +207,8 @@ const FIELD_LABELS: Record<IdentityField, string> = {
 const PLUGIN_ID = 'signalk-simulator'
 const TICK_MS = 1000
 const SAVE_EVERY_TICKS = 10
+/** the record is larger than the run's state, so it is written less often, and at a stop */
+const RECORD_SAVE_EVERY_TICKS = 60
 const TIME_MULTIPLIERS = [1, 2, 5, 10, 20, 24, 30, 60, 120, 300]
 const DEFAULTS: Options = {
   sample: 'miami-icw-2024-03-16',
@@ -300,8 +324,19 @@ export = function simulatorPlugin(app: App) {
 
   function send(delta: Delta) {
     dropped.heard(delta.context)
+    keeper.add(delta, recordMs)
     app.handleMessage(PLUGIN_ID, delta)
   }
+
+  /** the run's record, and the scenario time what is sent now goes into it at */
+  const keeper = new RecordKeeper(
+    () => path.join(app.getDataDirPath(), 'record.bin'),
+    (message) => app.debug(message)
+  )
+  let recordMs = 0
+  /** the run's sample weather, for the Weather API */
+  let sampleWeather: SampleWeather | undefined
+  const scenarioNow = () => simulation?.scenarioMs ?? recordMs
 
   const heldBackNote = () =>
     dropped.heldBack
@@ -456,6 +491,20 @@ export = function simulatorPlugin(app: App) {
         ? saved.scenarioMs
         : departure + options.startAtMinutes * 60000
 
+    const recordStart: RecordStart = restart
+      ? 'restart'
+      : options.resume && saved?.sample === options.sample
+        ? 'resume'
+        : 'fresh'
+    keeper.begin(options.sample, scenarioStartMs, recordStart)
+    recordMs = scenarioStartMs
+    sampleWeather = new SampleWeather(
+      scenario.environment,
+      scenarioNow,
+      options.sample
+    )
+    registerProviders()
+
     const start = (systemsState: SystemsState | undefined) =>
       new Simulation(
         scenario,
@@ -570,6 +619,7 @@ export = function simulatorPlugin(app: App) {
       busy = true
       const now = Date.now()
       const sentMs = simulation.advance(now)
+      recordMs = sentMs
       await course.at(simulation.routeMs(sentMs))
       if (!simulation) return
       const result = simulation.send(now)
@@ -578,6 +628,7 @@ export = function simulatorPlugin(app: App) {
       const arriving = result.finished && !arrived
       arrived = result.finished
       if (ticks % SAVE_EVERY_TICKS === 0 || arriving) save(result.scenarioMs)
+      if (ticks % RECORD_SAVE_EVERY_TICKS === 0 || arriving) keeper.save()
       const depth =
         result.depthM !== undefined
           ? `, depth ${result.depthM.toFixed(1)} m`
@@ -644,7 +695,7 @@ export = function simulatorPlugin(app: App) {
             : 'Under way'
       app.setPluginStatus(
         `${state}: ${fmtTime(result.scenarioMs)} ` +
-          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn${overboard}${water}${lights}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
+          `at x${simulation.timeMultiplier}, ${result.position.sogKn.toFixed(1)} kn, ${recordWords(keeper.record)}${overboard}${water}${lights}${piloted}${next}${anchored}${depth}${weather}${traffic}${systems}${faulty}${alarmed}` +
           (notes.length ? ` (${notes.join('; ')})` : '')
       )
     }, TICK_MS)
@@ -654,8 +705,59 @@ export = function simulatorPlugin(app: App) {
   function stopRun() {
     if (timer) clearInterval(timer)
     timer = undefined
+    if (simulation) keeper.save()
     simulation?.forgetAll()
     simulation = undefined
+  }
+
+  /**
+   * The run's weather to the server's Weather API, and its record to the History API and
+   * the older playback and snapshot API. Each asks the run in progress, so they are
+   * registered once and stay with the server until the plugin stops.
+   */
+  let providersRegistered = false
+  function registerProviders() {
+    if (providersRegistered) return
+    providersRegistered = true
+    const sample = () => {
+      if (!sampleWeather) throw new Error('the run has not started')
+      return sampleWeather
+    }
+    try {
+      app.registerWeatherProvider?.({
+        name: 'Signal K Simulator',
+        methods: {
+          pluginId: PLUGIN_ID,
+          getObservations: async (
+            position: WeatherPosition,
+            options?: WeatherOptions
+          ) => sample().getObservations(position, options),
+          getForecasts: async (
+            position: WeatherPosition,
+            type: 'point' | 'daily',
+            options?: WeatherOptions
+          ) => sample().getForecasts(position, type, options),
+          getWarnings: async (position: WeatherPosition) =>
+            sample().getWarnings(position)
+        }
+      })
+    } catch (error) {
+      app.error(`weather provider: ${(error as Error).message}`)
+    }
+    const selfContext = app.selfContext ?? 'vessels.self'
+    const record = () => keeper.record
+    try {
+      app.registerHistoryApiProvider?.(
+        new RecordHistory(record, {
+          selfContext,
+          nowMs: scenarioNow,
+          unitsOf: (p) => app.getMetadata?.(`vessels.self.${p}`)?.units
+        })
+      )
+    } catch (error) {
+      app.error(`history provider: ${(error as Error).message}`)
+    }
+    app.registerHistoryProvider?.(new RecordPlayback(record, selfContext))
   }
 
   /**
@@ -823,7 +925,12 @@ export = function simulatorPlugin(app: App) {
   const control: Control = {
     run() {
       if (!current || !simulation) throw new ControlError(503, 'not running')
-      return { ...current, simulation }
+      return {
+        ...current,
+        simulation,
+        record: keeper.record,
+        weather: sampleWeather
+      }
     },
     async setRun(change) {
       const { simulation: sim, scenario } = control.run()
@@ -981,6 +1088,9 @@ export = function simulatorPlugin(app: App) {
     stop() {
       stopped = true
       pilotRegistered = false
+      // the server drops the history providers as the plugin stops, but not the weather
+      providersRegistered = false
+      app.weatherApi?.unRegister(PLUGIN_ID)
       putPaths.clear()
       for (const unsubscribe of unsubscribes) unsubscribe()
       unsubscribes = []

@@ -7,6 +7,8 @@ import { FaultError, Faults } from '../faults/faults'
 import { bridgeHoldAt, bridgeWords, nextPointIndex } from '../routes/route'
 import { BOW_HEIGHT_PER_LENGTH } from '../systems/anchor'
 import { bankChannels, switchList } from '../switching/switches'
+import { RunRecord } from '../history/record'
+import { SampleWeather } from '../weather/provider'
 
 /**
  * The plugin's REST surface, under /plugins/signalk-simulator: the run (where the boat
@@ -52,6 +54,10 @@ export interface Control {
     options: { sample: string; showTraffic: boolean; seed: number }
     scenario: Scenario
     simulation: Simulation
+    /** what the boat has sent, for the History API */
+    record?: RunRecord
+    /** the sample's weather, for the Weather API */
+    weather?: SampleWeather
   }
   setRun(change: RunChange): Promise<void>
   faults(): Faults
@@ -170,7 +176,7 @@ function runChange(control: Control, body: unknown): RunChange {
 
 /** the run as GET /run gives it */
 export function runView(control: Control) {
-  const { options, scenario, simulation } = control.run()
+  const { options, scenario, simulation, record, weather } = control.run()
   const result = simulation.last
   const legs = scenario.legs
   const departMs = legs[0].departMs
@@ -196,6 +202,16 @@ export function runView(control: Control) {
       : undefined
   const pilot = simulation.pilot
   const rejoin = pilot?.rejoin
+  // the Weather API at the boat: the latest observation, how far ahead it forecasts, the warnings
+  const at = position && { latitude: position.lat, longitude: position.lon }
+  const forecast =
+    weather && at
+      ? {
+          observation: weather.getObservations(at, { maxCount: 1 })[0],
+          forecastTo: isoOrNone(weather.forecastToMs),
+          warnings: weather.getWarnings(at)
+        }
+      : undefined
   const targets = position
     ? [...simulation.targets.values()]
         .map((t) => ({
@@ -279,21 +295,24 @@ export function runView(control: Control) {
       watchRadiusM: round(anchor.watchRadiusM, 1)
     },
     depthM: result?.depthM === undefined ? undefined : round(result.depthM, 1),
-    weather: summary && {
-      windKn: round(summary.weather.windKn, 1),
-      windDeg: Math.round(summary.weather.windDeg),
-      pressureHpa: round(summary.weather.pressurePa / 100, 1),
-      airC: round(summary.weather.airC, 1),
-      waterC: round(summary.weather.waterC, 1),
-      humidity:
-        summary.weather.humidity === undefined
-          ? undefined
-          : round(summary.weather.humidity, 2),
-      tideM:
-        summary.weather.tideM === undefined
-          ? undefined
-          : round(summary.weather.tideM, 2)
-    },
+    weather: summary
+      ? {
+          windKn: round(summary.weather.windKn, 1),
+          windDeg: Math.round(summary.weather.windDeg),
+          pressureHpa: round(summary.weather.pressurePa / 100, 1),
+          airC: round(summary.weather.airC, 1),
+          waterC: round(summary.weather.waterC, 1),
+          humidity:
+            summary.weather.humidity === undefined
+              ? undefined
+              : round(summary.weather.humidity, 2),
+          tideM:
+            summary.weather.tideM === undefined
+              ? undefined
+              : round(summary.weather.tideM, 2),
+          ...forecast
+        }
+      : forecast,
     water: summary && {
       currentKn: round(summary.water.currentKn, 2),
       currentSetDeg: Math.round(summary.water.currentToDeg) % 360,
@@ -367,6 +386,13 @@ export function runView(control: Control) {
           }
         ]
       : [],
+    /** the record the History API answers from: its span, its rows and the memory it takes */
+    history: record && {
+      from: isoOrNone(record.startMs),
+      to: isoOrNone(record.endMs),
+      rows: record.rows,
+      bytes: record.bytes
+    },
     /** each person overboard: where they went in, and her bearing and distance from them */
     mob: simulation.mobs().map((m) => ({
       by: m.by,
@@ -467,5 +493,7 @@ export function dangerOrder(limits: CollisionLimits) {
 }
 
 const iso = (ms: number) => new Date(ms).toISOString()
+const isoOrNone = (ms: number | undefined) =>
+  ms === undefined ? undefined : iso(ms)
 const round = (x: number, places: number) =>
   Math.round(x * 10 ** places) / 10 ** places
