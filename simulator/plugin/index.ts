@@ -163,7 +163,6 @@ interface App {
     name: string
     methods: Record<string, unknown>
   }): void
-  weatherApi?: { unRegister(pluginId: string): void }
   /** the server's History API, which asks the provider for values over a time range */
   registerHistoryApiProvider?(provider: object): void
   /** the server's older playback and snapshot API */
@@ -1114,9 +1113,8 @@ export = function simulatorPlugin(app: App) {
     stop() {
       stopped = true
       pilotRegistered = false
-      // the server drops the history providers as the plugin stops, but not the weather
+      // the server drops the three providers as the plugin stops
       providersRegistered = false
-      app.weatherApi?.unRegister(PLUGIN_ID)
       putPaths.clear()
       for (const unsubscribe of unsubscribes) unsubscribe()
       unsubscribes = []

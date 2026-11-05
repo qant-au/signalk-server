@@ -673,7 +673,6 @@ describe('Simulator history', () => {
         playback?: RecordPlayback
       } = {}
       const errors: string[] = []
-      const unregistered: string[] = []
       let status = ''
       const plugin = simulatorPlugin({
         handleMessage: () => undefined,
@@ -693,7 +692,6 @@ describe('Simulator history', () => {
         registerWeatherProvider: (p: never) => {
           providers.weather = p
         },
-        weatherApi: { unRegister: (id: string) => unregistered.push(id) },
         registerHistoryApiProvider: (p: never) => {
           providers.history = p
         },
@@ -782,7 +780,6 @@ describe('Simulator history', () => {
         plugin.stop()
         mock.timers.reset()
       }
-      expect(unregistered).to.deep.equal(['signalk-simulator'])
       const saved = RunRecord.restore(
         readFileSync(path.join(tmp, 'record.bin')),
         'miami-icw-2024-03-16'

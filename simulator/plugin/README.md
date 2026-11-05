@@ -279,9 +279,8 @@ run's state and kept across a resume ([history](../history/README.md)). The serv
 the first weather provider it hears its default. As the run starts the plugin makes
 itself the default history provider through the server's History API, so a server whose
 settings name another (the rig's names KIP) answers from the run, unless the setting
-below is off ([history](../history/README.md#the-default-provider)).
-The server drops the history providers when the plugin stops, and the plugin drops its
-weather provider itself.
+below is off ([history](../history/README.md#the-default-provider)). The server drops
+all three providers when the plugin stops.
 
 **Traffic.** Each AIS target in the sample is interpolated along its source track and
 transmits at the real rate for its class, speed, status and turning. Each transmission
