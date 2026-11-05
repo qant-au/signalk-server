@@ -772,7 +772,7 @@ export = function simulatorPlugin(app: App) {
             )
           else if (r.problem)
             app.error(
-              `could not make this the default history provider (${r.problem}); set it in the Admin UI, Server, Settings`
+              `could not make this the default history provider (${r.problem}); set it in the Admin UI, Apps & Plugins, Configuration`
             )
         }
       )

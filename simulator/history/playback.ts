@@ -9,7 +9,7 @@ import { SOURCE } from '../soak/deltas'
 
 /**
  * The record replayed through the server's older playback API: a WebSocket opened at
- * `/signalk/v1/stream?startTime=...&playbackRate=...` is handed to `streamHistory`, which
+ * `/signalk/v1/playback?startTime=...&playbackRate=...` is handed to `streamHistory`, which
  * sends the record from that time as deltas, the own vessel's row and each target's,
  * stamped with the time they were recorded, at `playbackRate` times real time. The
  * snapshot API (`/signalk/v1/snapshot/...?time=...`) asks `getHistory` for the state at a
