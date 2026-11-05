@@ -120,6 +120,20 @@ export class Environment {
     return this.byField.has(field)
   }
 
+  /** the time the sample's records cover, from the first reading of any to the last */
+  span(): { startMs: number; endMs: number } | undefined {
+    let startMs = Infinity
+    let endMs = -Infinity
+    for (const st of this.stations) {
+      for (const s of Object.values(st.series)) {
+        if (!s.ms.length) continue
+        startMs = Math.min(startMs, s.ms[0])
+        endMs = Math.max(endMs, s.ms[s.ms.length - 1])
+      }
+    }
+    return Number.isFinite(startMs) ? { startMs, endMs } : undefined
+  }
+
   /** one quantity at a place and time, or undefined where the sample has none of it */
   value(
     field: Field,
