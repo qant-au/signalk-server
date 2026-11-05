@@ -8,6 +8,9 @@ import { Simulation } from '../simulator/engine/simulation'
 import { Control, controlRoutes } from '../simulator/plugin/control'
 import { Route, routeLegs } from '../simulator/routes/route'
 import { loadProfile } from '../simulator/vessels/profile'
+import { RunRecord } from '../simulator/history/record'
+import { loadEnvironment } from '../simulator/weather/environment'
+import { SampleWeather } from '../simulator/weather/provider'
 
 const VESSELS = path.join(__dirname, '..', 'simulator', 'vessels')
 const START = Date.parse('2024-03-16T14:00:00Z')
@@ -49,6 +52,7 @@ describe('Simulator REST surface', () => {
   let simulation: Simulation
   let wallMs = 0
   const restarts: number[] = []
+  const record = new RunRecord()
 
   before(async () => {
     const s = scenario()
@@ -60,8 +64,22 @@ describe('Simulator REST surface', () => {
         scenarioStartMs: START + 30 * MINUTE,
         seed: 1
       },
-      () => undefined,
+      (d) => record.add(d, simulation?.scenarioMs ?? START + 30 * MINUTE),
       0
+    )
+    // the Miami sample's weather, for the Weather API at the boat
+    const weather = new SampleWeather(
+      loadEnvironment(
+        path.join(
+          __dirname,
+          '..',
+          'simulator',
+          'samples',
+          'miami-icw-2024-03-16'
+        )
+      ),
+      () => simulation.scenarioMs,
+      'miami-icw-2024-03-16'
     )
     // a few of the model's steps, so the engines are running
     wallMs = 4000
@@ -70,7 +88,9 @@ describe('Simulator REST surface', () => {
       run: () => ({
         options: { sample: 'test', showTraffic: false, seed: 1 },
         scenario: s,
-        simulation
+        simulation,
+        record,
+        weather
       }),
       async setRun(change) {
         if (change.paused !== undefined || change.timeMultiplier !== undefined)
@@ -159,6 +179,21 @@ describe('Simulator REST surface', () => {
     expect(body.inverters[0]).to.include({ id: 'inverter', bank: 'house' })
     expect(body.inverters[0].mode).to.be.oneOf(['inverting', 'standby'])
     expect(body.mob).to.deep.equal([])
+  })
+
+  it('reads the record and the Weather API at the boat', async () => {
+    const { body } = await call('GET', '/run')
+    expect(body.history.from).to.equal('2024-03-16T14:30:00.000Z')
+    expect(body.history.rows).to.equal(record.rows)
+    expect(body.history.bytes).to.equal(record.bytes)
+    expect(body.weather.observation.type).to.equal('observation')
+    expect(body.weather.observation.date).to.equal(
+      new Date(simulation.scenarioMs).toISOString()
+    )
+    expect(body.weather.forecastTo).to.equal('2024-03-17T23:54:00.000Z')
+    expect(body.weather.warnings).to.deep.equal([])
+    // the instruments' weather alongside it
+    expect(body.weather.windKn).to.be.a('number')
   })
 
   it('pauses, sets the multiplier and jumps, and refuses a bad change', async () => {
