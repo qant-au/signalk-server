@@ -41,6 +41,15 @@ import {
 import { hasInverter } from '../switching/inverters'
 import { NotificationManager } from '../../src/api/notifications/notificationManager'
 import type { NotificationApplication } from '../../src/api/notifications'
+import {
+  OWN_CONTEXT,
+  RECORD_ROWS,
+  RECORD_STEP_MS,
+  RunRecord,
+  recordBoundBytes
+} from '../history/record'
+import { RecordHistory } from '../history/provider'
+import { STRONG_WIND_KN, SampleWeather } from '../weather/provider'
 
 // The server pins signalk-schema 1.0; free names under environment.inside need 1.1 or
 // later, so the deltas are validated against the newer copy the streams package uses.
@@ -123,6 +132,10 @@ interface CaseResult {
   half: { ms: number; systems: SystemsState }
   /** PUTs the boat must refuse, tried each tick: how many, and any she took */
   refusals: { tried: number; taken: string[] }
+  /** what the boat sent, as the plugin records it for the History API */
+  record: RunRecord
+  /** the record saved halfway, as a stop would save it */
+  recordHalf: Buffer
 }
 
 interface Note {
@@ -449,6 +462,9 @@ function run(soak: SoakCase): CaseResult {
   const refusals: CaseResult['refusals'] = { tried: 0, taken: [] }
   const radarIds = soak.profile.radars.map((r) => r.id)
   const latest = new Map<string, unknown>()
+  const record = new RunRecord()
+  let recordHalf: Buffer | undefined
+  for (const d of pending) record.add(d, soak.startMs)
   const check = (batch: Delta[]) => {
     for (const d of batch) {
       deltas++
@@ -464,6 +480,7 @@ function run(soak: SoakCase): CaseResult {
   pending = []
   for (let i = 1; i <= tickCount; i++) {
     const result = sim.tick(i * TICK_MS)
+    for (const d of pending) record.add(d, result.scenarioMs)
     const pilot = sim.pilot
     if (pilot && soak.pilot === 'route') {
       // back on the pilot whenever she is under way and it stands by
@@ -514,8 +531,10 @@ function run(soak: SoakCase): CaseResult {
     )
       refuse('windlass')
     if (navState === 'moored') for (const id of radarIds) refuse(id)
-    if (i === Math.round(tickCount / 2))
+    if (i === Math.round(tickCount / 2)) {
       half = { ms: result.scenarioMs, systems: sim.systems!.save() }
+      recordHalf = record.save({ sample: soak.sample })
+    }
     if (sim.faults!.active().some((f) => f.kind === 'anchorDragging'))
       dragged = true
     const p = result.position
@@ -577,8 +596,35 @@ function run(soak: SoakCase): CaseResult {
     lightsTries,
     meta,
     half: half!,
-    refusals
+    refusals,
+    record,
+    recordHalf: recordHalf!
   }
+}
+
+/** the start of the record's row a scenario time falls in */
+const slotOf = (ms: number) => Math.floor(ms / RECORD_STEP_MS) * RECORD_STEP_MS
+
+/** the History API over a case's record, the scenario time at its end */
+function historyOf(r: CaseResult): RecordHistory {
+  return new RecordHistory(() => r.record, {
+    selfContext: OWN_CONTEXT,
+    nowMs: () => r.ticks.at(-1)!.ms,
+    unitsOf: () => undefined
+  })
+}
+
+/** the paths a tick sent of the own vessel that the record keeps: numbers and the position */
+function recordedPaths(t: Tick): Map<string, number | [number, number]> {
+  const out = new Map<string, number | [number, number]>()
+  for (const [key, value] of t.values) {
+    const p = key.includes(':') ? key.slice(key.indexOf(':') + 1) : key
+    if (typeof value === 'number' && Number.isFinite(value)) out.set(p, value)
+    const pos = value as { latitude?: number; longitude?: number } | null
+    if (p === 'navigation.position' && typeof pos?.latitude === 'number')
+      out.set(p, [pos.longitude!, pos.latitude])
+  }
+  return out
 }
 
 type Band = [number, number]
@@ -2279,6 +2325,253 @@ describe('Simulator systems soak', function () {
       expect(acJ, r.soak.name).to.be.closeTo(0.9 * drawnJ, 0.05 * drawnJ)
     })
   )
+
+  it(
+    'observes, through the Weather API, what the instruments showed at that moment',
+    each((r) => {
+      const env = r.soak.environment
+      if (!env) return
+      const problems: string[] = []
+      let windDiffKn = 0
+      let dirDiffS = 0
+      let dirDiffC = 0
+      let windTicks = 0
+      for (const t of r.ticks.filter((_, i) => i % 15 === 0)) {
+        const weather = new SampleWeather(env, () => t.ms, r.soak.sample)
+        const [obs] = weather.getObservations(
+          { latitude: t.lat, longitude: t.lon },
+          { maxCount: 1 }
+        )
+        if (!obs) continue
+        expect(obs.date).to.equal(new Date(t.ms).toISOString())
+        const near = (path: string, value: number | undefined, tol: number) => {
+          const sent = t.values.get(path)
+          if (typeof sent !== 'number' || value === undefined) return
+          if (Math.abs(sent - value) > tol && problems.length < 10)
+            problems.push(
+              `${new Date(t.ms).toISOString()} ${path}: sent ${sent}, observed ${value}`
+            )
+        }
+        near('environment.outside.temperature', obs.outside?.temperature, 0.05)
+        near('environment.outside.pressure', obs.outside?.pressure, 5)
+        near(
+          'environment.outside.relativeHumidity',
+          obs.outside?.relativeHumidity,
+          0.005
+        )
+        near('environment.water.temperature', obs.water?.temperature, 0.05)
+        near('environment.tide.heightNow', obs.water?.level, 0.005)
+        // the instruments' wind is the sample's with the seed's gusts and shifts on it
+        const speed = t.values.get('environment.wind.speedTrue')
+        const dir = t.values.get('environment.wind.directionTrue')
+        if (
+          typeof speed === 'number' &&
+          typeof dir === 'number' &&
+          obs.wind?.speedTrue !== undefined &&
+          obs.wind.directionTrue !== undefined
+        ) {
+          windTicks++
+          windDiffKn += (speed - obs.wind.speedTrue) / KNOT_MS
+          if (obs.wind.speedTrue > 3 * KNOT_MS) {
+            dirDiffS += Math.sin(dir - obs.wind.directionTrue)
+            dirDiffC += Math.cos(dir - obs.wind.directionTrue)
+          }
+        }
+      }
+      expect(problems, r.soak.name).to.deep.equal([])
+      // a boat with no wind instrument sends none to compare
+      if (!r.ticks.some((t) => t.values.has('environment.wind.speedTrue')))
+        return
+      expect(windTicks, r.soak.name).to.be.above(10)
+      expect(Math.abs(windDiffKn / windTicks), r.soak.name).to.be.below(1.5)
+      expect(
+        Math.abs(Math.atan2(dirDiffS, dirDiffC)) / RAD,
+        r.soak.name
+      ).to.be.below(15)
+    })
+  )
+
+  it(
+    'forecasts on the hour in order, a day at a time a day apart, and warns only where the record has the wind for it',
+    each((r) => {
+      const env = r.soak.environment
+      if (!env) return
+      for (const t of [r.ticks[0], r.ticks[Math.floor(r.ticks.length / 2)]]) {
+        const at = { latitude: t.lat, longitude: t.lon }
+        const weather = new SampleWeather(env, () => t.ms, r.soak.sample)
+        const points = weather.getForecasts(at, 'point')
+        for (let i = 1; i < points.length; i++)
+          expect(
+            Date.parse(points[i].date) - Date.parse(points[i - 1].date)
+          ).to.equal(HOUR_MS)
+        const days = weather.getForecasts(at, 'daily')
+        for (let i = 1; i < days.length; i++)
+          expect(
+            Date.parse(days[i].date) - Date.parse(days[i - 1].date)
+          ).to.equal(DAY_MS)
+        // the wind ahead, looked at independently every five minutes
+        const end = env.span()!.endMs
+        const strong: [number, number][] = []
+        let from: number | undefined
+        let last = t.ms
+        for (let ms = t.ms; ms <= end; ms += 5 * 60_000) {
+          const kn = env.at(t.lat, t.lon, ms).windKn ?? 0
+          if (kn >= STRONG_WIND_KN) {
+            from ??= ms
+            last = ms
+          } else if (from !== undefined) {
+            strong.push([from, last])
+            from = undefined
+          }
+        }
+        if (from !== undefined) strong.push([from, last])
+        const warnings = weather.getWarnings(at)
+        const long = strong.filter(([a, b]) => b - a >= HOUR_MS)
+        expect(warnings.length, r.soak.name).to.be.at.most(long.length)
+        for (const w of warnings) {
+          expect(
+            Date.parse(w.endTime) - Date.parse(w.startTime)
+          ).to.be.at.least(HOUR_MS)
+          for (
+            let ms = Date.parse(w.startTime);
+            ms <= Date.parse(w.endTime);
+            ms += 10 * 60_000
+          )
+            expect(env.at(t.lat, t.lon, ms).windKn!).to.be.at.least(
+              STRONG_WIND_KN
+            )
+        }
+        if (!long.length) expect(warnings, r.soak.name).to.deep.equal([])
+      }
+    })
+  )
+
+  const eachAsync = (fn: (r: CaseResult) => Promise<void>) => async () => {
+    for (const r of results.values()) await fn(r)
+  }
+
+  it(
+    'records every path the boat sent, and gives the sent values back through the History API at the resolution asked',
+    eachAsync(async (r) => {
+      const from = r.record.startMs!
+      const to = r.record.endMs! + RECORD_STEP_MS
+      const kept = r.ticks.filter((t) => t.ms >= from)
+      const sent = new Set<string>()
+      for (const t of kept) for (const p of recordedPaths(t).keys()) sent.add(p)
+      expect(r.record.ownPaths(from, to), r.soak.name).to.include.members([
+        ...sent
+      ])
+      const paths = [
+        'navigation.speedOverGround',
+        'navigation.position',
+        'environment.outside.pressure'
+      ]
+      // a tick a minute: each minute's bucket holds that tick's values, whatever the method
+      const byMinute = new Map(
+        kept.map((t) => [slotOf(t.ms), recordedPaths(t)])
+      )
+      for (const method of ['average', 'first', 'last'] as const) {
+        const v = await historyOf(r).getValues({
+          from: { epochMilliseconds: from },
+          to: { epochMilliseconds: to },
+          resolution: 60,
+          pathSpecs: paths.map((path) => ({
+            path,
+            aggregate: method,
+            parameter: []
+          }))
+        })
+        let compared = 0
+        for (const row of v.data) {
+          const tick = byMinute.get(Date.parse(row[0] as string))
+          if (!tick) continue
+          paths.forEach((p, i) => {
+            const sentValue = tick.get(p)
+            if (sentValue === undefined) return
+            compared++
+            expect(
+              row[i + 1],
+              `${r.soak.name} ${p} ${method} ${row[0]}`
+            ).to.deep.equal(sentValue)
+          })
+        }
+        expect(compared, r.soak.name).to.be.above(kept.length)
+      }
+    })
+  )
+
+  it(
+    "averages a five-minute bucket of the boat's speed as the five ticks in it average",
+    eachAsync(async (r) => {
+      const from = r.record.startMs!
+      const v = await historyOf(r).getValues({
+        from: { epochMilliseconds: from },
+        to: { epochMilliseconds: from + 6 * HOUR_MS },
+        resolution: 300,
+        pathSpecs: [
+          {
+            path: 'navigation.speedOverGround',
+            aggregate: 'average',
+            parameter: []
+          }
+        ]
+      })
+      for (const row of v.data) {
+        const start = Date.parse(row[0] as string)
+        const xs = r.ticks
+          .filter(
+            (t) => slotOf(t.ms) >= start && slotOf(t.ms) < start + 300_000
+          )
+          .map((t) => t.values.get('navigation.speedOverGround'))
+          .filter((x): x is number => typeof x === 'number')
+        if (!xs.length) expect(row[1]).to.equal(null)
+        else
+          expect(row[1] as number, r.soak.name).to.be.closeTo(
+            xs.reduce((a, b) => a + b, 0) / xs.length,
+            1e-9
+          )
+      }
+    })
+  )
+
+  let largestRecord = { name: '', paths: 0, bytes: 0 }
+  it(
+    'keeps the record through a resume, and holds a day of the boat within its bound',
+    each((r) => {
+      // the record saved halfway, read back as a resume reads it, holds what was sent
+      const resumed = RunRecord.restore(r.recordHalf, r.soak.sample)!
+      const rows = resumed.ownRows(-Infinity, Infinity)
+      expect(rows.length, r.soak.name).to.be.above(100)
+      expect(rows.at(-1)!.ms, r.soak.name).to.equal(
+        r.half.ms - (r.half.ms % RECORD_STEP_MS)
+      )
+      const byMs = new Map(r.ticks.map((t) => [slotOf(t.ms), recordedPaths(t)]))
+      let compared = 0
+      for (const row of rows) {
+        const tick = byMs.get(row.ms)
+        if (!tick) continue
+        for (const p of ['navigation.speedOverGround', 'navigation.position']) {
+          if (!tick.has(p)) continue
+          compared++
+          expect(row.value(p), r.soak.name).to.deep.equal(tick.get(p))
+        }
+      }
+      expect(compared, r.soak.name).to.be.above(rows.length)
+      expect(r.record.endMs! - r.record.startMs!, r.soak.name).to.be.below(
+        RECORD_ROWS * RECORD_STEP_MS
+      )
+      const paths = r.record.ownPathNames.length
+      expect(r.record.bytes, r.soak.name).to.be.at.most(recordBoundBytes(paths))
+      if (r.record.bytes > largestRecord.bytes)
+        largestRecord = { name: r.soak.name, paths, bytes: r.record.bytes }
+    })
+  )
+
+  it('reports the largest record', () => {
+    console.log(
+      `largest record: ${largestRecord.name}, ${largestRecord.paths} paths, ${(largestRecord.bytes / 1048576).toFixed(1)} MiB for a day`
+    )
+  })
 
   it(
     'raises a person overboard through the Notifications API at emergency, and nothing else',
