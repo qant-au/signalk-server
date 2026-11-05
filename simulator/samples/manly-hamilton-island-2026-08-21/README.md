@@ -149,4 +149,4 @@ CC BY 4.0. Wave buoys: State of Queensland (Department of the Environment, Touri
 and Innovation), Coastal Data System, CC BY 4.0. Weather: Weather data by Open-Meteo.com
 (https://open-meteo.com/); NOAA GFS; ECMWF IFS and WAM, CC BY 4.0.
 Magnetic variation: NOAA NCEI magnetic field calculator, International Geomagnetic
-Reference Field (IAGA).
+Reference Field (IAGA). Berth positions: OpenStreetMap contributors (ODbL).

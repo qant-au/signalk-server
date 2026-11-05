@@ -109,4 +109,5 @@ https://doi.org/10.1016/j.dib.2021.107782, data at https://zenodo.org/records/63
 Depth: EMODnet Bathymetry Consortium, EMODnet Digital Bathymetry (DTM 2024). Weather:
 Weather data by Open-Meteo.com (https://open-meteo.com/), contains modified Copernicus
 Climate Change Service information 2018. Magnetic variation: NOAA NCEI magnetic field
-calculator, International Geomagnetic Reference Field (IAGA).
+calculator, International Geomagnetic Reference Field (IAGA). Berth position: OpenStreetMap
+contributors (ODbL).
