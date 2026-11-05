@@ -306,6 +306,12 @@ going overboard away from a berth.
 
 ### Runs So Far
 
+5 November 2026, with the Weather and History APIs: 45 checks passing in 12 minutes, 83,012
+deltas validated, every bank's books balancing to within 0.001 %; the largest record, the
+45 m's day out, 251 paths and 16.8 MiB. The first run failed one check: the 4 m boat has
+no wind instrument, so the wind comparison had nothing to compare; the check now asks
+that of a boat that sends a wind.
+
 5 November 2026, with switching, the inverters and a person overboard: 39 checks passing in
 12 minutes, 83,012 deltas validated, every bank's books balancing to 0.000 %, each
 inverter's AC within 0.3 % of 90 % of what it drew (39.26 kWh for 43.59 kWh on the
