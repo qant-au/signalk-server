@@ -234,6 +234,43 @@ any surveyed water counts as safe, and, where the grid cannot resolve the harbou
 
 Figures are for a minimum depth under the keel of 1 m; a larger setting moves more legs.
 
+## Resources
+
+The plugin puts what a route knows on the server's Resources API, standard types only
+(`packages/server-api/src/resourcetypes.ts`), through the server's default resources
+provider, so a plotter shows the berths, bridges and anchorages the boat passes and the
+stretches she takes dead slow, not just the line (`routes/resources.ts`):
+
+| Type      | What                                                                                                                                                                                                                                                                                                                                                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| routes    | the route as sailed, after the adjustment for depth; the course follows it                                                                                                                                                                                                                                                                                     |
+| waypoints | every named waypoint of the planned route, with its note as the description where it has one, and each bridge the route waits for, named for the bridge. `type` (and `type` in the feature's properties) is `berth` for the first and last, `anchorage`, `bridge` or `waypoint`; a bridge's properties carry its closed clearance and every hold's its `holdS` |
+| notes     | one at each bridge (its closed clearance and how long the hold waits) and one at each anchorage (the waypoint's note: depth, bottom, how long she stays), at the point                                                                                                                                                                                         |
+| regions   | each run of consecutive legs planned at 4 kn or less, a polygon 100 m either side of the legs sailed, named for the nearest named waypoint at or before its start ("Rickenbacker Marina berth, dead slow")                                                                                                                                                     |
+
+| Sample                   | Routes | Waypoints | Notes                     | Regions                                                        |
+| ------------------------ | ------ | --------- | ------------------------- | -------------------------------------------------------------- |
+| Miami ICW                | 1      | 8         | 4, one at each bridge     | 2: out of Rickenbacker Marina, and Port Everglades to Pier 66  |
+| Saronic Gulf             | 1      | 18        | 1, at the Skala anchorage | 3: out of Zea Marina, into and out of Skala bay, back into Zea |
+| Manly to Hamilton Island | 1      | 29        | 0                         | 2: out of Manly Boat Harbour, and Dent Passage into the marina |
+
+**Ids.** Each id is a UUID made from a hash of the route's name, the type and the
+resource's name, so it is the same on every run and on every machine, and a run started
+again replaces its own resources rather than adding copies. The route keeps the id it has
+always had. A loop that ends where it began (the Saronic Gulf's Zea Marina berth) publishes
+that place once.
+
+**Derived, not charted.** The regions come from the route's leg speeds, not from a chart:
+where the route slows to 4 kn or less, there is a dead slow region, and its description
+says so. Each bend in a region is cut on the line bisecting it, no more than 141 m from the
+waypoint, so no corner lies further than that from the legs.
+
+**When.** The plugin publishes them on every start, after the route and before the course
+is set and the first position goes out, and logs one line with the counts
+(`signalk-simulator: published 1 route, 8 waypoints, 4 notes, 2 regions`). Where the server
+has no resources provider, it says so once and the boat sails without a course. Nothing is
+deleted on stop: the resources belong to the sample, and a plotter keeps them.
+
 ## Next
 
 - Tides: depths are relative to each grid's datum, with no tide applied.
