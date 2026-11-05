@@ -61,7 +61,7 @@ the anchor breaks out.
 - **The windlass** is a digital switch, `electrical.switches.windlass.state`, 1 while it
   pays out or heaves in and 0 otherwise, with `meta.displayName` "Windlass".
 - **Its draw** comes in bursts on the house bank, as a thruster's does: 80 W a metre of
-  length heaving in (1.2 kW on the 15 m yacht), a third of that paying out. The bank's
+  length heaving in (1.2 kW on the 15 m yacht), 30 % of that paying out. The bank's
   values go every second while it runs, and the books carry it as `windlass`.
 - **The 4 m boat has no windlass**: her crew hauls the anchor by hand, so she sends no
   switch and no chain counter.

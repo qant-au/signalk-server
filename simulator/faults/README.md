@@ -57,11 +57,11 @@ gives its own zones for a path moves that alarm with them. The thresholds below 
 defaults.
 
 The rest a fault raises itself, since no zone can know them: a generator that would not
-start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a
-lost fix, an autopilot dropping out, an inverter faulted; and the anchor watch raises the
-anchor alarm. A person overboard is the server's own alarm, raised through its
-Notifications API. A silent sounder never raises the shallow water alarm: no depth is not
-shallow depth, and a shallow alarm already raised clears once the sounder has been quiet
+start, a charger tripped, an alternator not charging, the bilge, a silent sounder and a lost
+fix, navigation lights out, an autopilot dropping out, an inverter faulted; and the anchor
+watch raises the anchor alarm. A person overboard is the server's own alarm, raised through
+its Notifications API. A silent sounder never raises the shallow water alarm: no depth is
+not shallow depth, and a shallow alarm already raised clears once the sounder has been quiet
 for a few seconds.
 
 ### Engine Overheating
@@ -72,7 +72,7 @@ A blocked raw-water intake (weed, a plastic bag). While the engine runs, its coo
 its pressure falls, by up to 85 % at 120 °C. A stopped engine does not heat.
 
 - **Paths:** `propulsion.<id>.coolantTemperature`, `oilTemperature` follows the engine's
-  load as before, `oilPressure` falls.
+  load, `oilPressure` falls.
 - **Notifications:** from the zones: `notifications.propulsion.<id>.coolantTemperature`
   warn at 95 °C ("coolant temperature high") and alarm at 100 °C ("overheating");
   `notifications.propulsion.<id>.oilPressure` alarm below 1 bar while the engine runs.
@@ -303,7 +303,8 @@ curl -X DELETE $SIM/faults/anchorDragging/anchor   # re-anchor where it now lies
 Or on the plugin's page in the Admin UI (Webapps, Signal K Simulator), which lists the
 faults on board with their course and has **Raise** and **Clear** buttons. A fault cleared
 by hand winds down as it would (an engine still has to cool); while it does, it shows as
-`clearing` and cannot be raised again. One already developing cannot be raised twice.
+`clearing`; raising it again by hand starts it afresh, though the seed leaves it alone. One
+already developing cannot be raised twice.
 
 ## From the Seed
 
@@ -327,11 +328,13 @@ systems afresh at the earlier time, and the faults with them.
 
 ## Tests
 
-`test/simulator-faults.ts`, in `npm test`, raises every fault on a boat that has its target
-and checks its course, its paths and its notifications, the run resuming mid-fault, the
-seed's faults and that everything sent validates against the Signal K schema (the bilge
-switches aside). `test/simulator-anchor.ts` runs the dragging anchor: only at anchor, by
-hand or the seed, the drag's pace and direction, the alarm, and the re-anchoring when it
-clears by hand, at the end of its course, or as she weighs. `test/simulator-control.ts`
-checks the REST surface. `test/simulator-deck.ts` runs the lights failure: refused by day,
-taken after dusk, its alarm, and the lights back once it is cleared by hand.
+`test/simulator-faults.ts`, in `npm test`, raises every fault from `engineOverheat` to
+`staleSensor` on a boat that has its target and checks its course, its paths and its
+notifications, the run resuming mid-fault, the seed's faults and that everything sent
+validates against the Signal K schema (the bilge switches aside). `test/simulator-anchor.ts`
+runs the dragging anchor: only at anchor, by hand or the seed, the drag's pace and
+direction, the alarm, and the re-anchoring when it clears by hand, at the end of its course,
+or as she weighs. `test/simulator-control.ts` checks the REST surface.
+`test/simulator-deck.ts` runs the lights failure: refused by day, taken after dusk, its
+alarm, and the lights back once it is cleared by hand. `test/simulator-autopilot.ts` and
+`test/simulator-switching.ts` raise the autopilot, inverter and person overboard faults.

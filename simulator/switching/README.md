@@ -29,7 +29,7 @@ hand on one, and how long the hand stays depends on the switch.
 | Bilge pump         | `bilgePump`                 | its float switch: on at 30 % of the sump, off at 5 %                 | off: stays off with water in the bilge, a decision the crew made, until switched on or the high water float closes; on: runs to the float's off point | every boat                       |
 
 The 4 m boat has only `navLights` and `bilgePump`. The bilge pump's state is sent while the
-bilge has water, as before (see the [faults README](../faults/README.md#bilge-flooding)).
+bilge has water (see the [faults README](../faults/README.md#bilge-flooding)).
 
 **Their draw** stays where it was in the books, and the switch takes it away: the
 navigation and anchor lights each 10 W plus 1.5 W a metre (`navigation lights`), the
@@ -134,12 +134,13 @@ they do the sails inventory; a test checks they are still refused.
 - **The page** has a Switches card: each switch with its bank channel, its state, and a
   button that throws it with a PUT to the server's own API, as a display would; a refusal
   shows as the page's error, and a message under the card. The Systems card shows the
-  inverter's mode and what it carries; the Where the Boat Is card shows a person
-  overboard, their bearing and distance, where they went in and when.
+  inverter's mode and what it carries; the Where the Boat Is card shows a person overboard,
+  their bearing and distance, where they went in and when.
 - **`GET /run`** carries `switches` (`id`, `name`, `state`, `channel`), `inverters` (`id`,
   `name`, `mode`, `acPowerW`, `dcPowerW`, `bank`) and `mob` (`by`, `notificationId`,
   `latitude`, `longitude`, `since`, `distanceM`, `bearingDeg`, `side`, `words`).
-- **The status line** adds each person overboard, straight after her speed.
+- **The status line** adds each person overboard, after her speed and the length of the
+  record.
 
 ## Tests
 
