@@ -1,5 +1,4 @@
 {
-  "pruneContextsMinutes": 20,
   "pipedProviders": [
     {
       "id": "replay",

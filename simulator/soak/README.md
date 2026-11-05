@@ -471,3 +471,88 @@ status plugin was marking targets the simulator had already dropped, on its own 
 timers, and each mark brought the vessel back. The plugin now holds those marks back (see
 [the AIS README](../ais/README.md#5-losing-a-target)); the held-back column counts them, and
 the subscribers are held to the server's count less them.
+
+## Recording and Replaying a Run
+
+A run can be recorded as the server's own data log and replayed on a plain Signal K server
+with no simulator plugin at all, through the server's own file playback. It is a tool, not a
+test, and is not part of `npm test`.
+
+### Recording
+
+```shell
+bin/simulator-record <sample> [--start-at N] [--hours N] [--no-traffic] [--seed N] [--out FILE]
+```
+
+| Option         | Default                                       | Meaning                                        |
+| -------------- | --------------------------------------------- | ---------------------------------------------- |
+| `--start-at`   | 0                                             | start this many minutes into the route         |
+| `--hours`      | to the end of the route                       | scenario hours to record                       |
+| `--no-traffic` | traffic on                                    | the own boat alone                             |
+| `--seed`       | 1                                             | the seed for the boat's systems                |
+| `--out`        | `simulator/soak/reports/<sample>-<start>.log` | where to write; `<start>` is the scenario time |
+
+It runs the sample headless through the Simulation (`simulator/tools/record.ts`), as the
+systems soak and the busy run's plugin drive it, a tick a scenario second, and writes every
+delta the boat and the targets send as one line of the server's multiplexed log format,
+`<ms>;I;<delta JSON>`, the format the server's own data logging writes. The log is in
+scenario time: each line's ms and its delta's timestamps are the scenario's, so there is no
+multiplier; a replay plays it at the pace it happened. The own boat's deltas carry the
+context `vessels.self`, which a replay puts under the server's own vessel.
+
+The server's line reader drops a line longer than 2048 characters where it straddles a read,
+and the own boat's fuller deltas (its identity and the meta of every value at the start, a
+tick with most of its systems) run to nearly 12,000. Such a delta is shared across lines
+of up to 2048 characters, each with the delta's context, source and timestamp; the server
+reads them as the one delta's values in turn. The file is written beside its name and moved into
+place once whole, so a failed run leaves nothing. It prints the lines written, the deltas,
+the scenario span and the file's size, and exits non-zero on a failure.
+
+### Replaying
+
+```shell
+bin/simulator-replay <file> [--port N]
+```
+
+It starts this server with no simulator plugin, from its own configuration directory,
+`.simulator-replay/` (ignored by git), made fresh on every run from
+`settings/simulator-replay.json`: one piped provider, `providers/simple` of type
+`FileStream`, data type `Multiplexed`, reading the log once through. The server's file
+playback sends each line at its time, from the first line's time at the moment it starts.
+It listens on port 4775 by default, its NMEA 0183 and TCP streams on the next two, so a
+running `bin/simulator` is left alone.
+
+A server keeps the own vessel's name, MMSI, dimensions and antenna offsets in its own vessel
+settings and drops those paths from any provider's deltas, so a replayed boat would be
+nameless. The script reads them from the log's first lines and writes them into the
+replay's vessel settings, as the Admin UI's vessel page would
+(`simulator/tools/replay-settings.ts`).
+
+**What a replay does not have.** No plugin, so no REST run control, no pause or jump, no
+faults raised, no PUTs to the switches, no autopilot, no Weather or History providers, no
+resources along the route and no course: it is the deltas as sent and nothing else, which is
+exactly what it is for. A target the simulator drops when its receiver loses it simply goes
+silent in a log; the server's own AIS status plugin then marks it `lost` and later `remove`,
+as a plotter expects, and it stays in the tree with those marks. The simulator plugin
+holds those marks back for targets it has dropped (see
+[the AIS README](../ais/README.md#5-losing-a-target)); a replay has no plugin to do that.
+
+### Miami, Recorded and Replayed
+
+Recorded on an Apple M3 Ultra, Node v26.12.1, traffic on, the whole route:
+
+| Measure                      | Miami ICW, 16 March 2024                                                                                       |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| scenario span                | 3 h 52 min, 14:00:00 to 17:52:25 UTC                                                                           |
+| deltas                       | 137,419: 41,919 for the own boat and 95,500 for targets, 9.9 a scenario second                                 |
+| lines                        | 170,914, 12.3 a scenario second: 33,495 more than the deltas, where a long own delta was shared across lines   |
+| file                         | 148.3 MiB                                                                                                      |
+| recording                    | 2 s                                                                                                            |
+| replay, deltas to the server | 11.1 a second over its first 25 minutes, from 8.6 to 20.0 (the first minute, with every target's first report) |
+
+The replay was watched for its first 27 minutes, minute by minute, against the log: the own
+boat's position was the logged position at its timestamp every minute, 0.00 m apart, the
+scenario clock moved a minute a minute, the boat was Coquina with her MMSI, and every target
+the log had sent by then was in the vessels tree (308 at the first minute, 365 by the 25th).
+Of the targets silent for twelve minutes or more, the AIS status plugin had marked all 20
+`remove`.
