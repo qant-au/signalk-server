@@ -85,3 +85,43 @@ a chart plotter or navigation program that takes NMEA 0183 over TCP at that addr
 OpenCPN, Options, Connections, Add Connection, Network, TCP, address 127.0.0.1, port 4772,
 receive. The port is bound to loopback, like the rest of the rig; a plotter on another
 machine needs it forwarded deliberately, and the rig has no security.
+
+## A Walk Through It
+
+What the rig showed on 5 November 2026, built from scratch (`docker compose build
+--no-cache`, 3 minutes) and used through a headless browser and REST, Miami at x24 unless
+said otherwise:
+
+- **Freeboard under way:** the chart north-up on the boat, her icon with its course line,
+  the blue route up the Intracoastal Waterway with its points, and the targets as AIS icons
+  with their names and course vectors, dense at the marinas. Over five minutes the vessels
+  tree went 332, 367, 450, 483, 519, 471, each one more than the plugin's targets in range,
+  as targets came into range and were lost. Freeboard asks the server for a track and for
+  symbol, plotter-extension and info layers it does not have (`/signalk/v2/api/tracks/_`
+  400, `/signalk/v1/api/self/track` and three resource types 404) and draws no trail from
+  them; that is Freeboard looking for plugins the rig does not carry.
+- **The route and the resources:** the layers panel lists the route (ticked and drawn as the
+  active course), the 8 waypoints, the 4 notes at the bridges and the 2 dead slow regions
+  with their descriptions, the same names and counts the Resources API gives.
+- **The autopilot from Freeboard:** the autopilot button opens the console headed "Autopilot
+  simulator"; engaging it went to the server's Autopilot API (`POST
+.../autopilots/_default/engage` 200), the console showed auto, route and the target 2.0°,
+  the API's `_default` showed engaged in route mode at the same target, and disengaging
+  put it back on standby.
+- **KIP:** its dashboard unlocked, a numeric widget on `navigation.speedOverGround` showed
+  7.5 kn as REST did, and a switch panel on `electrical.switches.deckLights.state` (with
+  "use numeric path" ticked, since the simulator sends 0 and 1) threw the deck lights on
+  and off: the value changed 0, 1, 0 with `$source` simulator, the PUT travelling over KIP's
+  WebSocket, and the same PUT by HTTP answered 200 and read back the same.
+- **The history provider:** `/signalk/v2/api/history/_providers` names `signalk-simulator`
+  the default beside KIP's, and the History API gave the boat's speed over the last ten
+  minutes at a minute's resolution.
+- **The anchor watch:** on the Saronic sample from 230 minutes in, she anchored in Skala bay
+  four minutes later with 40 m of chain out; the anchor alarm plugin, set to its rode counter
+  automation, took the anchor from the simulator's `navigation.anchor.rodeCounterLength`
+  and sent its own `navigation.anchor.position`, `maxRadius` 39.2 m (the chain less the
+  depth and bow), `rodeLength` and `currentRadius` 33 m with `$source` anchoralarm, and
+  `notifications.navigation.anchor` at `normal`, "Anchor Alarm - Normal"; Freeboard at zoom
+  18 drew the green anchor circle with the boat lying inside it.
+- **Every PUT and POST answered 200**; the only responses of 400 or more were Freeboard's
+  probes above.
