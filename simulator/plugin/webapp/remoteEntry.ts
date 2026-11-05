@@ -226,7 +226,10 @@ interface RunView {
     function AppPanel(): El {
       const [run, setRun] = React.useState<RunView>()
       const [available, setAvailable] = React.useState<Available[]>([])
+      // an action's refusal stays up until the next action; a read's error only while
+      // the run cannot be read
       const [error, setError] = React.useState<string>()
+      const [readError, setReadError] = React.useState<string>()
       const [kind, setKind] = React.useState('')
       const [target, setTarget] = React.useState('')
       const [minutes, setMinutes] = React.useState('')
@@ -243,9 +246,9 @@ interface RunView {
           .then(([r, f]) => {
             setRun(r)
             setAvailable(f.available)
-            setError(undefined)
+            setReadError(undefined)
           })
-          .catch((e: Error) => setError(e.message))
+          .catch((e: Error) => setReadError(e.message))
       }, [])
 
       React.useEffect(() => {
@@ -263,7 +266,10 @@ interface RunView {
 
       const act = (method: string, path: string, body?: unknown) =>
         call(method, path, body)
-          .then(refresh)
+          .then(() => {
+            setError(undefined)
+            refresh()
+          })
           .catch((e: Error) => setError(e.message))
 
       if (!run) {
@@ -967,7 +973,8 @@ interface RunView {
       return h(
         'div',
         { className: 'animated fadeIn' },
-        error && h('div', { className: 'alert alert-danger' }, error),
+        (error ?? readError) &&
+          h('div', { className: 'alert alert-danger' }, error ?? readError),
         h(
           'div',
           { className: 'row' },
