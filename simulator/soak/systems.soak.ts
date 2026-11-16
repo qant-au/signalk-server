@@ -5,6 +5,7 @@
  */
 import { expect } from 'chai'
 import path from 'path'
+import { FullSignalK } from '@signalk/server-api'
 import { DepthModel } from '../depth/depth'
 import { Simulation } from '../engine/simulation'
 import {
@@ -374,7 +375,10 @@ function validationProblems(delta: Delta, mmsi: string): string[] {
   const d = { ...forSchema(delta), context: `vessels.urn:mrn:imo:mmsi:${mmsi}` }
   const problems: string[] = []
   if (!schema.validateDelta(d).valid) problems.push('delta envelope')
-  const full = schema.validateFull(schema.deltaToFull(d))
+  // built as the server builds it, so a group's metadata stays out of the tree
+  const tree = new FullSignalK(`urn:mrn:imo:mmsi:${mmsi}`)
+  tree.addDelta(d)
+  const full = schema.validateFull(tree.retrieve())
   if (!full.valid) {
     problems.push(
       (full.errors ?? [])

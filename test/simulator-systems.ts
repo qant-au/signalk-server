@@ -1,5 +1,6 @@
 import { expect } from 'chai'
 import path from 'path'
+import { FullSignalK } from '@signalk/server-api'
 import { Simulation } from '../simulator/engine/simulation'
 import { Scenario } from '../simulator/engine/scenario'
 import { Route, routeLegs } from '../simulator/routes/route'
@@ -37,13 +38,21 @@ interface Validation {
   errors?: { message: string; dataPath?: string }[]
 }
 
+// The full model is built as the server builds it: metadata for a group (a sounder's
+// name on sensors.<id>) stays in the metadata registry and is not written into the tree.
+function serverFull(d: Delta): object {
+  const full = new FullSignalK(MMSI_CONTEXT.slice('vessels.'.length))
+  full.addDelta(d)
+  return full.retrieve()
+}
+
 function check(delta: Delta): string[] {
   const d = { ...forSchema(delta), context: MMSI_CONTEXT }
   const problems: string[] = []
   const envelope: Validation = schema.validateDelta(d)
   if (!envelope.valid)
     problems.push('delta: ' + JSON.stringify(envelope.errors))
-  const full: Validation = schema.validateFull(schema.deltaToFull(d))
+  const full: Validation = schema.validateFull(serverFull(d))
   if (!full.valid) {
     problems.push(
       'full: ' +
